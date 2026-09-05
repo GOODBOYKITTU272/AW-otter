@@ -5,7 +5,4 @@ packages:
 
 allowBuilds:
   esbuild: true
-
-ignoredBuiltDependencies:
-  - sharp
-  - unrs-resolver
+  unrs-resolver: false
