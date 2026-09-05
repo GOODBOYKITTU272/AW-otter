@@ -30,5 +30,15 @@ jobs:
       - name: Test
         run: pnpm run test
 
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase
+        run: supabase start --exclude edge-runtime,imgproxy,logflare,mailpit,postgres-meta,realtime,storage-api,studio,vector
+
+      - name: Database / RLS tests
+        run: supabase test db --local supabase/tests/database
+
       - name: Build
         run: pnpm run build

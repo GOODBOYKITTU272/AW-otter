@@ -1,12 +1,26 @@
-export default function Home() {
-  return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-      <h1 className="text-2xl font-semibold tracking-tight">
-        ApplyWizz Signal
-      </h1>
-      <p className="text-sm text-zinc-500 dark:text-zinc-400">
-        Schedule the meeting normally. ApplyWizz handles everything else.
-      </p>
-    </main>
-  );
+import { redirect } from "next/navigation";
+import {
+  getCurrentMembership,
+  NoActiveMembershipError,
+  UnauthenticatedError,
+} from "@applywizz/auth";
+import { ROLE_HOME_ROUTE, isSystemRoleKey } from "@applywizz/domain";
+import { getSupabaseServerClient } from "@/lib/supabase/server";
+
+/** Resolves the signed-in user's role and sends them to their home route. */
+export default async function RootPage() {
+  const supabase = await getSupabaseServerClient();
+
+  const roleKey = await getCurrentMembership(supabase)
+    .then((membership) => membership.roleKey)
+    .catch((error: unknown) => {
+      if (error instanceof UnauthenticatedError) redirect("/login");
+      if (error instanceof NoActiveMembershipError) redirect("/access-pending");
+      throw error;
+    });
+
+  if (isSystemRoleKey(roleKey)) {
+    redirect(ROLE_HOME_ROUTE[roleKey]);
+  }
+  redirect("/access-pending");
 }

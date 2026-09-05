@@ -13,9 +13,15 @@
     "typecheck": "pnpm -r --if-present run typecheck",
     "test": "pnpm -r --if-present run test",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "seed:users": "node --env-file=apps/web/.env.local scripts/seed-local-users.mjs",
+    "bootstrap:admin": "node scripts/bootstrap-admin.mjs"
   },
   "devDependencies": {
-    "prettier": "^3.4.0"
+    "@supabase/supabase-js": "^2.58.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.4.0",
+    "typescript": "^5.0.0",
+    "typescript-eslint": "^8.0.0"
   }
 }
