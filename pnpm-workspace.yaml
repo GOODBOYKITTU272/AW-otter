@@ -1,0 +1,11 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "workers/*"
+
+allowBuilds:
+  esbuild: true
+
+ignoredBuiltDependencies:
+  - sharp
+  - unrs-resolver

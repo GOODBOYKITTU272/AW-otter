@@ -1,0 +1,26 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+.next/
+out/
+build/
+dist/
+
+# testing
+coverage/
+
+# env files (never commit real secrets)
+.env
+.env.*
+!.env.example
+
+# misc
+.DS_Store
+*.tsbuildinfo
+.vercel
+
+# supabase local runtime state
+supabase/.temp/
+supabase/.branches/
