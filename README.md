@@ -10,7 +10,7 @@ Company-controlled meeting intelligence and organizational memory for ApplyWizz 
 
 ## Prerequisites
 
-- Node.js >= 20
+- Node.js >= 22.13
 - [pnpm](https://pnpm.io) (version pinned in `package.json#packageManager`; run via `corepack enable` or install directly)
 
 ## Install
