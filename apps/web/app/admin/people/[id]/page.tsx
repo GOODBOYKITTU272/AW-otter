@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getCurrentMembership } from "@applywizz/auth";
+import { getConnectionStatus } from "@applywizz/domain/microsoft-connection";
 import {
   getOrgReferenceData,
   getPerson,
@@ -8,6 +9,14 @@ import {
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/require-role";
 import { EditPersonForm } from "./edit-person-form";
+
+const MICROSOFT_STATUS_LABEL: Record<string, string> = {
+  not_connected: "Not Connected",
+  pending: "Pending",
+  active: "Connected",
+  error: "Error / Needs Reconnect",
+  disconnected: "Not Connected",
+};
 
 export default async function PersonDetailPage({
   params,
@@ -22,9 +31,10 @@ export default async function PersonDetailPage({
   const person = await getPerson(supabase, id);
   if (!person) notFound();
 
-  const [reference, activity] = await Promise.all([
+  const [reference, activity, microsoftStatus] = await Promise.all([
     getOrgReferenceData(supabase, membership.organizationId),
     getPersonAuditEvents(supabase, id),
+    getConnectionStatus(supabase, id),
   ]);
 
   return (
@@ -53,6 +63,28 @@ export default async function PersonDetailPage({
           Role &amp; Reporting
         </h2>
         <EditPersonForm person={person} reference={reference} />
+      </section>
+
+      <section className="flex flex-col gap-1">
+        <h2 className="text-sm font-semibold text-zinc-500">
+          Microsoft Calendar
+        </h2>
+        <p className="text-sm">
+          {MICROSOFT_STATUS_LABEL[microsoftStatus.status]}
+        </p>
+        {microsoftStatus.status !== "active" ? (
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            This person must connect their own Microsoft account from their
+            Integrations page — an Admin cannot do this on their behalf.
+          </p>
+        ) : (
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            Last sync:{" "}
+            {microsoftStatus.lastSyncAt
+              ? new Date(microsoftStatus.lastSyncAt).toLocaleString()
+              : "Never"}
+          </p>
+        )}
       </section>
 
       <section className="flex flex-col gap-2">

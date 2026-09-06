@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
     "@applywizz/auth",
     "@applywizz/database",
     "@applywizz/domain",
+    "@applywizz/microsoft",
   ],
 };
 

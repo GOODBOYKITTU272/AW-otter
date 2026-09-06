@@ -80,6 +80,117 @@ export type Database = {
           },
         ];
       };
+      calendar_connection_secrets: {
+        Row: {
+          access_token_expires_at: string;
+          connection_id: string;
+          encrypted_access_token: string;
+          encrypted_refresh_token: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          access_token_expires_at: string;
+          connection_id: string;
+          encrypted_access_token: string;
+          encrypted_refresh_token?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          access_token_expires_at?: string;
+          connection_id?: string;
+          encrypted_access_token?: string;
+          encrypted_refresh_token?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "calendar_connection_secrets_connection_id_fkey";
+            columns: ["connection_id"];
+            isOneToOne: true;
+            referencedRelation: "calendar_connections";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      calendar_connections: {
+        Row: {
+          created_at: string;
+          id: string;
+          last_sync_at: string | null;
+          organization_membership_id: string;
+          provider: string;
+          provider_user_id: string;
+          scope_metadata: Json;
+          status: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          last_sync_at?: string | null;
+          organization_membership_id: string;
+          provider?: string;
+          provider_user_id: string;
+          scope_metadata?: Json;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          last_sync_at?: string | null;
+          organization_membership_id?: string;
+          provider?: string;
+          provider_user_id?: string;
+          scope_metadata?: Json;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "calendar_connections_organization_membership_id_fkey";
+            columns: ["organization_membership_id"];
+            isOneToOne: false;
+            referencedRelation: "organization_memberships";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      calendar_sync_cursors: {
+        Row: {
+          calendar_connection_id: string;
+          cursor: string | null;
+          id: string;
+          updated_at: string;
+          window_end: string | null;
+          window_start: string | null;
+        };
+        Insert: {
+          calendar_connection_id: string;
+          cursor?: string | null;
+          id?: string;
+          updated_at?: string;
+          window_end?: string | null;
+          window_start?: string | null;
+        };
+        Update: {
+          calendar_connection_id?: string;
+          cursor?: string | null;
+          id?: string;
+          updated_at?: string;
+          window_end?: string | null;
+          window_start?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "calendar_sync_cursors_calendar_connection_id_fkey";
+            columns: ["calendar_connection_id"];
+            isOneToOne: false;
+            referencedRelation: "calendar_connections";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       departments: {
         Row: {
           created_at: string;
@@ -273,6 +384,56 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [];
+      };
+      provider_subscriptions: {
+        Row: {
+          calendar_connection_id: string;
+          created_at: string;
+          expires_at: string;
+          external_subscription_id: string;
+          id: string;
+          last_notification_at: string | null;
+          last_renewed_at: string | null;
+          provider: string;
+          resource: string;
+          status: string;
+          updated_at: string;
+        };
+        Insert: {
+          calendar_connection_id: string;
+          created_at?: string;
+          expires_at: string;
+          external_subscription_id: string;
+          id?: string;
+          last_notification_at?: string | null;
+          last_renewed_at?: string | null;
+          provider?: string;
+          resource: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          calendar_connection_id?: string;
+          created_at?: string;
+          expires_at?: string;
+          external_subscription_id?: string;
+          id?: string;
+          last_notification_at?: string | null;
+          last_renewed_at?: string | null;
+          provider?: string;
+          resource?: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "provider_subscriptions_calendar_connection_id_fkey";
+            columns: ["calendar_connection_id"];
+            isOneToOne: false;
+            referencedRelation: "calendar_connections";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       role_permissions: {
         Row: {

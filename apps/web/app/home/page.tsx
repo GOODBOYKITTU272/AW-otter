@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { SignOutButton } from "@/components/sign-out-button";
 import { requireRole } from "@/lib/require-role";
 
@@ -13,6 +14,9 @@ export default async function AccountManagerHomePage() {
       <p className="text-sm text-zinc-500 dark:text-zinc-400">
         Signed in as {membership.displayName}.
       </p>
+      <Link href="/integrations" className="w-fit text-sm underline">
+        Integrations
+      </Link>
     </main>
   );
 }

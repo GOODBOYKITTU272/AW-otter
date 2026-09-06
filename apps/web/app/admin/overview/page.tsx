@@ -17,6 +17,9 @@ export default async function AdminOverviewPage() {
       <Link href="/admin/people" className="w-fit text-sm underline">
         People
       </Link>
+      <Link href="/integrations" className="w-fit text-sm underline">
+        Integrations
+      </Link>
     </main>
   );
 }

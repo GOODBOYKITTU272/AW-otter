@@ -54,7 +54,7 @@ describe("getClientEnv", () => {
   });
 });
 
-describe("getServerEnv", () => {
+describe("server env getters", () => {
   beforeEach(() => {
     vi.resetModules();
     setAllEnv();
@@ -65,15 +65,29 @@ describe("getServerEnv", () => {
     delete globalThis.window;
   });
 
-  it("returns configured values", async () => {
-    const { getServerEnv } = await import("./server");
-    expect(getServerEnv().OPENAI_API_KEY).toBe("test-value");
+  it("each getter returns only its own concern's values", async () => {
+    const server = await import("./server");
+    expect(server.getMicrosoftEnv().MICROSOFT_CLIENT_ID).toBe("test-value");
+    expect(server.getEncryptionKey()).toBe("test-value");
+    expect(server.getSupabaseServiceRoleKey()).toBe("test-value");
+    expect(server.getAppBaseUrl()).toBe("test-value");
   });
 
-  it("throws when a required server var is missing", async () => {
+  it("a getter fails only when its OWN vars are missing, not unrelated ones", async () => {
+    // Simulates M3 calling getMicrosoftEnv() while Vexa/OpenAI/Email/CRM
+    // (unrelated future milestones) are still unset.
+    delete process.env.VEXA_API_KEY;
     delete process.env.OPENAI_API_KEY;
-    const { getServerEnv } = await import("./server");
-    expect(() => getServerEnv()).toThrow(/OPENAI_API_KEY/);
+    delete process.env.EMAIL_PROVIDER_API_KEY;
+    delete process.env.APPLYWIZZ_CRM_API_KEY;
+    const { getMicrosoftEnv } = await import("./server");
+    expect(() => getMicrosoftEnv()).not.toThrow();
+  });
+
+  it("throws when a required var for that getter is missing", async () => {
+    delete process.env.MICROSOFT_CLIENT_ID;
+    const { getMicrosoftEnv } = await import("./server");
+    expect(() => getMicrosoftEnv()).toThrow(/MICROSOFT_CLIENT_ID/);
   });
 
   it("refuses to load when imported into browser-like code", async () => {
