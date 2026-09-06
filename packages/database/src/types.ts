@@ -36,10 +36,90 @@ export type Database = {
   };
   public: {
     Tables: {
+      audit_events: {
+        Row: {
+          action: string;
+          actor_id: string | null;
+          actor_type: string;
+          entity_id: string;
+          entity_type: string;
+          id: string;
+          metadata: Json;
+          occurred_at: string;
+          organization_id: string;
+        };
+        Insert: {
+          action: string;
+          actor_id?: string | null;
+          actor_type?: string;
+          entity_id: string;
+          entity_type: string;
+          id?: string;
+          metadata?: Json;
+          occurred_at?: string;
+          organization_id: string;
+        };
+        Update: {
+          action?: string;
+          actor_id?: string | null;
+          actor_type?: string;
+          entity_id?: string;
+          entity_type?: string;
+          id?: string;
+          metadata?: Json;
+          occurred_at?: string;
+          organization_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "audit_events_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      departments: {
+        Row: {
+          created_at: string;
+          id: string;
+          name: string;
+          organization_id: string;
+          status: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          name: string;
+          organization_id: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          name?: string;
+          organization_id?: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "departments_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       organization_memberships: {
         Row: {
           created_at: string;
           deactivated_at: string | null;
+          department_id: string | null;
           display_name: string;
           id: string;
           manager_membership_id: string | null;
@@ -47,6 +127,7 @@ export type Database = {
           organization_id: string;
           role_id: string;
           status: Database["public"]["Enums"]["membership_status"];
+          team_id: string | null;
           updated_at: string;
           user_id: string | null;
           work_email: string;
@@ -54,6 +135,7 @@ export type Database = {
         Insert: {
           created_at?: string;
           deactivated_at?: string | null;
+          department_id?: string | null;
           display_name: string;
           id?: string;
           manager_membership_id?: string | null;
@@ -61,6 +143,7 @@ export type Database = {
           organization_id: string;
           role_id: string;
           status?: Database["public"]["Enums"]["membership_status"];
+          team_id?: string | null;
           updated_at?: string;
           user_id?: string | null;
           work_email: string;
@@ -68,6 +151,7 @@ export type Database = {
         Update: {
           created_at?: string;
           deactivated_at?: string | null;
+          department_id?: string | null;
           display_name?: string;
           id?: string;
           manager_membership_id?: string | null;
@@ -75,11 +159,19 @@ export type Database = {
           organization_id?: string;
           role_id?: string;
           status?: Database["public"]["Enums"]["membership_status"];
+          team_id?: string | null;
           updated_at?: string;
           user_id?: string | null;
           work_email?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: "organization_memberships_department_id_fkey";
+            columns: ["department_id"];
+            isOneToOne: false;
+            referencedRelation: "departments";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "organization_memberships_manager_membership_id_fkey";
             columns: ["manager_membership_id"];
@@ -99,6 +191,13 @@ export type Database = {
             columns: ["role_id"];
             isOneToOne: false;
             referencedRelation: "roles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "organization_memberships_team_id_fkey";
+            columns: ["team_id"];
+            isOneToOne: false;
+            referencedRelation: "teams";
             referencedColumns: ["id"];
           },
         ];
@@ -236,6 +335,61 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "roles_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      teams: {
+        Row: {
+          created_at: string;
+          department_id: string | null;
+          id: string;
+          manager_membership_id: string | null;
+          name: string;
+          organization_id: string;
+          status: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          department_id?: string | null;
+          id?: string;
+          manager_membership_id?: string | null;
+          name: string;
+          organization_id: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          department_id?: string | null;
+          id?: string;
+          manager_membership_id?: string | null;
+          name?: string;
+          organization_id?: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "teams_department_id_fkey";
+            columns: ["department_id"];
+            isOneToOne: false;
+            referencedRelation: "departments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "teams_manager_membership_id_fkey";
+            columns: ["manager_membership_id"];
+            isOneToOne: false;
+            referencedRelation: "organization_memberships";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "teams_organization_id_fkey";
             columns: ["organization_id"];
             isOneToOne: false;
             referencedRelation: "organizations";

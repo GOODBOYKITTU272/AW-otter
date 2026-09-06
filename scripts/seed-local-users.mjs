@@ -26,11 +26,13 @@ export const LOCAL_TEST_PASSWORD = "LocalDevPassword123!";
 // Must match supabase/seed.sql work_email values exactly.
 const TEST_USERS = [
   "admin@org-a.test",
+  "senior-manager@org-a.test",
   "manager@org-a.test",
-  "am-a@org-a.test",
-  "am-b@org-a.test",
+  "am-a1@org-a.test",
+  "am-a2@org-a.test",
   "admin@org-b.test",
-  "am@org-b.test",
+  "manager@org-b.test",
+  "am-b1@org-b.test",
 ];
 
 async function main() {
