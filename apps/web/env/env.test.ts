@@ -21,6 +21,7 @@ const SERVER_VARS = [
   "APP_BASE_URL",
   "WEBHOOK_BASE_URL",
   "ENCRYPTION_KEY",
+  "INTERNAL_QUEUE_SECRET",
 ] as const;
 
 function setAllEnv() {
@@ -71,6 +72,7 @@ describe("server env getters", () => {
     expect(server.getEncryptionKey()).toBe("test-value");
     expect(server.getSupabaseServiceRoleKey()).toBe("test-value");
     expect(server.getAppBaseUrl()).toBe("test-value");
+    expect(server.getInternalQueueSecret()).toBe("test-value");
   });
 
   it("a getter fails only when its OWN vars are missing, not unrelated ones", async () => {

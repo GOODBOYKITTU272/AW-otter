@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createSubscription,
   deleteSubscription,
+  getCalendarEvent,
   listUpcomingEvents,
   renewSubscription,
 } from "./graph-client";
@@ -116,6 +117,28 @@ describe("deleteSubscription", () => {
         "sub-1",
         fakeFetch(500, { error: { code: "ServiceError" } }),
       ),
+    ).rejects.toBeInstanceOf(GraphApiError);
+  });
+});
+
+describe("getCalendarEvent", () => {
+  it("returns the normalized event when found", async () => {
+    const event = await getCalendarEvent(
+      "at",
+      "evt-1",
+      fakeFetch(200, { id: "evt-1", subject: "Sync", start: { dateTime: "x" }, end: { dateTime: "y" } }),
+    );
+    expect(event?.externalEventId).toBe("evt-1");
+  });
+
+  it("returns null on 404 (deleted event)", async () => {
+    const event = await getCalendarEvent("at", "evt-1", fakeFetch(404, {}));
+    expect(event).toBeNull();
+  });
+
+  it("throws a typed error on a real failure", async () => {
+    await expect(
+      getCalendarEvent("at", "evt-1", fakeFetch(500, { error: { code: "ServiceError" } })),
     ).rejects.toBeInstanceOf(GraphApiError);
   });
 });

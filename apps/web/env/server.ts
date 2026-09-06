@@ -106,6 +106,11 @@ export function getCrmEnv() {
   } as const;
 }
 
+/** Shared secret gating the internal queue-processing route — never exposed to the browser, never derivable by an authenticated app user. */
+export function getInternalQueueSecret(): string {
+  return required("INTERNAL_QUEUE_SECRET", process.env.INTERNAL_QUEUE_SECRET);
+}
+
 export function getLogLevel(): string {
   return process.env.LOG_LEVEL ?? "info";
 }

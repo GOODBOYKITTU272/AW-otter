@@ -7,6 +7,9 @@ import { normalizeGraphError } from "./errors";
 import { normalizeCalendarEvent, type RawGraphEvent } from "./normalize";
 import type { GraphSubscriptionDto, MicrosoftCalendarEvent } from "./types";
 
+const EVENT_SELECT_FIELDS =
+  "id,subject,start,end,organizer,attendees,isOnlineMeeting,onlineMeetingProvider,onlineMeeting,lastModifiedDateTime";
+
 async function graphRequest<T>(
   path: string,
   accessToken: string,
@@ -18,6 +21,11 @@ async function graphRequest<T>(
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
+      // Without this, Graph event ids can change on move/copy — the exact
+      // scenario M4's canonical-meeting matching (organization_id, provider,
+      // external_event_id) depends on being stable. Harmless on endpoints
+      // that don't recognize it (subscriptions).
+      Prefer: 'IdType="ImmutableId"',
       ...init.headers,
     },
   });
@@ -43,8 +51,7 @@ export async function listUpcomingEvents(
   const params = new URLSearchParams({
     startDateTime: now.toISOString(),
     endDateTime: end.toISOString(),
-    $select:
-      "id,subject,start,end,organizer,attendees,isOnlineMeeting,onlineMeetingProvider,onlineMeeting,lastModifiedDateTime",
+    $select: EVENT_SELECT_FIELDS,
     $orderby: "start/dateTime",
     $top: "100",
   });
@@ -56,6 +63,35 @@ export async function listUpcomingEvents(
     fetchImpl,
   );
   return (result.value ?? []).map(normalizeCalendarEvent);
+}
+
+/**
+ * Fetches a single event by id — used by the M4 queue processor to get the
+ * current state of an event a webhook notification pointed at (Graph's
+ * change notifications carry only an id, not the resource body). Returns
+ * null on 404 (the event was deleted, or a "deleted" notification arrived
+ * — either way there's nothing further to fetch).
+ */
+export async function getCalendarEvent(
+  accessToken: string,
+  externalEventId: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<MicrosoftCalendarEvent | null> {
+  const response = await fetchImpl(
+    `${GRAPH_BASE_URL}/me/events/${encodeURIComponent(externalEventId)}?$select=${EVENT_SELECT_FIELDS}`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Prefer: 'IdType="ImmutableId"',
+      },
+    },
+  );
+  if (response.status === 404) return null;
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw normalizeGraphError(response.status, body, response.headers.get("retry-after"));
+  }
+  return normalizeCalendarEvent(body as RawGraphEvent);
 }
 
 interface RawGraphSubscription {

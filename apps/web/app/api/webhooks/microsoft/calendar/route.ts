@@ -1,16 +1,20 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createSupabaseServiceRoleClient } from "@applywizz/database/server";
+import { enqueueCalendarEventJobForSubscription } from "@applywizz/domain/meetings";
 import { getMicrosoftEnv, getSupabaseServiceRoleKey } from "@/env/server";
 import { getClientEnv } from "@/env/client";
 
 interface GraphNotification {
   subscriptionId?: string;
   clientState?: string;
+  changeType?: string;
+  resourceData?: { id?: string };
 }
 
-// M3 scope: keep the subscription alive and record that a notification
-// arrived. Turning notifications into canonical meeting changes is M4's
-// job — this handler does no such processing.
+// Records the notification arrived (last_notification_at, kept from M3)
+// and hands off the actual Graph fetch + canonical upsert to the durable
+// queue (processCalendarEventQueue, packages/domain/src/meetings.ts) — this
+// handler stays fast and does no Graph calls of its own.
 export async function POST(request: NextRequest) {
   // Graph's subscription validation handshake: echo the token back as
   // text/plain. No membership/org identity is involved in this step at all.
@@ -47,6 +51,19 @@ export async function POST(request: NextRequest) {
       .eq("external_subscription_id", notification.subscriptionId);
     if (error) {
       console.error("Failed to record Microsoft calendar notification", error);
+    }
+
+    const externalEventId = notification.resourceData?.id;
+    if (!externalEventId) continue;
+
+    try {
+      await enqueueCalendarEventJobForSubscription(serviceRoleClient, {
+        externalSubscriptionId: notification.subscriptionId,
+        externalEventId,
+        changeType: notification.changeType ?? "updated",
+      });
+    } catch (enqueueError) {
+      console.error("Failed to enqueue Microsoft calendar event job", enqueueError);
     }
   }
 
