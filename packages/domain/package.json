@@ -13,6 +13,7 @@
     "./microsoft-tenant-connection": "./src/microsoft-tenant-connection.ts",
     "./meeting-policy": "./src/meeting-policy.ts",
     "./recording-exceptions": "./src/recording-exceptions.ts",
+    "./meeting-bots": "./src/meeting-bots.ts",
     "./audit": "./src/audit.ts"
   },
   "scripts": {
@@ -22,7 +23,8 @@
   },
   "dependencies": {
     "@applywizz/database": "workspace:*",
-    "@applywizz/microsoft": "workspace:*"
+    "@applywizz/microsoft": "workspace:*",
+    "@applywizz/meeting-bots": "workspace:*"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.58.0",

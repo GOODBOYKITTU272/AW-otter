@@ -19,6 +19,30 @@ const ELIGIBILITY_LABEL: Record<string, string> = {
   pending: "Not yet evaluated",
 };
 
+const BOT_STATUS_TONE: Record<string, BadgeTone> = {
+  pending: "neutral",
+  scheduled: "info",
+  joining: "warning",
+  joined: "success",
+  completed: "success",
+  cancelled: "neutral",
+  failed: "critical",
+};
+
+// Deliberately human, never a raw provider status or provider-specific
+// term ("Vexa", provider bot ids) — blueprint's "Required AM simplicity"
+// mockup shows exactly this line, no Invite Bot button, no provider
+// settings, ever.
+const BOT_STATUS_LABEL: Record<string, string> = {
+  pending: "Preparing ApplyWizz Meeting Assistant",
+  scheduled: "ApplyWizz Meeting Assistant scheduled",
+  joining: "ApplyWizz Meeting Assistant joining",
+  joined: "ApplyWizz Meeting Assistant in the meeting",
+  completed: "ApplyWizz Meeting Assistant completed",
+  cancelled: "ApplyWizz Meeting Assistant not attending",
+  failed: "ApplyWizz Meeting Assistant could not join",
+};
+
 /**
  * RLS already scopes the rows: an account manager sees only their own
  * meetings, an org admin sees every meeting in their organization — no
@@ -38,7 +62,9 @@ export async function UpcomingMeetings({
 }) {
   const { data: meetings, error } = await supabase
     .from("meetings")
-    .select("id, title, meeting_url, scheduled_start, scheduled_end, eligibility_status")
+    .select(
+      "id, title, meeting_url, scheduled_start, scheduled_end, eligibility_status",
+    )
     .eq("lifecycle_status", "upcoming")
     .gte("scheduled_start", new Date().toISOString())
     .order("scheduled_start")
@@ -60,7 +86,27 @@ export async function UpcomingMeetings({
       .select("meeting_id")
       .eq("status", "requested");
     if (pendingError) throw pendingError;
-    pendingMeetingIds = new Set((pendingRequests ?? []).map((r) => r.meeting_id));
+    pendingMeetingIds = new Set(
+      (pendingRequests ?? []).map((r) => r.meeting_id),
+    );
+  }
+
+  // meeting_bot_jobs RLS mirrors meetings' own visibility (see M6's
+  // meeting_bot_jobs_select_meeting_visible policy) — the same query
+  // works unmodified for an AM's own meetings or an admin's org-wide view.
+  const { data: botJobs, error: botJobsError } = await supabase
+    .from("meeting_bot_jobs")
+    .select("meeting_id, status")
+    .in(
+      "meeting_id",
+      meetings.map((m) => m.id),
+    )
+    .order("generation", { ascending: false });
+  if (botJobsError) throw botJobsError;
+  const botStatusByMeetingId = new Map<string, string>();
+  for (const job of botJobs ?? []) {
+    if (!botStatusByMeetingId.has(job.meeting_id))
+      botStatusByMeetingId.set(job.meeting_id, job.status);
   }
 
   return (
@@ -75,18 +121,40 @@ export async function UpcomingMeetings({
             <span className="text-zinc-500 dark:text-zinc-400">
               {new Date(meeting.scheduled_start).toLocaleString()}
             </span>
-            <StatusBadge tone={ELIGIBILITY_TONE[meeting.eligibility_status] ?? "neutral"}>
-              {ELIGIBILITY_LABEL[meeting.eligibility_status] ?? meeting.eligibility_status}
+            <StatusBadge
+              tone={ELIGIBILITY_TONE[meeting.eligibility_status] ?? "neutral"}
+            >
+              {ELIGIBILITY_LABEL[meeting.eligibility_status] ??
+                meeting.eligibility_status}
             </StatusBadge>
+            {botStatusByMeetingId.has(meeting.id) ? (
+              <StatusBadge
+                tone={
+                  BOT_STATUS_TONE[botStatusByMeetingId.get(meeting.id)!] ??
+                  "neutral"
+                }
+              >
+                {BOT_STATUS_LABEL[botStatusByMeetingId.get(meeting.id)!] ??
+                  botStatusByMeetingId.get(meeting.id)}
+              </StatusBadge>
+            ) : null}
           </div>
           <div className="flex shrink-0 flex-col items-end gap-2">
             {meeting.meeting_url ? (
-              <a href={meeting.meeting_url} className="underline" target="_blank" rel="noreferrer">
+              <a
+                href={meeting.meeting_url}
+                className="underline"
+                target="_blank"
+                rel="noreferrer"
+              >
                 Join
               </a>
             ) : null}
             {showRequestAction ? (
-              <RequestDoNotRecordAction meetingId={meeting.id} alreadyPending={pendingMeetingIds.has(meeting.id)} />
+              <RequestDoNotRecordAction
+                meetingId={meeting.id}
+                alreadyPending={pendingMeetingIds.has(meeting.id)}
+              />
             ) : null}
           </div>
         </li>

@@ -74,6 +74,14 @@ export function getVexaEnv() {
   } as const;
 }
 
+/** Adapts getVexaEnv()'s env-var-named shape to @applywizz/meeting-bots' VexaEnv. */
+export function toVexaEnv(env: ReturnType<typeof getVexaEnv>) {
+  return {
+    baseUrl: env.VEXA_BASE_URL,
+    apiKey: env.VEXA_API_KEY,
+  } as const;
+}
+
 export function getOpenAiEnv() {
   return {
     OPENAI_API_KEY: required("OPENAI_API_KEY", process.env.OPENAI_API_KEY),

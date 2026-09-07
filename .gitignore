@@ -24,3 +24,6 @@ coverage/
 # supabase local runtime state
 supabase/.temp/
 supabase/.branches/
+
+# infrastructure secrets (SSH keys, generated credentials) — never commit
+.azure-secrets/

@@ -1,0 +1,14 @@
+{
+  "name": "@applywizz/orchestrator",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "bot-worker": "node --env-file=../../apps/web/.env.local bot-worker.mjs"
+  },
+  "dependencies": {
+    "@applywizz/domain": "workspace:*",
+    "@applywizz/meeting-bots": "workspace:*",
+    "@supabase/supabase-js": "^2.58.0"
+  }
+}
