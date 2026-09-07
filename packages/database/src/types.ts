@@ -116,6 +116,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          last_reconciliation_result: Json | null
           last_sync_at: string | null
           organization_membership_id: string
           provider: string
@@ -127,6 +128,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          last_reconciliation_result?: Json | null
           last_sync_at?: string | null
           organization_membership_id: string
           provider?: string
@@ -138,6 +140,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          last_reconciliation_result?: Json | null
           last_sync_at?: string | null
           organization_membership_id?: string
           provider?: string
@@ -345,6 +348,8 @@ export type Database = {
           meeting_type: string | null
           meeting_url: string | null
           organization_id: string
+          organizer_email: string | null
+          organizer_name: string | null
           owner_membership_id: string | null
           provider: string
           reason_code: string | null
@@ -364,6 +369,8 @@ export type Database = {
           meeting_type?: string | null
           meeting_url?: string | null
           organization_id: string
+          organizer_email?: string | null
+          organizer_name?: string | null
           owner_membership_id?: string | null
           provider?: string
           reason_code?: string | null
@@ -383,6 +390,8 @@ export type Database = {
           meeting_type?: string | null
           meeting_url?: string | null
           organization_id?: string
+          organizer_email?: string | null
+          organizer_name?: string | null
           owner_membership_id?: string | null
           provider?: string
           reason_code?: string | null

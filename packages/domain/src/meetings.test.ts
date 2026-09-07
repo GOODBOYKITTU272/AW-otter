@@ -136,6 +136,89 @@ describe("upsertCanonicalMeeting", () => {
 
     expect(insertSpy).not.toHaveBeenCalled();
   });
+
+  it("persists organizer and marks meeting_type 'teams' for a real Teams event", async () => {
+    const upsertSpy = vi.fn(() => ({ data: { id: "meeting-1" }, error: null }));
+    const supabase = createFakeSupabase({
+      meetings: { select: () => ({ data: null, error: null }), upsert: upsertSpy },
+      meeting_attendees: { delete: () => ({ data: null, error: null }), insert: () => ({ data: null, error: null }) },
+    });
+
+    await upsertCanonicalMeeting(supabase, {
+      organizationId: "org-1",
+      ownerMembershipId: "m1",
+      provider: "microsoft",
+      event: baseEvent,
+    });
+
+    expect(upsertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizer_name: "Ada",
+        organizer_email: "ada@applywizz.test",
+        meeting_type: "teams",
+      }),
+    );
+  });
+
+  it("leaves meeting_type null for a non-Teams event", async () => {
+    const upsertSpy = vi.fn(() => ({ data: { id: "meeting-1" }, error: null }));
+    const supabase = createFakeSupabase({
+      meetings: { select: () => ({ data: null, error: null }), upsert: upsertSpy },
+      meeting_attendees: { delete: () => ({ data: null, error: null }), insert: () => ({ data: null, error: null }) },
+    });
+
+    await upsertCanonicalMeeting(supabase, {
+      organizationId: "org-1",
+      ownerMembershipId: "m1",
+      provider: "microsoft",
+      event: { ...baseEvent, isOnlineMeeting: false, onlineMeetingProvider: null },
+    });
+
+    expect(upsertSpy).toHaveBeenCalledWith(expect.objectContaining({ meeting_type: null }));
+  });
+
+  it("marks reason_code 'rescheduled' when the event's time differs from the stored meeting", async () => {
+    const upsertSpy = vi.fn(() => ({ data: { id: "meeting-1" }, error: null }));
+    const supabase = createFakeSupabase({
+      meetings: {
+        select: () => ({
+          data: { scheduled_start: "2026-09-01T00:00:00Z", scheduled_end: "2026-09-01T01:00:00Z" },
+          error: null,
+        }),
+        upsert: upsertSpy,
+      },
+      meeting_attendees: { delete: () => ({ data: null, error: null }), insert: () => ({ data: null, error: null }) },
+    });
+
+    await upsertCanonicalMeeting(supabase, {
+      organizationId: "org-1",
+      ownerMembershipId: "m1",
+      provider: "microsoft",
+      event: baseEvent,
+    });
+
+    expect(upsertSpy).toHaveBeenCalledWith(expect.objectContaining({ reason_code: "rescheduled" }));
+  });
+
+  it("leaves reason_code null when the stored meeting's time is unchanged", async () => {
+    const upsertSpy = vi.fn(() => ({ data: { id: "meeting-1" }, error: null }));
+    const supabase = createFakeSupabase({
+      meetings: {
+        select: () => ({ data: { scheduled_start: baseEvent.start, scheduled_end: baseEvent.end }, error: null }),
+        upsert: upsertSpy,
+      },
+      meeting_attendees: { delete: () => ({ data: null, error: null }), insert: () => ({ data: null, error: null }) },
+    });
+
+    await upsertCanonicalMeeting(supabase, {
+      organizationId: "org-1",
+      ownerMembershipId: "m1",
+      provider: "microsoft",
+      event: baseEvent,
+    });
+
+    expect(upsertSpy).toHaveBeenCalledWith(expect.objectContaining({ reason_code: null }));
+  });
 });
 
 describe("cancelCanonicalMeeting", () => {
@@ -358,6 +441,7 @@ describe("reconcileCalendarConnection", () => {
   it("upserts every listed event and cancels an upcoming meeting no longer present", async () => {
     const cancelSpy = vi.fn(() => ({ data: { id: "meeting-stale" }, error: null }));
     const upsertSpy = vi.fn(() => ({ data: { id: "meeting-1" }, error: null }));
+    const persistResultSpy = vi.fn(() => ({ data: null, error: null }));
     const supabase = createFakeSupabase({
       calendar_connection_secrets: {
         select: () => ({
@@ -371,19 +455,28 @@ describe("reconcileCalendarConnection", () => {
       },
       meetings: {
         upsert: upsertSpy,
-        select: () => ({
-          data: [
-            { id: "meeting-1", external_event_id: "evt-1" },
-            { id: "meeting-stale", external_event_id: "evt-gone" },
-          ],
-          error: null,
-        }),
+        // Distinguishes upsertCanonicalMeeting's own "does this event
+        // already exist" pre-check (filtered by external_event_id, expects
+        // 0-1 rows) from reconcileCalendarConnection's stale-meeting listing
+        // (filtered by lifecycle_status, expects many rows) — both go
+        // through this same fake table.
+        select: (filters: Record<string, unknown>) =>
+          filters.external_event_id
+            ? { data: null, error: null }
+            : {
+                data: [
+                  { id: "meeting-1", external_event_id: "evt-1" },
+                  { id: "meeting-stale", external_event_id: "evt-gone" },
+                ],
+                error: null,
+              },
         update: cancelSpy,
       },
       meeting_attendees: {
         delete: () => ({ data: null, error: null }),
         insert: () => ({ data: null, error: null }),
       },
+      calendar_connections: { update: persistResultSpy },
     });
 
     const fetchImpl = async (input: string | URL | Request) => {
@@ -407,8 +500,12 @@ describe("reconcileCalendarConnection", () => {
       fetchImpl,
     });
 
-    expect(result).toEqual({ eventsSeen: 1, cancelled: 1 });
+    expect(result).toEqual({ eventsSeen: 1, cancelled: 1, ranAt: expect.any(String) });
     expect(upsertSpy).toHaveBeenCalledTimes(1);
     expect(cancelSpy).toHaveBeenCalledWith({ lifecycle_status: "cancelled" }, expect.anything());
+    expect(persistResultSpy).toHaveBeenCalledWith(
+      { last_reconciliation_result: expect.objectContaining({ eventsSeen: 1, cancelled: 1 }) },
+      expect.anything(),
+    );
   });
 });

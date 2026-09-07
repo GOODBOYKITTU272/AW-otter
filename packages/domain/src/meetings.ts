@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@applywizz/database/types";
-import { getCalendarEvent, listUpcomingEvents, type MicrosoftCalendarEvent } from "@applywizz/microsoft";
+import type { Database, Json } from "@applywizz/database/types";
+import { getCalendarEvent, isTeamsEvent, listUpcomingEvents, type MicrosoftCalendarEvent } from "@applywizz/microsoft";
 import { getValidAccessToken, type MicrosoftEnv } from "./microsoft-connection";
 
 export type AppSupabaseClient = SupabaseClient<Database>;
@@ -35,6 +35,22 @@ export async function upsertCanonicalMeeting(
   serviceRoleClient: AppSupabaseClient,
   input: UpsertMeetingInput,
 ): Promise<{ meetingId: string }> {
+  const { data: existing, error: existingError } = await serviceRoleClient
+    .from("meetings")
+    .select("scheduled_start, scheduled_end")
+    .eq("organization_id", input.organizationId)
+    .eq("provider", input.provider)
+    .eq("external_event_id", input.event.externalEventId)
+    .maybeSingle();
+  if (existingError) throw existingError;
+
+  // Reflects whether THIS sync changed the time, not lifetime history — the
+  // next unchanged sync clears it. A full change history is out of scope.
+  const rescheduled =
+    existing !== null &&
+    (new Date(existing.scheduled_start).getTime() !== new Date(input.event.start).getTime() ||
+      new Date(existing.scheduled_end).getTime() !== new Date(input.event.end).getTime());
+
   const { data: meeting, error } = await serviceRoleClient
     .from("meetings")
     .upsert(
@@ -45,9 +61,13 @@ export async function upsertCanonicalMeeting(
         external_event_id: input.event.externalEventId,
         meeting_url: input.event.joinUrl,
         title: input.event.subject,
+        organizer_name: input.event.organizer.name,
+        organizer_email: input.event.organizer.email,
+        meeting_type: isTeamsEvent(input.event) ? "teams" : null,
         scheduled_start: input.event.start,
         scheduled_end: input.event.end,
         lifecycle_status: "upcoming",
+        reason_code: rescheduled ? "rescheduled" : null,
       },
       { onConflict: "organization_id,provider,external_event_id" },
     )
@@ -304,6 +324,7 @@ export interface ReconcileConnectionInput {
 export interface ReconcileConnectionResult {
   eventsSeen: number;
   cancelled: number;
+  ranAt: string;
 }
 
 /**
@@ -357,5 +378,19 @@ export async function reconcileCalendarConnection(
     if (cancelError) throw cancelError;
   }
 
-  return { eventsSeen: events.length, cancelled: stale.length };
+  const result: ReconcileConnectionResult = {
+    eventsSeen: events.length,
+    cancelled: stale.length,
+    ranAt: new Date().toISOString(),
+  };
+
+  // Only written on success — a failed run (e.g. token refresh failing)
+  // leaves the previous result in place rather than fabricating one.
+  const { error: persistError } = await serviceRoleClient
+    .from("calendar_connections")
+    .update({ last_reconciliation_result: result as unknown as Json })
+    .eq("id", input.connectionId);
+  if (persistError) throw persistError;
+
+  return result;
 }

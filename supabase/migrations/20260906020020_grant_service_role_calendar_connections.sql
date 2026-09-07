@@ -1,0 +1,16 @@
+-- Bug found via real local queue-processing verification (not caught by
+-- unit tests, which fake the Supabase client and don't enforce real
+-- grants): packages/domain/src/meetings.ts's processOneJob and
+-- enqueueCalendarEventJobForSubscription both read calendar_connections
+-- via the service-role client to resolve organization_membership_id from
+-- a connection id — but service_role was never granted any access to
+-- calendar_connections at all (20260906020015 granted it
+-- calendar_connection_secrets, organizations, roles,
+-- organization_memberships, provider_subscriptions, but missed this one).
+-- Every real queue job was silently failing with "permission denied for
+-- table calendar_connections" and retrying until dead-lettered.
+--
+-- update is also needed: reconcileCalendarConnection writes
+-- last_reconciliation_result back onto this same table, also via
+-- service_role — caught by the same real-pipeline run.
+grant select, update on public.calendar_connections to service_role;

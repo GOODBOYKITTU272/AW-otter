@@ -5,7 +5,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(39);
+select plan(43);
 
 -- ---------------------------------------------------------------------
 -- Fixtures: two orgs, each with an admin/account managers, meetings,
@@ -148,7 +148,16 @@ select throws_ok(
   '7b. Authenticated owner cannot update meetings directly'
 );
 
-select throws_ok($$ select count(*) from public.calendar_event_jobs $$, '42501', null, '8a. Authenticated user cannot select calendar_event_jobs');
+-- 20260906020019 added a real, admin-scoped select policy on
+-- calendar_event_jobs (see section 16) — a non-admin authenticated user
+-- now has the table-level grant but no policy applies to them, so RLS
+-- filters to zero rows rather than denying the query outright (same shape
+-- as meetings' own visibility tests 2-6, not a throws_ok case anymore).
+select is(
+  (select count(*)::int from public.calendar_event_jobs),
+  0,
+  '8a. Non-admin authenticated user sees no calendar_event_jobs rows'
+);
 select throws_ok($$ insert into public.calendar_event_jobs (calendar_connection_id, organization_id, provider, external_event_id, change_type) values ('27000000-0000-0000-0000-000000002001', '13000000-0000-0000-0000-00000000000a', 'microsoft', 'auth-job', 'updated') $$, '42501', null, '8b. Authenticated user cannot insert calendar_event_jobs');
 select throws_ok($$ update public.calendar_event_jobs set status = 'processing' $$, '42501', null, '8c. Authenticated user cannot update calendar_event_jobs');
 
@@ -303,6 +312,58 @@ select is(
   (select email::text from public.meeting_attendees where id = '27000000-0000-0000-0000-000000004001'),
   'visible@pgtap.test',
   '15b. Attendee on a visible parent meeting is visible'
+);
+
+-- ---------------------------------------------------------------------
+-- 16. calendar_event_jobs admin visibility (new in
+-- 20260906020019_meeting_visibility_fields.sql — previously zero
+-- grants/policies for authenticated at all). Reuses the job rows created
+-- by sections 9-13 above, all of which belong to Org E.
+-- ---------------------------------------------------------------------
+reset role;
+
+insert into public.calendar_connections (id, organization_membership_id, provider, provider_user_id, status, scope_metadata) values
+  ('27000000-0000-0000-0000-000000002101', '27000000-0000-0000-0000-000000001001', 'microsoft', 'ms-oid-f1', 'active', '{"email":"admin-f@applywizz.example"}');
+
+-- Deliberately mismatched: organization_id column says Org E, but the
+-- connection it's actually enqueued against belongs to Org F. This is
+-- exactly the drift scenario Codex's review flagged — proves visibility
+-- is derived from the real connection -> membership -> org chain, not
+-- the denormalized organization_id column on the job row itself.
+insert into public.calendar_event_jobs (id, calendar_connection_id, organization_id, provider, external_event_id, change_type, status) values
+  ('27000000-0000-0000-0000-000000005201', '27000000-0000-0000-0000-000000002101', '13000000-0000-0000-0000-00000000000a', 'microsoft', 'mismatched-org-event', 'created', 'pending');
+
+select pg_temp.tests_as('28000000-0000-0000-0000-000000000001'); -- Admin E
+
+select cmp_ok(
+  (select count(*)::int from public.calendar_event_jobs where organization_id = '13000000-0000-0000-0000-00000000000a'),
+  '>',
+  0,
+  '16a. Org admin can select their own organization''s calendar_event_jobs'
+);
+
+select is(
+  (select count(*)::int from public.calendar_event_jobs where id = '27000000-0000-0000-0000-000000005201'),
+  0,
+  '16b. Org E admin cannot see a job whose organization_id column says Org E but whose real connection belongs to Org F'
+);
+
+select pg_temp.tests_as('28000000-0000-0000-0000-000000001001'); -- Admin F
+
+-- Deliberately does NOT filter by the organization_id column here — 16d
+-- below proves that column is not trustworthy for authorization. This
+-- checks a job genuinely tied to an Org E connection (service-job, from
+-- section 9f), which is the real cross-org-denial proof.
+select is(
+  (select count(*)::int from public.calendar_event_jobs where id = '27000000-0000-0000-0000-000000005001'),
+  0,
+  '16c. Org admin cannot select another organization''s (real, connection-owned) calendar_event_jobs'
+);
+
+select is(
+  (select count(*)::int from public.calendar_event_jobs where id = '27000000-0000-0000-0000-000000005201'),
+  1,
+  '16d. Org F admin CAN see the mismatched job, because it is really enqueued against their own connection'
 );
 
 select * from finish();
