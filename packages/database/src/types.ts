@@ -387,12 +387,149 @@ export type Database = {
           },
         ]
       }
+      meeting_policy_decisions: {
+        Row: {
+          context_snapshot: Json
+          decision: Database["public"]["Enums"]["meeting_eligibility"]
+          evaluated_at: string
+          id: string
+          meeting_id: string
+          organization_id: string
+          policy_set_id: string | null
+          reason_code: string
+          rule_type: string | null
+        }
+        Insert: {
+          context_snapshot?: Json
+          decision: Database["public"]["Enums"]["meeting_eligibility"]
+          evaluated_at?: string
+          id?: string
+          meeting_id: string
+          organization_id: string
+          policy_set_id?: string | null
+          reason_code: string
+          rule_type?: string | null
+        }
+        Update: {
+          context_snapshot?: Json
+          decision?: Database["public"]["Enums"]["meeting_eligibility"]
+          evaluated_at?: string
+          id?: string
+          meeting_id?: string
+          organization_id?: string
+          policy_set_id?: string | null
+          reason_code?: string
+          rule_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_policy_decisions_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_policy_decisions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_policy_decisions_policy_set_id_fkey"
+            columns: ["policy_set_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_policy_sets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_policy_rules: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: string
+          params: Json
+          policy_set_id: string
+          reason_code: string
+          rule_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          params?: Json
+          policy_set_id: string
+          reason_code: string
+          rule_type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          params?: Json
+          policy_set_id?: string
+          reason_code?: string
+          rule_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_policy_rules_policy_set_id_fkey"
+            columns: ["policy_set_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_policy_sets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_policy_sets: {
+        Row: {
+          created_at: string
+          cutoff_minutes_before_start: number
+          default_decision: Database["public"]["Enums"]["meeting_eligibility"]
+          id: string
+          name: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          cutoff_minutes_before_start?: number
+          default_decision?: Database["public"]["Enums"]["meeting_eligibility"]
+          id?: string
+          name?: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          cutoff_minutes_before_start?: number
+          default_decision?: Database["public"]["Enums"]["meeting_eligibility"]
+          id?: string
+          name?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_policy_sets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meetings: {
         Row: {
           actual_end: string | null
           actual_start: string | null
           created_at: string
-          eligibility_status: string
+          eligibility_status: Database["public"]["Enums"]["meeting_eligibility"]
           graph_event_type: string | null
           ical_uid: string
           id: string
@@ -416,7 +553,7 @@ export type Database = {
           actual_end?: string | null
           actual_start?: string | null
           created_at?: string
-          eligibility_status?: string
+          eligibility_status?: Database["public"]["Enums"]["meeting_eligibility"]
           graph_event_type?: string | null
           ical_uid: string
           id?: string
@@ -440,7 +577,7 @@ export type Database = {
           actual_end?: string | null
           actual_start?: string | null
           created_at?: string
-          eligibility_status?: string
+          eligibility_status?: Database["public"]["Enums"]["meeting_eligibility"]
           graph_event_type?: string | null
           ical_uid?: string
           id?: string
@@ -615,6 +752,7 @@ export type Database = {
       organizations: {
         Row: {
           created_at: string
+          email_domain: string | null
           id: string
           name: string
           slug: string
@@ -624,6 +762,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          email_domain?: string | null
           id?: string
           name: string
           slug: string
@@ -633,6 +772,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          email_domain?: string | null
           id?: string
           name?: string
           slug?: string
@@ -730,6 +870,80 @@ export type Database = {
             columns: ["calendar_connection_id"]
             isOneToOne: false
             referencedRelation: "calendar_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recording_exemption_requests: {
+        Row: {
+          created_at: string
+          id: string
+          meeting_id: string
+          organization_id: string
+          reason: string
+          requested_at: string
+          requested_by: string
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: Database["public"]["Enums"]["exemption_status"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          meeting_id: string
+          organization_id: string
+          reason: string
+          requested_at?: string
+          requested_by: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["exemption_status"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          meeting_id?: string
+          organization_id?: string
+          reason?: string
+          requested_at?: string
+          requested_by?: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["exemption_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recording_exemption_requests_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recording_exemption_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recording_exemption_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "organization_memberships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recording_exemption_requests_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "organization_memberships"
             referencedColumns: ["id"]
           },
         ]
@@ -888,6 +1102,18 @@ export type Database = {
       }
     }
     Enums: {
+      exemption_status:
+        | "requested"
+        | "approved"
+        | "rejected"
+        | "cancelled"
+        | "expired"
+      meeting_eligibility:
+        | "pending"
+        | "record"
+        | "exclude"
+        | "pending_exception"
+        | "unsupported"
       membership_status:
         | "invited"
         | "setup_required"
@@ -1025,6 +1251,20 @@ export const Constants = {
   },
   public: {
     Enums: {
+      exemption_status: [
+        "requested",
+        "approved",
+        "rejected",
+        "cancelled",
+        "expired",
+      ],
+      meeting_eligibility: [
+        "pending",
+        "record",
+        "exclude",
+        "pending_exception",
+        "unsupported",
+      ],
       membership_status: [
         "invited",
         "setup_required",

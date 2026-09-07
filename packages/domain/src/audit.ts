@@ -15,10 +15,13 @@ export interface AuditEventInput {
 /**
  * Application-level audit events (Microsoft connection lifecycle, and
  * anything else that isn't a simple column diff on one row the way M2's
- * membership-change trigger is). Writes through the caller's own
+ * membership-change trigger is). Normally writes through the caller's own
  * authenticated client — audit_events_insert_own_org (M3 RLS migration)
  * scopes it to their own organization, same as every other write in this
- * app. Never log tokens/secrets in metadata.
+ * app. As of M5, service_role also has a narrow INSERT-only grant (no
+ * SELECT/UPDATE/DELETE) for genuinely system-triggered events with no
+ * authenticated human actor — e.g. cutoff/default resolution — pass
+ * `actorId: null` for those. Never log tokens/secrets in metadata.
  */
 export async function logAuditEvent(
   supabase: AppSupabaseClient,

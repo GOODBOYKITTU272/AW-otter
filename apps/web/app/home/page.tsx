@@ -22,7 +22,7 @@ export default async function AccountManagerHomePage() {
       </Link>
 
       <h2 className="mt-4 font-medium">Upcoming meetings</h2>
-      <UpcomingMeetings supabase={supabase} />
+      <UpcomingMeetings supabase={supabase} showRequestAction />
     </main>
   );
 }

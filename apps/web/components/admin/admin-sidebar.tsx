@@ -17,6 +17,8 @@ import {
 const NAV_ITEMS = [
   { href: "/admin/overview", label: "Overview", icon: OverviewIcon },
   { href: "/admin/meetings", label: "Meetings", icon: MeetingsIcon },
+  { href: "/admin/exceptions", label: "Exceptions", icon: ExceptionsIcon },
+  { href: "/admin/policies", label: "Policies", icon: PoliciesIcon },
   { href: "/admin/people", label: "People", icon: PeopleIcon },
   { href: "/integrations", label: "Integrations", icon: IntegrationsIcon },
 ];
@@ -25,8 +27,6 @@ const NAV_ITEMS = [
 // product's shape is honest and visible, not linked to anything fake.
 const SOON_ITEMS = [
   { label: "Teams", icon: TeamsIcon },
-  { label: "Exceptions", icon: ExceptionsIcon },
-  { label: "Policies", icon: PoliciesIcon },
   { label: "Audit", icon: AuditIcon },
   { label: "Settings", icon: SettingsIcon },
 ];

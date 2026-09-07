@@ -11,6 +11,8 @@
     "./microsoft-connection": "./src/microsoft-connection.ts",
     "./meetings": "./src/meetings.ts",
     "./microsoft-tenant-connection": "./src/microsoft-tenant-connection.ts",
+    "./meeting-policy": "./src/meeting-policy.ts",
+    "./recording-exceptions": "./src/recording-exceptions.ts",
     "./audit": "./src/audit.ts"
   },
   "scripts": {

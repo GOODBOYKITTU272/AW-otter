@@ -19,6 +19,9 @@ export default async function ManagerOverviewPage() {
       <Link href="/integrations" className="w-fit text-sm underline">
         Integrations
       </Link>
+      <Link href="/manager/exceptions" className="w-fit text-sm underline">
+        Do-Not-Record Exceptions
+      </Link>
     </main>
   );
 }
