@@ -21,6 +21,11 @@ const teamsEvent: RawGraphEvent = {
   onlineMeetingProvider: "teamsForBusiness",
   onlineMeeting: { joinUrl: "https://teams.microsoft.com/l/meetup-join/abc" },
   lastModifiedDateTime: "2026-09-01T00:00:00Z",
+  iCalUId: "ical-uid-1",
+  type: "singleInstance",
+  seriesMasterId: null,
+  originalStart: null,
+  isOrganizer: true,
 };
 
 const plainEvent: RawGraphEvent = {
@@ -44,6 +49,11 @@ describe("normalizeCalendarEvent", () => {
       onlineMeetingProvider: "teamsForBusiness",
       joinUrl: "https://teams.microsoft.com/l/meetup-join/abc",
       lastModified: "2026-09-01T00:00:00Z",
+      icalUId: "ical-uid-1",
+      graphEventType: "singleInstance",
+      seriesMasterId: null,
+      originalStart: null,
+      isOrganizer: true,
     });
   });
 
@@ -53,6 +63,9 @@ describe("normalizeCalendarEvent", () => {
     expect(event.joinUrl).toBeNull();
     expect(event.attendees).toEqual([]);
     expect(event.organizer).toEqual({ name: null, email: null });
+    expect(event.icalUId).toBe("");
+    expect(event.graphEventType).toBeNull();
+    expect(event.isOrganizer).toBe(false);
   });
 });
 

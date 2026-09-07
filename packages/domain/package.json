@@ -10,6 +10,7 @@
     "./people": "./src/people.ts",
     "./microsoft-connection": "./src/microsoft-connection.ts",
     "./meetings": "./src/meetings.ts",
+    "./microsoft-tenant-connection": "./src/microsoft-tenant-connection.ts",
     "./audit": "./src/audit.ts"
   },
   "scripts": {

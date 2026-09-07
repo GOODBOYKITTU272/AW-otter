@@ -1,9 +1,11 @@
 import { getCurrentMembership } from "@applywizz/auth";
 import { getConnectionStatus } from "@applywizz/domain/microsoft-connection";
+import { getTenantConnectionStatus } from "@applywizz/domain/microsoft-tenant-connection";
 import { SYSTEM_ROLE_KEYS } from "@applywizz/domain";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/require-role";
 import { DisconnectMicrosoftButton } from "./disconnect-microsoft-button";
+import { DisableTenantSyncButton, EnableTenantSyncButton } from "./tenant-sync-buttons";
 
 const STATUS_LABEL: Record<string, string> = {
   not_connected: "Not Connected",
@@ -25,6 +27,8 @@ export default async function IntegrationsPage({
   const supabase = await getSupabaseServerClient();
   const membership = await getCurrentMembership(supabase);
   const status = await getConnectionStatus(supabase, membership.membershipId);
+  const tenantStatus =
+    membership.roleKey === "admin" ? await getTenantConnectionStatus(supabase, membership.organizationId) : null;
 
   return (
     <main className="flex flex-1 flex-col gap-6 p-8">
@@ -93,6 +97,37 @@ export default async function IntegrationsPage({
           )}
         </div>
       </section>
+
+      {tenantStatus ? (
+        <section className="max-w-lg rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+          <div className="flex items-center justify-between">
+            <h2 className="font-medium">Organization-wide Microsoft sync</h2>
+            <span className="text-sm">
+              {tenantStatus.status === "active" ? "Enabled" : tenantStatus.status === "disabled" ? "Disabled" : "Not set up"}
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+            Admin-controlled. When enabled, Signal reads the calendar of every eligible employee (Meeting Intelligence
+            on) automatically — individual employees don&apos;t need to connect their own account. Individual
+            connections above remain available as a separate, manual fallback.
+          </p>
+
+          {tenantStatus.status === "active" ? (
+            <dl className="mt-3 flex flex-col gap-1 text-sm text-zinc-500 dark:text-zinc-400">
+              <div>
+                <dt className="inline font-medium text-zinc-700 dark:text-zinc-300">Connected: </dt>
+                <dd className="inline">
+                  {tenantStatus.connectedAt ? new Date(tenantStatus.connectedAt).toLocaleString() : "—"}
+                </dd>
+              </div>
+            </dl>
+          ) : null}
+
+          <div className="mt-4">
+            {tenantStatus.status === "active" ? <DisableTenantSyncButton /> : <EnableTenantSyncButton />}
+          </div>
+        </section>
+      ) : null}
     </main>
   );
 }

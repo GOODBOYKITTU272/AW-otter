@@ -22,6 +22,7 @@ function lifecycleBadge(status: LifecycleStatus) {
 type JobRow = {
   id: string;
   external_event_id: string;
+  provider_user_key: string;
   change_type: string;
   status: string;
   attempts: number;
@@ -30,11 +31,13 @@ type JobRow = {
   created_at: string;
 };
 
-function syncStateBadge(job: JobRow | undefined) {
-  if (!job) return <StatusBadge tone="neutral">No queue activity</StatusBadge>;
-  if (job.status === "completed") return <StatusBadge tone="success">Synced</StatusBadge>;
-  if (job.status === "dead_letter") return <StatusBadge tone="critical">Sync failed</StatusBadge>;
-  return <StatusBadge tone="warning">Syncing</StatusBadge>;
+/** Worst-status-wins across every mailbox that's observed this meeting — one canonical meeting can now have several. */
+function syncStateBadge(jobs: JobRow[]) {
+  if (jobs.length === 0) return <StatusBadge tone="neutral">No queue activity</StatusBadge>;
+  if (jobs.some((job) => job.status === "dead_letter")) return <StatusBadge tone="critical">Sync failed</StatusBadge>;
+  if (jobs.some((job) => job.status === "pending" || job.status === "processing"))
+    return <StatusBadge tone="warning">Syncing</StatusBadge>;
+  return <StatusBadge tone="success">Synced</StatusBadge>;
 }
 
 function formatDateTime(value: string) {
@@ -49,16 +52,16 @@ function formatDateTime(value: string) {
 export default async function AdminMeetingsPage() {
   const supabase = await getSupabaseServerClient();
 
-  const [jobsResult, meetingsResult, connectionsResult] = await Promise.all([
+  const [jobsResult, meetingsResult, connectionsResult, mappingsResult] = await Promise.all([
     supabase
       .from("calendar_event_jobs")
-      .select("id, external_event_id, change_type, status, attempts, last_error, run_at, created_at")
+      .select("id, external_event_id, provider_user_key, change_type, status, attempts, last_error, run_at, created_at")
       .order("created_at", { ascending: false })
       .limit(50),
     supabase
       .from("meetings")
       .select(
-        "id, external_event_id, title, organizer_name, organizer_email, meeting_type, meeting_url, scheduled_start, scheduled_end, lifecycle_status, reason_code, updated_at",
+        "id, ical_uid, title, organizer_name, organizer_email, meeting_type, meeting_url, scheduled_start, scheduled_end, lifecycle_status, reason_code, updated_at",
       )
       .order("scheduled_start", { ascending: false })
       .limit(50),
@@ -66,29 +69,38 @@ export default async function AdminMeetingsPage() {
       .from("calendar_connections")
       .select("id, status, last_sync_at, last_reconciliation_result")
       .order("created_at", { ascending: false }),
+    supabase.from("meeting_external_events").select("meeting_id, external_event_id"),
   ]);
 
   if (jobsResult.error) throw jobsResult.error;
   if (meetingsResult.error) throw meetingsResult.error;
   if (connectionsResult.error) throw connectionsResult.error;
+  if (mappingsResult.error) throw mappingsResult.error;
 
   const jobs = jobsResult.data;
   const meetings = meetingsResult.data;
   const connections = connectionsResult.data;
+  const mappings = mappingsResult.data;
 
-  // Latest job per event id, for the per-meeting "Sync state" column.
-  const latestJobByEventId = new Map<string, JobRow>();
+  // A canonical meeting can now be observed via more than one mailbox —
+  // gather every job across every mailbox copy mapped to each meeting, so
+  // "Sync state" reflects the whole meeting, not just one observer.
+  const jobsByExternalEventId = new Map<string, JobRow[]>();
   for (const job of jobs) {
-    const existing = latestJobByEventId.get(job.external_event_id);
-    if (!existing || new Date(job.created_at) > new Date(existing.created_at)) {
-      latestJobByEventId.set(job.external_event_id, job);
-    }
+    const existing = jobsByExternalEventId.get(job.external_event_id) ?? [];
+    existing.push(job);
+    jobsByExternalEventId.set(job.external_event_id, existing);
+  }
+  const jobsByMeetingId = new Map<string, JobRow[]>();
+  for (const mapping of mappings) {
+    const meetingJobs = jobsByExternalEventId.get(mapping.external_event_id);
+    if (!meetingJobs) continue;
+    const existing = jobsByMeetingId.get(mapping.meeting_id) ?? [];
+    jobsByMeetingId.set(mapping.meeting_id, existing.concat(meetingJobs));
   }
 
-  const discoveredEventCount = new Set([
-    ...jobs.map((job) => job.external_event_id),
-    ...meetings.map((meeting) => meeting.external_event_id),
-  ]).size;
+  const discoveredEventCount = new Set([...jobs.map((job) => job.external_event_id), ...mappings.map((m) => m.external_event_id)])
+    .size;
   const teamsMeetingCount = meetings.filter((meeting) => meeting.meeting_type === "teams").length;
   const upcomingCount = meetings.filter((meeting) => meeting.lifecycle_status === "upcoming").length;
   const cancelledCount = meetings.filter((meeting) => meeting.lifecycle_status === "cancelled").length;
@@ -132,7 +144,7 @@ export default async function AdminMeetingsPage() {
                 <tr key={meeting.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
                   <td className="px-4 py-2.5">
                     <div className="font-medium">{meeting.title}</div>
-                    <div className="font-mono text-xs text-zinc-400">{meeting.external_event_id}</div>
+                    <div className="font-mono text-xs text-zinc-400">{meeting.ical_uid}</div>
                   </td>
                   <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400">
                     {meeting.organizer_name ?? meeting.organizer_email ?? "—"}
@@ -155,7 +167,7 @@ export default async function AdminMeetingsPage() {
                     )}
                   </td>
                   <td className="px-4 py-2.5">{lifecycleBadge(meeting.lifecycle_status)}</td>
-                  <td className="px-4 py-2.5">{syncStateBadge(latestJobByEventId.get(meeting.external_event_id))}</td>
+                  <td className="px-4 py-2.5">{syncStateBadge(jobsByMeetingId.get(meeting.id) ?? [])}</td>
                   <td className="px-4 py-2.5">
                     {meeting.reason_code === "rescheduled" ? (
                       <StatusBadge tone="warning">Rescheduled</StatusBadge>
@@ -239,6 +251,7 @@ export default async function AdminMeetingsPage() {
             <thead>
               <tr className="border-b border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/50">
                 <th className="px-4 py-2.5">Source event ID</th>
+                <th className="px-4 py-2.5">Mailbox</th>
                 <th className="px-4 py-2.5">Change type</th>
                 <th className="px-4 py-2.5">Status</th>
                 <th className="px-4 py-2.5">Attempts</th>
@@ -250,6 +263,7 @@ export default async function AdminMeetingsPage() {
               {jobs.map((job) => (
                 <tr key={job.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
                   <td className="px-4 py-2.5 font-mono text-xs">{job.external_event_id}</td>
+                  <td className="px-4 py-2.5">{job.provider_user_key}</td>
                   <td className="px-4 py-2.5">{job.change_type}</td>
                   <td className="px-4 py-2.5">{job.status}</td>
                   <td className="px-4 py-2.5">{job.attempts}</td>
@@ -259,7 +273,7 @@ export default async function AdminMeetingsPage() {
               ))}
               {jobs.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-zinc-500">
+                  <td colSpan={7} className="px-4 py-8 text-center text-zinc-500">
                     No calendar events discovered yet.
                   </td>
                 </tr>

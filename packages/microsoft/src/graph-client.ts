@@ -8,7 +8,7 @@ import { normalizeCalendarEvent, type RawGraphEvent } from "./normalize";
 import type { GraphSubscriptionDto, MicrosoftCalendarEvent } from "./types";
 
 const EVENT_SELECT_FIELDS =
-  "id,subject,start,end,organizer,attendees,isOnlineMeeting,onlineMeetingProvider,onlineMeeting,lastModifiedDateTime";
+  "id,subject,start,end,organizer,attendees,isOnlineMeeting,onlineMeetingProvider,onlineMeeting,lastModifiedDateTime,iCalUId,type,seriesMasterId,originalStart,isOrganizer";
 
 async function graphRequest<T>(
   path: string,
@@ -40,11 +40,19 @@ async function graphRequest<T>(
   return body as T;
 }
 
-/** Bounded read: now -> now + windowDays (default 30, per the M3 brief). */
-export async function listUpcomingEvents(
+/**
+ * Shared implementation only — `basePath` is required and always caller-
+ * supplied ("me" for a delegated token, "users/{encodedUPN}" for an
+ * app-only token). Never exported directly: the public functions below are
+ * separate, distinctly-named functions per mailbox-scope, specifically so
+ * an app-only (tenant-wide) code path can never accidentally default to
+ * "/me" the way an optional parameter could if forgotten.
+ */
+async function calendarViewFor(
+  basePath: string,
   accessToken: string,
-  fetchImpl: typeof fetch = fetch,
-  windowDays: number = INITIAL_SYNC_WINDOW_DAYS,
+  fetchImpl: typeof fetch,
+  windowDays: number,
 ): Promise<MicrosoftCalendarEvent[]> {
   const now = new Date();
   const end = new Date(now.getTime() + windowDays * 24 * 60 * 60 * 1000);
@@ -57,7 +65,7 @@ export async function listUpcomingEvents(
   });
 
   const result = await graphRequest<{ value: RawGraphEvent[] }>(
-    `/me/calendarView?${params.toString()}`,
+    `/${basePath}/calendarView?${params.toString()}`,
     accessToken,
     { method: "GET" },
     fetchImpl,
@@ -65,20 +73,14 @@ export async function listUpcomingEvents(
   return (result.value ?? []).map(normalizeCalendarEvent);
 }
 
-/**
- * Fetches a single event by id — used by the M4 queue processor to get the
- * current state of an event a webhook notification pointed at (Graph's
- * change notifications carry only an id, not the resource body). Returns
- * null on 404 (the event was deleted, or a "deleted" notification arrived
- * — either way there's nothing further to fetch).
- */
-export async function getCalendarEvent(
+async function eventFor(
+  basePath: string,
   accessToken: string,
   externalEventId: string,
-  fetchImpl: typeof fetch = fetch,
+  fetchImpl: typeof fetch,
 ): Promise<MicrosoftCalendarEvent | null> {
   const response = await fetchImpl(
-    `${GRAPH_BASE_URL}/me/events/${encodeURIComponent(externalEventId)}?$select=${EVENT_SELECT_FIELDS}`,
+    `${GRAPH_BASE_URL}/${basePath}/events/${encodeURIComponent(externalEventId)}?$select=${EVENT_SELECT_FIELDS}`,
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -92,6 +94,55 @@ export async function getCalendarEvent(
     throw normalizeGraphError(response.status, body, response.headers.get("retry-after"));
   }
   return normalizeCalendarEvent(body as RawGraphEvent);
+}
+
+/** Bounded read: now -> now + windowDays (default 30, per the M3 brief). Delegated token, the signed-in user's own calendar. */
+export async function listUpcomingEvents(
+  accessToken: string,
+  fetchImpl: typeof fetch = fetch,
+  windowDays: number = INITIAL_SYNC_WINDOW_DAYS,
+): Promise<MicrosoftCalendarEvent[]> {
+  return calendarViewFor("me", accessToken, fetchImpl, windowDays);
+}
+
+/**
+ * Fetches a single event by id — used by the M4 queue processor to get the
+ * current state of an event a webhook notification pointed at (Graph's
+ * change notifications carry only an id, not the resource body). Returns
+ * null on 404 (the event was deleted, or a "deleted" notification arrived
+ * — either way there's nothing further to fetch). Delegated token.
+ */
+export async function getCalendarEvent(
+  accessToken: string,
+  externalEventId: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<MicrosoftCalendarEvent | null> {
+  return eventFor("me", accessToken, externalEventId, fetchImpl);
+}
+
+/**
+ * App-only (client_credentials) equivalent of listUpcomingEvents — reads a
+ * SPECIFIC employee's calendar by UPN/work email using an app-only token.
+ * `userPrincipalName` is required (not optional) so this can never be
+ * confused with the delegated, current-user-only listUpcomingEvents.
+ */
+export async function listUpcomingEventsForUser(
+  accessToken: string,
+  userPrincipalName: string,
+  fetchImpl: typeof fetch = fetch,
+  windowDays: number = INITIAL_SYNC_WINDOW_DAYS,
+): Promise<MicrosoftCalendarEvent[]> {
+  return calendarViewFor(`users/${encodeURIComponent(userPrincipalName)}`, accessToken, fetchImpl, windowDays);
+}
+
+/** App-only equivalent of getCalendarEvent, for a specific employee's mailbox. */
+export async function getCalendarEventForUser(
+  accessToken: string,
+  userPrincipalName: string,
+  externalEventId: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<MicrosoftCalendarEvent | null> {
+  return eventFor(`users/${encodeURIComponent(userPrincipalName)}`, accessToken, externalEventId, fetchImpl);
 }
 
 interface RawGraphSubscription {

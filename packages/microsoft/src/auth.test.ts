@@ -4,6 +4,7 @@ import {
   decodeIdentityFromIdToken,
   exchangeCodeForTokens,
   generateState,
+  getAppOnlyAccessToken,
   refreshAccessToken,
   validateState,
 } from "./auth";
@@ -116,6 +117,34 @@ describe("exchangeCodeForTokens / refreshAccessToken", () => {
       fakeFetch(200, { access_token: "new-at", expires_in: 3600 }),
     );
     expect(tokens.accessToken).toBe("new-at");
+  });
+});
+
+describe("getAppOnlyAccessToken", () => {
+  const input = { tenantId: "t", clientId: "c", clientSecret: "s" };
+
+  it("parses a successful client_credentials response", async () => {
+    const token = await getAppOnlyAccessToken(
+      input,
+      fakeFetch(200, { access_token: "app-only-at", expires_in: 3600 }),
+    );
+    expect(token.accessToken).toBe("app-only-at");
+    expect(new Date(token.expiresAt).getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it("normalizes a failed acquisition into a typed Graph error", async () => {
+    await expect(
+      getAppOnlyAccessToken(
+        input,
+        fakeFetch(401, { error: "invalid_client", error_description: "bad secret" }),
+      ),
+    ).rejects.toBeInstanceOf(GraphAuthError);
+  });
+
+  it("throws when the response is missing an access_token", async () => {
+    await expect(
+      getAppOnlyAccessToken(input, fakeFetch(200, { expires_in: 3600 })),
+    ).rejects.toThrow(/access_token/);
   });
 });
 

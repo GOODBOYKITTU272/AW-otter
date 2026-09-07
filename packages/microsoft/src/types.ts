@@ -10,6 +10,20 @@ export interface MicrosoftCalendarEvent {
   onlineMeetingProvider: string | null;
   joinUrl: string | null;
   lastModified: string;
+  /**
+   * Stable across every mailbox's copy of the same meeting AND unique
+   * per-occurrence within a recurring series (verified against Graph docs —
+   * not the RFC 5545 "shared UID, distinguished by RECURRENCE-ID" model).
+   * This is canonical meeting identity; externalEventId is mailbox-sync
+   * identity only.
+   */
+  icalUId: string;
+  /** singleInstance | occurrence | exception | seriesMaster — metadata only, not part of identity. */
+  graphEventType: string | null;
+  seriesMasterId: string | null;
+  originalStart: string | null;
+  /** Whose mailbox this copy belongs to, per Graph's own field — more reliable than comparing email strings. */
+  isOrganizer: boolean;
 }
 
 export interface MicrosoftIdentity {

@@ -134,6 +134,58 @@ export async function refreshAccessToken(
   return parseTokenResponse(response);
 }
 
+export interface AppOnlyAccessToken {
+  accessToken: string;
+  expiresAt: string;
+}
+
+export interface AcquireAppOnlyTokenInput {
+  tenantId: string;
+  clientId: string;
+  clientSecret: string;
+}
+
+/**
+ * client_credentials grant — no refresh token exists for this flow (unlike
+ * delegated auth), so callers just request a fresh one each time rather
+ * than managing a stored refresh token. ~1hr expiry, simpler than the
+ * delegated refresh dance because there's nothing to persist between calls.
+ */
+export async function getAppOnlyAccessToken(
+  input: AcquireAppOnlyTokenInput,
+  fetchImpl: typeof fetch = fetch,
+): Promise<AppOnlyAccessToken> {
+  const response = await fetchImpl(`${buildAuthority(input.tenantId)}/oauth2/v2.0/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: input.clientId,
+      client_secret: input.clientSecret,
+      grant_type: "client_credentials",
+      scope: "https://graph.microsoft.com/.default",
+    }),
+  });
+
+  const body = (await response.json().catch(() => ({}))) as {
+    access_token?: string;
+    expires_in?: number;
+    error?: string;
+    error_description?: string;
+  };
+  if (!response.ok) {
+    throw normalizeGraphError(response.status, body, response.headers.get("retry-after"));
+  }
+  if (!body.access_token) {
+    throw new Error("Microsoft app-only token response did not include an access_token.");
+  }
+
+  const expiresInSeconds = typeof body.expires_in === "number" ? body.expires_in : 3600;
+  return {
+    accessToken: body.access_token,
+    expiresAt: new Date(Date.now() + expiresInSeconds * 1000).toISOString(),
+  };
+}
+
 interface IdTokenPayload {
   oid?: string;
   sub?: string;

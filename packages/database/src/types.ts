@@ -170,6 +170,7 @@ export type Database = {
           last_error: string | null
           organization_id: string
           provider: string
+          provider_user_key: string
           run_at: string
           status: string
           updated_at: string
@@ -184,6 +185,7 @@ export type Database = {
           last_error?: string | null
           organization_id: string
           provider?: string
+          provider_user_key: string
           run_at?: string
           status?: string
           updated_at?: string
@@ -198,6 +200,7 @@ export type Database = {
           last_error?: string | null
           organization_id?: string
           provider?: string
+          provider_user_key?: string
           run_at?: string
           status?: string
           updated_at?: string
@@ -336,13 +339,62 @@ export type Database = {
           },
         ]
       }
+      meeting_external_events: {
+        Row: {
+          external_event_id: string
+          id: string
+          is_organizer: boolean
+          last_seen_at: string
+          meeting_id: string
+          organization_id: string
+          provider: string
+          provider_user_key: string
+        }
+        Insert: {
+          external_event_id: string
+          id?: string
+          is_organizer?: boolean
+          last_seen_at?: string
+          meeting_id: string
+          organization_id: string
+          provider?: string
+          provider_user_key: string
+        }
+        Update: {
+          external_event_id?: string
+          id?: string
+          is_organizer?: boolean
+          last_seen_at?: string
+          meeting_id?: string
+          organization_id?: string
+          provider?: string
+          provider_user_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_external_events_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_external_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meetings: {
         Row: {
           actual_end: string | null
           actual_start: string | null
           created_at: string
           eligibility_status: string
-          external_event_id: string
+          graph_event_type: string | null
+          ical_uid: string
           id: string
           lifecycle_status: string
           meeting_type: string | null
@@ -350,11 +402,13 @@ export type Database = {
           organization_id: string
           organizer_email: string | null
           organizer_name: string | null
+          original_start: string | null
           owner_membership_id: string | null
           provider: string
           reason_code: string | null
           scheduled_end: string
           scheduled_start: string
+          series_master_id: string | null
           title: string
           updated_at: string
         }
@@ -363,7 +417,8 @@ export type Database = {
           actual_start?: string | null
           created_at?: string
           eligibility_status?: string
-          external_event_id: string
+          graph_event_type?: string | null
+          ical_uid: string
           id?: string
           lifecycle_status?: string
           meeting_type?: string | null
@@ -371,11 +426,13 @@ export type Database = {
           organization_id: string
           organizer_email?: string | null
           organizer_name?: string | null
+          original_start?: string | null
           owner_membership_id?: string | null
           provider?: string
           reason_code?: string | null
           scheduled_end: string
           scheduled_start: string
+          series_master_id?: string | null
           title: string
           updated_at?: string
         }
@@ -384,7 +441,8 @@ export type Database = {
           actual_start?: string | null
           created_at?: string
           eligibility_status?: string
-          external_event_id?: string
+          graph_event_type?: string | null
+          ical_uid?: string
           id?: string
           lifecycle_status?: string
           meeting_type?: string | null
@@ -392,11 +450,13 @@ export type Database = {
           organization_id?: string
           organizer_email?: string | null
           organizer_name?: string | null
+          original_start?: string | null
           owner_membership_id?: string | null
           provider?: string
           reason_code?: string | null
           scheduled_end?: string
           scheduled_start?: string
+          series_master_id?: string | null
           title?: string
           updated_at?: string
         }
@@ -413,6 +473,54 @@ export type Database = {
             columns: ["owner_membership_id"]
             isOneToOne: false
             referencedRelation: "organization_memberships"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      microsoft_tenant_connections: {
+        Row: {
+          connected_at: string
+          connected_by_membership_id: string | null
+          id: string
+          last_reconciliation_result: Json | null
+          organization_id: string
+          provider: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          connected_at?: string
+          connected_by_membership_id?: string | null
+          id?: string
+          last_reconciliation_result?: Json | null
+          organization_id: string
+          provider?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          connected_at?: string
+          connected_by_membership_id?: string | null
+          id?: string
+          last_reconciliation_result?: Json | null
+          organization_id?: string
+          provider?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "microsoft_tenant_connections_connected_by_membership_id_fkey"
+            columns: ["connected_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "organization_memberships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "microsoft_tenant_connections_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -766,6 +874,7 @@ export type Database = {
           last_error: string | null
           organization_id: string
           provider: string
+          provider_user_key: string
           run_at: string
           status: string
           updated_at: string

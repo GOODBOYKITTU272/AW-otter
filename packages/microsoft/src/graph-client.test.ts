@@ -3,7 +3,9 @@ import {
   createSubscription,
   deleteSubscription,
   getCalendarEvent,
+  getCalendarEventForUser,
   listUpcomingEvents,
+  listUpcomingEventsForUser,
   renewSubscription,
 } from "./graph-client";
 import { GraphApiError } from "./errors";
@@ -53,6 +55,43 @@ describe("listUpcomingEvents", () => {
         fakeFetch(500, { error: { code: "ServiceError" } }),
       ),
     ).rejects.toBeInstanceOf(GraphApiError);
+  });
+});
+
+describe("listUpcomingEventsForUser / getCalendarEventForUser", () => {
+  function capturingFetch(status: number, body: unknown) {
+    const calls: string[] = [];
+    const fetchImpl = async (input: string | URL | Request) => {
+      calls.push(typeof input === "string" ? input : input.toString());
+      return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+    };
+    return { fetchImpl, calls };
+  }
+
+  it("targets /users/{upn}/calendarView, never /me", async () => {
+    const { fetchImpl, calls } = capturingFetch(200, { value: [] });
+    await listUpcomingEventsForUser("at", "am1@applywizz.test", fetchImpl);
+    expect(calls[0]).toContain("/users/am1%40applywizz.test/calendarView");
+    expect(calls[0]).not.toContain("/me/");
+  });
+
+  it("targets /users/{upn}/events/{id}, never /me", async () => {
+    const { fetchImpl, calls } = capturingFetch(200, {
+      id: "evt-1",
+      subject: "Sync",
+      start: { dateTime: "x" },
+      end: { dateTime: "y" },
+    });
+    const event = await getCalendarEventForUser("at", "am1@applywizz.test", "evt-1", fetchImpl);
+    expect(calls[0]).toContain("/users/am1%40applywizz.test/events/evt-1");
+    expect(calls[0]).not.toContain("/me/");
+    expect(event?.externalEventId).toBe("evt-1");
+  });
+
+  it("returns null on 404, same as the delegated version", async () => {
+    const { fetchImpl } = capturingFetch(404, {});
+    const event = await getCalendarEventForUser("at", "am1@applywizz.test", "evt-1", fetchImpl);
+    expect(event).toBeNull();
   });
 });
 
