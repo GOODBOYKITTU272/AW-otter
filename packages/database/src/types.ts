@@ -257,6 +257,209 @@ export type Database = {
           },
         ];
       };
+      customer_contacts: {
+        Row: {
+          created_at: string;
+          customer_id: string;
+          email: string;
+          id: string;
+          name: string | null;
+          organization_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          customer_id: string;
+          email: string;
+          id?: string;
+          name?: string | null;
+          organization_id: string;
+        };
+        Update: {
+          created_at?: string;
+          customer_id?: string;
+          email?: string;
+          id?: string;
+          name?: string | null;
+          organization_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "customer_contacts_customer_id_fkey";
+            columns: ["customer_id"];
+            isOneToOne: false;
+            referencedRelation: "customers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "customer_contacts_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      customer_truth_facts: {
+        Row: {
+          confirmed_at: string | null;
+          confirmed_by_membership_id: string | null;
+          created_at: string;
+          customer_id: string;
+          detected_at: string;
+          evidence_segment_ids: string[] | null;
+          field_key: string;
+          id: string;
+          organization_id: string;
+          previous_fact_id: string | null;
+          source_meeting_id: string | null;
+          source_speaker: string | null;
+          source_type: Database["public"]["Enums"]["customer_truth_source_type"];
+          status: Database["public"]["Enums"]["customer_truth_status"];
+          value: Json;
+        };
+        Insert: {
+          confirmed_at?: string | null;
+          confirmed_by_membership_id?: string | null;
+          created_at?: string;
+          customer_id: string;
+          detected_at?: string;
+          evidence_segment_ids?: string[] | null;
+          field_key: string;
+          id?: string;
+          organization_id: string;
+          previous_fact_id?: string | null;
+          source_meeting_id?: string | null;
+          source_speaker?: string | null;
+          source_type: Database["public"]["Enums"]["customer_truth_source_type"];
+          status?: Database["public"]["Enums"]["customer_truth_status"];
+          value: Json;
+        };
+        Update: {
+          confirmed_at?: string | null;
+          confirmed_by_membership_id?: string | null;
+          created_at?: string;
+          customer_id?: string;
+          detected_at?: string;
+          evidence_segment_ids?: string[] | null;
+          field_key?: string;
+          id?: string;
+          organization_id?: string;
+          previous_fact_id?: string | null;
+          source_meeting_id?: string | null;
+          source_speaker?: string | null;
+          source_type?: Database["public"]["Enums"]["customer_truth_source_type"];
+          status?: Database["public"]["Enums"]["customer_truth_status"];
+          value?: Json;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "customer_truth_facts_confirmed_by_membership_id_fkey";
+            columns: ["confirmed_by_membership_id"];
+            isOneToOne: false;
+            referencedRelation: "organization_memberships";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "customer_truth_facts_customer_id_fkey";
+            columns: ["customer_id"];
+            isOneToOne: false;
+            referencedRelation: "customers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "customer_truth_facts_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "customer_truth_facts_previous_fact_id_fkey";
+            columns: ["previous_fact_id"];
+            isOneToOne: false;
+            referencedRelation: "customer_truth_current";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "customer_truth_facts_previous_fact_id_fkey";
+            columns: ["previous_fact_id"];
+            isOneToOne: false;
+            referencedRelation: "customer_truth_facts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "customer_truth_facts_source_meeting_id_fkey";
+            columns: ["source_meeting_id"];
+            isOneToOne: false;
+            referencedRelation: "meetings";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      customers: {
+        Row: {
+          created_at: string;
+          created_by_membership_id: string | null;
+          external_applywizz_id: string | null;
+          external_crm_id: string | null;
+          id: string;
+          lifecycle_stage: string | null;
+          name: string;
+          organization_id: string;
+          owner_membership_id: string;
+          source_type: Database["public"]["Enums"]["customer_source_type"];
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by_membership_id?: string | null;
+          external_applywizz_id?: string | null;
+          external_crm_id?: string | null;
+          id?: string;
+          lifecycle_stage?: string | null;
+          name: string;
+          organization_id: string;
+          owner_membership_id: string;
+          source_type?: Database["public"]["Enums"]["customer_source_type"];
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by_membership_id?: string | null;
+          external_applywizz_id?: string | null;
+          external_crm_id?: string | null;
+          id?: string;
+          lifecycle_stage?: string | null;
+          name?: string;
+          organization_id?: string;
+          owner_membership_id?: string;
+          source_type?: Database["public"]["Enums"]["customer_source_type"];
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "customers_created_by_membership_id_fkey";
+            columns: ["created_by_membership_id"];
+            isOneToOne: false;
+            referencedRelation: "organization_memberships";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "customers_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "customers_owner_membership_id_fkey";
+            columns: ["owner_membership_id"];
+            isOneToOne: false;
+            referencedRelation: "organization_memberships";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       departments: {
         Row: {
           created_at: string;
@@ -664,14 +867,25 @@ export type Database = {
         Row: {
           actual_end: string | null;
           actual_start: string | null;
+          call_type: Database["public"]["Enums"]["call_type"] | null;
+          call_type_confirmed_at: string | null;
+          call_type_confirmed_by_membership_id: string | null;
+          call_type_source:
+            Database["public"]["Enums"]["call_type_source"] | null;
           created_at: string;
+          customer_id: string | null;
+          customer_link_status:
+            Database["public"]["Enums"]["customer_link_status"] | null;
           eligibility_status: Database["public"]["Enums"]["meeting_eligibility"];
           graph_event_type: string | null;
           ical_uid: string;
           id: string;
           lifecycle_status: string;
+          linked_at: string | null;
+          linked_by_membership_id: string | null;
           meeting_type: string | null;
           meeting_url: string | null;
+          needs_link_reason: string | null;
           organization_id: string;
           organizer_email: string | null;
           organizer_name: string | null;
@@ -688,14 +902,25 @@ export type Database = {
         Insert: {
           actual_end?: string | null;
           actual_start?: string | null;
+          call_type?: Database["public"]["Enums"]["call_type"] | null;
+          call_type_confirmed_at?: string | null;
+          call_type_confirmed_by_membership_id?: string | null;
+          call_type_source?:
+            Database["public"]["Enums"]["call_type_source"] | null;
           created_at?: string;
+          customer_id?: string | null;
+          customer_link_status?:
+            Database["public"]["Enums"]["customer_link_status"] | null;
           eligibility_status?: Database["public"]["Enums"]["meeting_eligibility"];
           graph_event_type?: string | null;
           ical_uid: string;
           id?: string;
           lifecycle_status?: string;
+          linked_at?: string | null;
+          linked_by_membership_id?: string | null;
           meeting_type?: string | null;
           meeting_url?: string | null;
+          needs_link_reason?: string | null;
           organization_id: string;
           organizer_email?: string | null;
           organizer_name?: string | null;
@@ -712,14 +937,25 @@ export type Database = {
         Update: {
           actual_end?: string | null;
           actual_start?: string | null;
+          call_type?: Database["public"]["Enums"]["call_type"] | null;
+          call_type_confirmed_at?: string | null;
+          call_type_confirmed_by_membership_id?: string | null;
+          call_type_source?:
+            Database["public"]["Enums"]["call_type_source"] | null;
           created_at?: string;
+          customer_id?: string | null;
+          customer_link_status?:
+            Database["public"]["Enums"]["customer_link_status"] | null;
           eligibility_status?: Database["public"]["Enums"]["meeting_eligibility"];
           graph_event_type?: string | null;
           ical_uid?: string;
           id?: string;
           lifecycle_status?: string;
+          linked_at?: string | null;
+          linked_by_membership_id?: string | null;
           meeting_type?: string | null;
           meeting_url?: string | null;
+          needs_link_reason?: string | null;
           organization_id?: string;
           organizer_email?: string | null;
           organizer_name?: string | null;
@@ -734,6 +970,27 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: "meetings_call_type_confirmed_by_membership_id_fkey";
+            columns: ["call_type_confirmed_by_membership_id"];
+            isOneToOne: false;
+            referencedRelation: "organization_memberships";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "meetings_customer_id_fkey";
+            columns: ["customer_id"];
+            isOneToOne: false;
+            referencedRelation: "customers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "meetings_linked_by_membership_id_fkey";
+            columns: ["linked_by_membership_id"];
+            isOneToOne: false;
+            referencedRelation: "organization_memberships";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "meetings_organization_id_fkey";
             columns: ["organization_id"];
@@ -1152,6 +1409,110 @@ export type Database = {
           },
         ];
       };
+      scheduler_calls: {
+        Row: {
+          call_type_source: Database["public"]["Enums"]["call_type_source"];
+          canonical_call_type: Database["public"]["Enums"]["call_type"];
+          created_at: string;
+          customer_id: string;
+          ends_at: string | null;
+          external_am_email: string;
+          external_applywizz_id: string;
+          external_call_id: string;
+          external_status: string;
+          external_type: string;
+          id: string;
+          last_synced_at: string;
+          meeting_id: string | null;
+          organization_id: string;
+          owner_membership_id: string;
+          scheduled_at: string;
+          source_created_at: string | null;
+          source_updated_at: string | null;
+          teams_event_id: string | null;
+          teams_link: string | null;
+          teams_online_meeting_id: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          call_type_source?: Database["public"]["Enums"]["call_type_source"];
+          canonical_call_type: Database["public"]["Enums"]["call_type"];
+          created_at?: string;
+          customer_id: string;
+          ends_at?: string | null;
+          external_am_email: string;
+          external_applywizz_id: string;
+          external_call_id: string;
+          external_status: string;
+          external_type: string;
+          id?: string;
+          last_synced_at?: string;
+          meeting_id?: string | null;
+          organization_id: string;
+          owner_membership_id: string;
+          scheduled_at: string;
+          source_created_at?: string | null;
+          source_updated_at?: string | null;
+          teams_event_id?: string | null;
+          teams_link?: string | null;
+          teams_online_meeting_id?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          call_type_source?: Database["public"]["Enums"]["call_type_source"];
+          canonical_call_type?: Database["public"]["Enums"]["call_type"];
+          created_at?: string;
+          customer_id?: string;
+          ends_at?: string | null;
+          external_am_email?: string;
+          external_applywizz_id?: string;
+          external_call_id?: string;
+          external_status?: string;
+          external_type?: string;
+          id?: string;
+          last_synced_at?: string;
+          meeting_id?: string | null;
+          organization_id?: string;
+          owner_membership_id?: string;
+          scheduled_at?: string;
+          source_created_at?: string | null;
+          source_updated_at?: string | null;
+          teams_event_id?: string | null;
+          teams_link?: string | null;
+          teams_online_meeting_id?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "scheduler_calls_customer_id_fkey";
+            columns: ["customer_id"];
+            isOneToOne: false;
+            referencedRelation: "customers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "scheduler_calls_meeting_id_fkey";
+            columns: ["meeting_id"];
+            isOneToOne: false;
+            referencedRelation: "meetings";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "scheduler_calls_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "scheduler_calls_owner_membership_id_fkey";
+            columns: ["owner_membership_id"];
+            isOneToOne: false;
+            referencedRelation: "organization_memberships";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       teams: {
         Row: {
           created_at: string;
@@ -1209,7 +1570,70 @@ export type Database = {
       };
     };
     Views: {
-      [_ in never]: never;
+      customer_truth_current: {
+        Row: {
+          confirmed_at: string | null;
+          confirmed_by_membership_id: string | null;
+          created_at: string | null;
+          customer_id: string | null;
+          detected_at: string | null;
+          evidence_segment_ids: string[] | null;
+          field_key: string | null;
+          id: string | null;
+          organization_id: string | null;
+          previous_fact_id: string | null;
+          source_meeting_id: string | null;
+          source_speaker: string | null;
+          source_type:
+            Database["public"]["Enums"]["customer_truth_source_type"] | null;
+          status: Database["public"]["Enums"]["customer_truth_status"] | null;
+          value: Json | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "customer_truth_facts_confirmed_by_membership_id_fkey";
+            columns: ["confirmed_by_membership_id"];
+            isOneToOne: false;
+            referencedRelation: "organization_memberships";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "customer_truth_facts_customer_id_fkey";
+            columns: ["customer_id"];
+            isOneToOne: false;
+            referencedRelation: "customers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "customer_truth_facts_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "customer_truth_facts_previous_fact_id_fkey";
+            columns: ["previous_fact_id"];
+            isOneToOne: false;
+            referencedRelation: "customer_truth_current";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "customer_truth_facts_previous_fact_id_fkey";
+            columns: ["previous_fact_id"];
+            isOneToOne: false;
+            referencedRelation: "customer_truth_facts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "customer_truth_facts_source_meeting_id_fkey";
+            columns: ["source_meeting_id"];
+            isOneToOne: false;
+            referencedRelation: "meetings";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Functions: {
       claim_next_calendar_event_job: {
@@ -1236,6 +1660,16 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      claim_scheduler_call_meeting: {
+        Args: {
+          p_call_type: Database["public"]["Enums"]["call_type"];
+          p_customer_id: string;
+          p_meeting_id: string;
+          p_organization_id: string;
+          p_scheduler_call_id: string;
+        };
+        Returns: boolean;
+      };
     };
     Enums: {
       bot_status:
@@ -1246,6 +1680,27 @@ export type Database = {
         | "completed"
         | "cancelled"
         | "failed";
+      call_type:
+        | "discovery"
+        | "resume_review"
+        | "orientation"
+        | "progress"
+        | "renewal"
+        | "other_unknown";
+      call_type_source:
+        "external_scheduler" | "am_confirmed" | "manual" | "future_import";
+      customer_link_status:
+        | "linked_auto"
+        | "linked_manual"
+        | "needs_link"
+        | "unlinked"
+        | "cancelled";
+      customer_source_type:
+        "manual" | "fixture" | "future_import" | "external_scheduler";
+      customer_truth_source_type:
+        "onboarding_form" | "manual" | "crm" | "future_import" | "meeting";
+      customer_truth_status:
+        "proposed" | "confirmed" | "rejected" | "superseded";
       exemption_status:
         "requested" | "approved" | "rejected" | "cancelled" | "expired";
       meeting_eligibility:
@@ -1391,6 +1846,46 @@ export const Constants = {
         "completed",
         "cancelled",
         "failed",
+      ],
+      call_type: [
+        "discovery",
+        "resume_review",
+        "orientation",
+        "progress",
+        "renewal",
+        "other_unknown",
+      ],
+      call_type_source: [
+        "external_scheduler",
+        "am_confirmed",
+        "manual",
+        "future_import",
+      ],
+      customer_link_status: [
+        "linked_auto",
+        "linked_manual",
+        "needs_link",
+        "unlinked",
+        "cancelled",
+      ],
+      customer_source_type: [
+        "manual",
+        "fixture",
+        "future_import",
+        "external_scheduler",
+      ],
+      customer_truth_source_type: [
+        "onboarding_form",
+        "manual",
+        "crm",
+        "future_import",
+        "meeting",
+      ],
+      customer_truth_status: [
+        "proposed",
+        "confirmed",
+        "rejected",
+        "superseded",
       ],
       exemption_status: [
         "requested",

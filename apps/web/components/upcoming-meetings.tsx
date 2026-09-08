@@ -2,6 +2,17 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@applywizz/database/types";
 import { StatusBadge, type BadgeTone } from "@/components/admin/status-badge";
 import { RequestDoNotRecordAction } from "@/components/request-do-not-record-action";
+import { CustomerLinkControl } from "@/components/customer-link-control";
+import { CallTypeConfirmControl } from "@/components/call-type-confirm-control";
+
+const CALL_TYPE_LABEL: Record<string, string> = {
+  discovery: "Discovery",
+  resume_review: "Resume Review",
+  orientation: "Orientation",
+  progress: "Progress Review",
+  renewal: "Renewal",
+  other_unknown: "Other / Unknown",
+};
 
 const ELIGIBILITY_TONE: Record<string, BadgeTone> = {
   record: "success",
@@ -63,7 +74,7 @@ export async function UpcomingMeetings({
   const { data: meetings, error } = await supabase
     .from("meetings")
     .select(
-      "id, title, meeting_url, scheduled_start, scheduled_end, eligibility_status",
+      "id, title, meeting_url, scheduled_start, scheduled_end, eligibility_status, customer_id, customer_link_status, needs_link_reason, call_type, owner_membership_id",
     )
     .eq("lifecycle_status", "upcoming")
     .gte("scheduled_start", new Date().toISOString())
@@ -109,6 +120,22 @@ export async function UpcomingMeetings({
       botStatusByMeetingId.set(job.meeting_id, job.status);
   }
 
+  // customers RLS mirrors the same own-vs-admin-org-wide visibility as
+  // meetings — no role branching needed here either.
+  const { data: customers, error: customersError } = await supabase
+    .from("customers")
+    .select("id, name, owner_membership_id");
+  if (customersError) throw customersError;
+  const customerNameById = new Map(
+    (customers ?? []).map((c) => [c.id, c.name]),
+  );
+  const customersByOwner = new Map<string, { id: string; name: string }[]>();
+  for (const c of customers ?? []) {
+    const existing = customersByOwner.get(c.owner_membership_id) ?? [];
+    existing.push({ id: c.id, name: c.name });
+    customersByOwner.set(c.owner_membership_id, existing);
+  }
+
   return (
     <ul className="flex flex-col gap-2">
       {meetings.map((meeting) => (
@@ -137,6 +164,31 @@ export async function UpcomingMeetings({
                 {BOT_STATUS_LABEL[botStatusByMeetingId.get(meeting.id)!] ??
                   botStatusByMeetingId.get(meeting.id)}
               </StatusBadge>
+            ) : null}
+            {meeting.customer_link_status === "linked_auto" ||
+            meeting.customer_link_status === "linked_manual" ? (
+              <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                {meeting.customer_id
+                  ? customerNameById.get(meeting.customer_id)
+                  : null}
+                {meeting.call_type
+                  ? ` — ${CALL_TYPE_LABEL[meeting.call_type] ?? meeting.call_type}`
+                  : ""}
+              </span>
+            ) : null}
+            {meeting.customer_link_status === "needs_link" ? (
+              <CustomerLinkControl
+                meetingId={meeting.id}
+                needsLinkReason={meeting.needs_link_reason}
+                candidates={
+                  meeting.owner_membership_id
+                    ? (customersByOwner.get(meeting.owner_membership_id) ?? [])
+                    : []
+                }
+              />
+            ) : null}
+            {meeting.customer_id && !meeting.call_type ? (
+              <CallTypeConfirmControl meetingId={meeting.id} />
             ) : null}
           </div>
           <div className="flex shrink-0 flex-col items-end gap-2">

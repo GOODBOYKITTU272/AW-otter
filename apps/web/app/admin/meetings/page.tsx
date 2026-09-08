@@ -1,5 +1,6 @@
 import { MetricCard } from "@/components/admin/metric-card";
 import { StatusBadge } from "@/components/admin/status-badge";
+import { CustomerLinkControl } from "@/components/customer-link-control";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 // M4 operational view of the future Admin Meetings screen (blueprint
@@ -78,6 +79,67 @@ function botStatusBadge(status: string | undefined) {
   );
 }
 
+const CALL_TYPE_LABEL: Record<string, string> = {
+  discovery: "Discovery",
+  resume_review: "Resume Review",
+  orientation: "Orientation",
+  progress: "Progress Review",
+  renewal: "Renewal",
+  other_unknown: "Other / Unknown",
+};
+
+function customerCell(
+  meeting: {
+    id: string;
+    customer_id: string | null;
+    customer_link_status: string | null;
+    needs_link_reason: string | null;
+    call_type: string | null;
+    owner_membership_id: string | null;
+  },
+  customerNameById: Map<string, string>,
+  customersByOwner: Map<string, { id: string; name: string }[]>,
+) {
+  if (
+    meeting.customer_link_status === "linked_auto" ||
+    meeting.customer_link_status === "linked_manual"
+  ) {
+    const name = meeting.customer_id
+      ? customerNameById.get(meeting.customer_id)
+      : undefined;
+    return (
+      <div className="flex flex-col gap-0.5">
+        <span className="font-medium">{name ?? "—"}</span>
+        {meeting.call_type ? (
+          <span className="text-xs text-zinc-500 dark:text-zinc-400">
+            {CALL_TYPE_LABEL[meeting.call_type] ?? meeting.call_type}
+          </span>
+        ) : (
+          <span className="text-xs text-zinc-400">Call type not confirmed</span>
+        )}
+      </div>
+    );
+  }
+  if (meeting.customer_link_status === "needs_link") {
+    return (
+      <CustomerLinkControl
+        meetingId={meeting.id}
+        needsLinkReason={meeting.needs_link_reason}
+        candidates={
+          meeting.owner_membership_id
+            ? (customersByOwner.get(meeting.owner_membership_id) ?? [])
+            : []
+        }
+      />
+    );
+  }
+  if (meeting.customer_link_status === "unlinked")
+    return <span className="text-zinc-400">Left unlinked</span>;
+  if (meeting.customer_link_status === "cancelled")
+    return <span className="text-zinc-400">—</span>;
+  return <span className="text-zinc-400">Not applicable</span>;
+}
+
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString(undefined, {
     month: "short",
@@ -96,6 +158,7 @@ export default async function AdminMeetingsPage() {
     connectionsResult,
     mappingsResult,
     botJobsResult,
+    customersResult,
   ] = await Promise.all([
     supabase
       .from("calendar_event_jobs")
@@ -107,7 +170,7 @@ export default async function AdminMeetingsPage() {
     supabase
       .from("meetings")
       .select(
-        "id, ical_uid, title, organizer_name, organizer_email, meeting_type, meeting_url, scheduled_start, scheduled_end, lifecycle_status, reason_code, updated_at",
+        "id, ical_uid, title, organizer_name, organizer_email, meeting_type, meeting_url, scheduled_start, scheduled_end, lifecycle_status, reason_code, updated_at, customer_id, customer_link_status, needs_link_reason, call_type, owner_membership_id",
       )
       .order("scheduled_start", { ascending: false })
       .limit(50),
@@ -124,6 +187,7 @@ export default async function AdminMeetingsPage() {
         "id, meeting_id, provider, provider_bot_id, status, generation, retry_count, last_error, scheduled_at, joined_at, created_at",
       )
       .order("generation", { ascending: false }),
+    supabase.from("customers").select("id, name, owner_membership_id"),
   ]);
 
   if (jobsResult.error) throw jobsResult.error;
@@ -131,12 +195,21 @@ export default async function AdminMeetingsPage() {
   if (connectionsResult.error) throw connectionsResult.error;
   if (mappingsResult.error) throw mappingsResult.error;
   if (botJobsResult.error) throw botJobsResult.error;
+  if (customersResult.error) throw customersResult.error;
 
   const jobs = jobsResult.data;
   const meetings = meetingsResult.data;
   const connections = connectionsResult.data;
   const mappings = mappingsResult.data;
   const botJobs = botJobsResult.data;
+  const customers = customersResult.data;
+  const customerNameById = new Map(customers.map((c) => [c.id, c.name]));
+  const customersByOwner = new Map<string, { id: string; name: string }[]>();
+  for (const c of customers) {
+    const existing = customersByOwner.get(c.owner_membership_id) ?? [];
+    existing.push({ id: c.id, name: c.name });
+    customersByOwner.set(c.owner_membership_id, existing);
+  }
   const latestBotJobByMeetingId = new Map<string, (typeof botJobs)[number]>();
   for (const botJob of botJobs) {
     if (!latestBotJobByMeetingId.has(botJob.meeting_id))
@@ -215,6 +288,7 @@ export default async function AdminMeetingsPage() {
                 <th className="px-4 py-2.5">Status</th>
                 <th className="px-4 py-2.5">Sync state</th>
                 <th className="px-4 py-2.5">Bot</th>
+                <th className="px-4 py-2.5">Customer</th>
                 <th className="px-4 py-2.5">Rescheduled</th>
                 <th className="px-4 py-2.5">Last updated</th>
               </tr>
@@ -264,6 +338,9 @@ export default async function AdminMeetingsPage() {
                     )}
                   </td>
                   <td className="px-4 py-2.5">
+                    {customerCell(meeting, customerNameById, customersByOwner)}
+                  </td>
+                  <td className="px-4 py-2.5">
                     {meeting.reason_code === "rescheduled" ? (
                       <StatusBadge tone="warning">Rescheduled</StatusBadge>
                     ) : (
@@ -278,7 +355,7 @@ export default async function AdminMeetingsPage() {
               {meetings.length === 0 && (
                 <tr>
                   <td
-                    colSpan={10}
+                    colSpan={11}
                     className="px-4 py-8 text-center text-zinc-500"
                   >
                     No meetings yet — meetings appear here once a connected

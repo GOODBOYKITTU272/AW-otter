@@ -101,6 +101,23 @@ export function getEmailEnv() {
   } as const;
 }
 
+/**
+ * The real ApplyWizz scheduler API (readiness report, 2026-09-08) — a
+ * read-only scheduled-call context source, NOT the CRM integration
+ * getCrmEnv() below is reserved for. Base URL only: the live endpoint is
+ * currently unauthenticated (a documented, upstream production blocker —
+ * see the readiness report's security findings), so there is no API key
+ * to configure on Signal's side yet.
+ */
+export function getSchedulerEnv() {
+  return {
+    APPLYWIZZ_SCHEDULER_BASE_URL: required(
+      "APPLYWIZZ_SCHEDULER_BASE_URL",
+      process.env.APPLYWIZZ_SCHEDULER_BASE_URL,
+    ),
+  } as const;
+}
+
 export function getCrmEnv() {
   return {
     APPLYWIZZ_CRM_BASE_URL: required(
