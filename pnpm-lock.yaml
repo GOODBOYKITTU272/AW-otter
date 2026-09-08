@@ -29,6 +29,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@applywizz/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@applywizz/auth':
         specifier: workspace:*
         version: link:../../packages/auth
@@ -132,6 +135,9 @@ importers:
 
   packages/domain:
     dependencies:
+      '@applywizz/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@applywizz/database':
         specifier: workspace:*
         version: link:../database

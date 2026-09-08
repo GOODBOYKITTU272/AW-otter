@@ -12,7 +12,13 @@ const SEG = "11111111-1111-1111-1111-111111111111";
 const INPUT: MeetingIntelligenceInput = {
   meetingId: "m1",
   callType: "discovery",
-  segments: [{ id: SEG, text: "I want Python backend roles.", speakerLabel: "speaker_unknown" }],
+  segments: [
+    {
+      id: SEG,
+      text: "I want Python backend roles.",
+      speakerLabel: "speaker_unknown",
+    },
+  ],
 };
 
 function validContent() {
@@ -61,7 +67,11 @@ describe("OpenRouterMeetingIntelligenceProvider", () => {
     const out = await provider.extract(INPUT);
     expect(out.result.summary).toBe("Customer wants Python backend roles.");
     expect(out.result.callTypeSpecific?.callType).toBe("discovery");
-    expect(out.usage).toEqual({ promptTokens: 100, completionTokens: 50, cost: 0.01 });
+    expect(out.usage).toEqual({
+      promptTokens: 100,
+      completionTokens: 50,
+      cost: 0.01,
+    });
     expect(out.model).toBe("openai/gpt-4o");
   });
 
@@ -73,12 +83,15 @@ describe("OpenRouterMeetingIntelligenceProvider", () => {
       undefined,
       fetchImpl as unknown as typeof fetch,
     );
-    await expect(provider.extract(INPUT)).rejects.toBeInstanceOf(IntelligenceApiError);
+    await expect(provider.extract(INPUT)).rejects.toBeInstanceOf(
+      IntelligenceApiError,
+    );
   });
 
   it("throws IntelligenceMalformedResponseError when content is missing", async () => {
     const fetchImpl = vi.fn(
-      async () => new Response(JSON.stringify({ choices: [] }), { status: 200 }),
+      async () =>
+        new Response(JSON.stringify({ choices: [] }), { status: 200 }),
     );
     const provider = new OpenRouterMeetingIntelligenceProvider(
       "test-key",

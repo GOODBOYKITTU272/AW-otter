@@ -21,7 +21,8 @@
     "./scheduler-linkage": "./src/scheduler-linkage.ts",
     "./audio-transcode": "./src/audio-transcode.ts",
     "./transcription": "./src/transcription.ts",
-    "./m8-language-eval": "./src/m8-language-eval.ts"
+    "./m8-language-eval": "./src/m8-language-eval.ts",
+    "./meeting-intelligence": "./src/meeting-intelligence.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -33,7 +34,8 @@
     "@applywizz/microsoft": "workspace:*",
     "@applywizz/meeting-bots": "workspace:*",
     "@applywizz/scheduler": "workspace:*",
-    "@applywizz/transcription": "workspace:*"
+    "@applywizz/transcription": "workspace:*",
+    "@applywizz/ai": "workspace:*"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.58.0",

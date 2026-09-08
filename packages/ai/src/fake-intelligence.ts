@@ -12,9 +12,7 @@ import type {
  * need a real OpenRouter call. `extractCalls` records every invocation for
  * idempotency/retry assertions.
  */
-export class FakeMeetingIntelligenceProvider
-  implements MeetingIntelligenceProvider
-{
+export class FakeMeetingIntelligenceProvider implements MeetingIntelligenceProvider {
   readonly name = "fake";
   readonly extractCalls: MeetingIntelligenceInput[] = [];
 

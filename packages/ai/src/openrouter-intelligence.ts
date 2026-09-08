@@ -28,8 +28,31 @@ Output ONLY a single JSON object matching the provided schema. No commentary, no
 Fields:
 - summary: a concise (3-6 sentence) factual summary of what was discussed and decided in this call.
 - callRecords: action items, commitments, decisions, questions, and blockers raised in the call. Each needs a clear ownerType (who owns it: customer, am, resume_team, applywizz, or other) and at least one evidenceSegmentIds entry.
-- customerTruthDeltas: any stated change or addition to the customer's preferences/requirements (target roles, skills, avoid roles, locations, relocation, work mode, compensation, work authorization, sponsorship, company/industry preferences, resume positioning, concerns, application strategy). Use a stable fieldKey (snake_case). Only include deltas that are actually stated in this call.
-- callTypeSpecific: if call type is known, fill in the shape for that exact call type (discovery/resume_review/orientation/progress/renewal). If call type is "unknown" or not provided, set this to null and do not attempt call-type-specific extraction.`;
+- customerTruthDeltas: any stated change or addition to the customer's preferences/requirements (target roles, skills, avoid roles, locations, relocation, work mode, compensation, work authorization, sponsorship, company/industry preferences, resume positioning, concerns, application strategy). Use a stable fieldKey (snake_case, e.g. "target_roles"). Only include deltas that are actually stated in this call.
+- callTypeSpecific: if call type is known, fill in the shape for that exact call type (discovery/resume_review/orientation/progress/renewal). If call type is "unknown" or not provided, set this to null and do not attempt call-type-specific extraction.
+
+CRITICAL: use EXACTLY these JSON key names, in camelCase, exactly as shown — never snake_case, never renamed, never omitted when required. Example of the exact shape (values illustrative only):
+
+{
+  "summary": "The customer described their target roles and the AM committed to a follow-up.",
+  "callRecords": [
+    { "recordType": "action_item", "description": "Follow up with an updated resume by Friday.", "ownerType": "am", "ownerRef": null, "dueAt": null, "evidenceSegmentIds": ["<segment-id>"] }
+  ],
+  "customerTruthDeltas": [
+    { "fieldKey": "target_roles", "previousValue": null, "proposedValue": "Python backend", "confidence": 0.9, "evidenceSegmentIds": ["<segment-id>"] }
+  ],
+  "callTypeSpecific": {
+    "callType": "discovery",
+    "onboardingCompleteness": { "complete": false, "missingFields": ["work_authorization"] },
+    "goals": [{ "text": "Wants backend roles", "evidenceSegmentIds": ["<segment-id>"] }],
+    "constraints": [],
+    "contradictionsWithOnboarding": [],
+    "newInformation": [],
+    "resumeTeamNeeds": []
+  }
+}
+
+Every key in "recordType" (not "record_type"), "ownerType" (not "owner_type"), "dueAt", "evidenceSegmentIds", "fieldKey", "previousValue", "proposedValue", "confidence" is REQUIRED where shown above and must use this exact camelCase spelling. "confidence" on a customerTruthDeltas item is required (a number 0-1) — never omit it. callTypeSpecific must always include every field listed for its call type above, using empty arrays [] for anything not discussed, never omitting a field.`;
 
 interface RawChatCompletionResponse {
   choices?: { message?: { content?: string } }[];
@@ -65,9 +88,7 @@ function buildUserPrompt(input: MeetingIntelligenceInput): string {
  * before persistence" rule. A stricter json_schema response_format is a
  * possible future tightening, not required for correctness here.
  */
-export class OpenRouterMeetingIntelligenceProvider
-  implements MeetingIntelligenceProvider
-{
+export class OpenRouterMeetingIntelligenceProvider implements MeetingIntelligenceProvider {
   readonly name = "openrouter";
 
   constructor(
