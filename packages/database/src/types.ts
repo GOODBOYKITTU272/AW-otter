@@ -863,6 +863,90 @@ export type Database = {
           },
         ];
       };
+      meeting_transcripts: {
+        Row: {
+          completed_at: string | null;
+          created_at: string;
+          detected_language: string | null;
+          error_code: string | null;
+          has_canonical_english: boolean;
+          id: string;
+          meeting_id: string;
+          model: string | null;
+          next_retry_at: string | null;
+          organization_id: string;
+          processing_status: Database["public"]["Enums"]["transcript_processing_status"];
+          provider: string;
+          provider_metadata: Json;
+          retry_count: number;
+          safe_error_metadata: Json | null;
+          source_audio_reference: Json | null;
+          started_at: string | null;
+          updated_at: string;
+          usage_cost: number | null;
+          usage_seconds: number | null;
+        };
+        Insert: {
+          completed_at?: string | null;
+          created_at?: string;
+          detected_language?: string | null;
+          error_code?: string | null;
+          has_canonical_english?: boolean;
+          id?: string;
+          meeting_id: string;
+          model?: string | null;
+          next_retry_at?: string | null;
+          organization_id: string;
+          processing_status?: Database["public"]["Enums"]["transcript_processing_status"];
+          provider?: string;
+          provider_metadata?: Json;
+          retry_count?: number;
+          safe_error_metadata?: Json | null;
+          source_audio_reference?: Json | null;
+          started_at?: string | null;
+          updated_at?: string;
+          usage_cost?: number | null;
+          usage_seconds?: number | null;
+        };
+        Update: {
+          completed_at?: string | null;
+          created_at?: string;
+          detected_language?: string | null;
+          error_code?: string | null;
+          has_canonical_english?: boolean;
+          id?: string;
+          meeting_id?: string;
+          model?: string | null;
+          next_retry_at?: string | null;
+          organization_id?: string;
+          processing_status?: Database["public"]["Enums"]["transcript_processing_status"];
+          provider?: string;
+          provider_metadata?: Json;
+          retry_count?: number;
+          safe_error_metadata?: Json | null;
+          source_audio_reference?: Json | null;
+          started_at?: string | null;
+          updated_at?: string;
+          usage_cost?: number | null;
+          usage_seconds?: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "meeting_transcripts_meeting_id_fkey";
+            columns: ["meeting_id"];
+            isOneToOne: false;
+            referencedRelation: "meetings";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "meeting_transcripts_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       meetings: {
         Row: {
           actual_end: string | null;
@@ -1568,6 +1652,84 @@ export type Database = {
           },
         ];
       };
+      transcript_segments: {
+        Row: {
+          canonical_english_text: string | null;
+          created_at: string;
+          end_ms: number;
+          id: string;
+          needs_review: boolean;
+          organization_id: string;
+          original_language: string | null;
+          original_text: string;
+          provider_segment_metadata: Json | null;
+          sequence_index: number;
+          speaker_id: string | null;
+          speaker_label: string;
+          speaker_source: Database["public"]["Enums"]["speaker_source"];
+          start_ms: number;
+          transcript_id: string;
+          transcription_confidence: number | null;
+          translation_confidence: number | null;
+          updated_at: string;
+        };
+        Insert: {
+          canonical_english_text?: string | null;
+          created_at?: string;
+          end_ms: number;
+          id?: string;
+          needs_review?: boolean;
+          organization_id: string;
+          original_language?: string | null;
+          original_text: string;
+          provider_segment_metadata?: Json | null;
+          sequence_index: number;
+          speaker_id?: string | null;
+          speaker_label?: string;
+          speaker_source?: Database["public"]["Enums"]["speaker_source"];
+          start_ms: number;
+          transcript_id: string;
+          transcription_confidence?: number | null;
+          translation_confidence?: number | null;
+          updated_at?: string;
+        };
+        Update: {
+          canonical_english_text?: string | null;
+          created_at?: string;
+          end_ms?: number;
+          id?: string;
+          needs_review?: boolean;
+          organization_id?: string;
+          original_language?: string | null;
+          original_text?: string;
+          provider_segment_metadata?: Json | null;
+          sequence_index?: number;
+          speaker_id?: string | null;
+          speaker_label?: string;
+          speaker_source?: Database["public"]["Enums"]["speaker_source"];
+          start_ms?: number;
+          transcript_id?: string;
+          transcription_confidence?: number | null;
+          translation_confidence?: number | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "transcript_segments_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "transcript_segments_transcript_id_fkey";
+            columns: ["transcript_id"];
+            isOneToOne: false;
+            referencedRelation: "meeting_transcripts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: {
       customer_truth_current: {
@@ -1660,6 +1822,37 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      claim_next_transcription_job: {
+        Args: never;
+        Returns: {
+          completed_at: string | null;
+          created_at: string;
+          detected_language: string | null;
+          error_code: string | null;
+          has_canonical_english: boolean;
+          id: string;
+          meeting_id: string;
+          model: string | null;
+          next_retry_at: string | null;
+          organization_id: string;
+          processing_status: Database["public"]["Enums"]["transcript_processing_status"];
+          provider: string;
+          provider_metadata: Json;
+          retry_count: number;
+          safe_error_metadata: Json | null;
+          source_audio_reference: Json | null;
+          started_at: string | null;
+          updated_at: string;
+          usage_cost: number | null;
+          usage_seconds: number | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "meeting_transcripts";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       claim_scheduler_call_meeting: {
         Args: {
           p_call_type: Database["public"]["Enums"]["call_type"];
@@ -1667,6 +1860,21 @@ export type Database = {
           p_meeting_id: string;
           p_organization_id: string;
           p_scheduler_call_id: string;
+        };
+        Returns: boolean;
+      };
+      complete_transcription_job: {
+        Args: {
+          p_detected_language: string;
+          p_has_canonical_english: boolean;
+          p_model: string;
+          p_organization_id: string;
+          p_provider_metadata: Json;
+          p_segments: Json;
+          p_source_audio_reference: Json;
+          p_transcript_id: string;
+          p_usage_cost: number;
+          p_usage_seconds: number;
         };
         Returns: boolean;
       };
@@ -1708,6 +1916,9 @@ export type Database = {
       membership_status:
         "invited" | "setup_required" | "active" | "suspended" | "deactivated";
       role_key: "admin" | "senior_manager" | "manager" | "account_manager";
+      speaker_source: "unavailable" | "vexa_participants" | "manual";
+      transcript_processing_status:
+        "pending" | "processing" | "completed" | "failed" | "retryable";
     };
     CompositeTypes: {
       [_ in never]: never;
@@ -1909,6 +2120,14 @@ export const Constants = {
         "deactivated",
       ],
       role_key: ["admin", "senior_manager", "manager", "account_manager"],
+      speaker_source: ["unavailable", "vexa_participants", "manual"],
+      transcript_processing_status: [
+        "pending",
+        "processing",
+        "completed",
+        "failed",
+        "retryable",
+      ],
     },
   },
 } as const;

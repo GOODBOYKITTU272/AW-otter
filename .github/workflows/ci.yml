@@ -21,6 +21,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # M8: packages/domain/src/audio-transcode.ts shells out to a real
+      # ffmpeg/ffprobe binary (not a library) — explicit, not assumed
+      # pre-installed on the runner image.
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
       - name: Typecheck
         run: pnpm run typecheck
 

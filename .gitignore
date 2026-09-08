@@ -27,3 +27,8 @@ supabase/.branches/
 
 # infrastructure secrets (SSH keys, generated credentials) — never commit
 .azure-secrets/
+
+# M8 language-evaluation audio + benchmark evidence — local artifacts only
+# (real/licensed third-party audio, real human recordings). Preserved on
+# disk, never committed into the product repo.
+m8-audio/

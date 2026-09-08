@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { MetricCard } from "@/components/admin/metric-card";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { CustomerLinkControl } from "@/components/customer-link-control";
@@ -300,7 +301,12 @@ export default async function AdminMeetingsPage() {
                   className="border-b border-zinc-100 last:border-0 dark:border-zinc-900"
                 >
                   <td className="px-4 py-2.5">
-                    <div className="font-medium">{meeting.title}</div>
+                    <Link
+                      href={`/admin/meetings/${meeting.id}`}
+                      className="font-medium hover:underline"
+                    >
+                      {meeting.title}
+                    </Link>
                     <div className="font-mono text-xs text-zinc-400">
                       {meeting.ical_uid}
                     </div>

@@ -18,7 +18,10 @@
     "./customers": "./src/customers.ts",
     "./customer-linkage": "./src/customer-linkage.ts",
     "./customer-truth": "./src/customer-truth.ts",
-    "./scheduler-linkage": "./src/scheduler-linkage.ts"
+    "./scheduler-linkage": "./src/scheduler-linkage.ts",
+    "./audio-transcode": "./src/audio-transcode.ts",
+    "./transcription": "./src/transcription.ts",
+    "./m8-language-eval": "./src/m8-language-eval.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -29,10 +32,12 @@
     "@applywizz/database": "workspace:*",
     "@applywizz/microsoft": "workspace:*",
     "@applywizz/meeting-bots": "workspace:*",
-    "@applywizz/scheduler": "workspace:*"
+    "@applywizz/scheduler": "workspace:*",
+    "@applywizz/transcription": "workspace:*"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.58.0",
+    "@types/node": "^20.0.0",
     "vitest": "^3.2.0"
   }
 }

@@ -88,6 +88,23 @@ export function getOpenAiEnv() {
   } as const;
 }
 
+/**
+ * M8's temporary STT/normalization provider (locked architecture: "not a
+ * permanent architectural dependency" — see packages/transcription). The
+ * key stored here was exposed in visible process output during the M8
+ * readiness investigation and is being treated as compromised; whatever
+ * value is present here at any given time is whatever the operator has
+ * most recently rotated it to — this getter has no way to know which.
+ */
+export function getOpenRouterEnv() {
+  return {
+    OPENROUTER_API_KEY: required(
+      "OPENROUTER_API_KEY",
+      process.env.OPENROUTER_API_KEY,
+    ),
+  } as const;
+}
+
 export function getEmailEnv() {
   return {
     EMAIL_PROVIDER_API_KEY: required(

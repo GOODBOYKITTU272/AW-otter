@@ -8,7 +8,7 @@ const BOT_NAME = "ApplyWizz Meeting Assistant";
 const TERMINAL_STATUSES = ["completed", "cancelled", "failed"] as const;
 const LIVE_FILTER = `(${TERMINAL_STATUSES.join(",")})`;
 
-async function logLifecycleEvent(
+export async function logLifecycleEvent(
   serviceRoleClient: AppSupabaseClient,
   input: {
     meetingId: string;
