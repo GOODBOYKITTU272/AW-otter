@@ -282,7 +282,17 @@ $$;
 -- already applied to every TABLE grant in this schema. Caught by pgTAP 2b
 -- during local verification (authenticated could call the RPC before this
 -- revoke was added).
-revoke execute on function public.claim_next_meeting_intelligence_run() from public;
+--
+-- CI incident (real, caught by the same pgTAP test against a newer patch
+-- of the Supabase postgres image, 17.6.1.167 vs the 17.6.1.166 this was
+-- first verified against): `revoke ... from public` alone was NOT
+-- sufficient there — the newer image's own baseline setup apparently
+-- grants `authenticated` a DIRECT execute entry on new functions, which
+-- revoking PUBLIC's entry does not remove. Explicitly revoking from
+-- anon/authenticated/service_role by name (matching this schema's own
+-- table-grant convention exactly) is robust regardless of what any given
+-- Postgres image version defaults to.
+revoke execute on function public.claim_next_meeting_intelligence_run() from public, anon, authenticated, service_role;
 grant execute on function public.claim_next_meeting_intelligence_run() to service_role;
 
 -- Atomically completes a run: marks ai_runs completed with its full
@@ -361,7 +371,7 @@ $$;
 
 revoke execute on function public.complete_meeting_intelligence_run(
   uuid, uuid, text, jsonb, jsonb, jsonb
-) from public;
+) from public, anon, authenticated, service_role;
 grant execute on function public.complete_meeting_intelligence_run(
   uuid, uuid, text, jsonb, jsonb, jsonb
 ) to service_role;

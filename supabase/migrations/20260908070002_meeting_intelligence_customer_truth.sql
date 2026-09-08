@@ -113,5 +113,9 @@ begin
 end;
 $$;
 
-revoke execute on function public.materialize_customer_truth_deltas(uuid, uuid) from public;
+-- Explicitly named roles, not just `public` — see the note on
+-- claim_next_meeting_intelligence_run's own revoke (20260908070001) for
+-- why `from public` alone was not sufficient against a real CI Postgres
+-- image patch difference.
+revoke execute on function public.materialize_customer_truth_deltas(uuid, uuid) from public, anon, authenticated, service_role;
 grant execute on function public.materialize_customer_truth_deltas(uuid, uuid) to service_role;
