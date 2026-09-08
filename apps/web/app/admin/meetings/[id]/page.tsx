@@ -5,7 +5,10 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 // M8 minimum verification surface (locked scope: "do not redesign the
 // whole Signal product" — just enough to prove the real pipeline on a
-// real completed meeting). No M9 intelligence cards here.
+// real completed meeting). M10 adds one small read-only section below
+// (this meeting's call_records/customer_truth_facts) — the confirm/
+// reject/resolve workflow itself lives on /customers/:id and /actions,
+// not here.
 
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString(undefined, {
@@ -78,6 +81,20 @@ export default async function MeetingDetailPage({
         .order("sequence_index", { ascending: true })
     : { data: [], error: null };
   if (segmentsError) throw segmentsError;
+
+  const { data: callRecords, error: callRecordsError } = await supabase
+    .from("call_records")
+    .select("id, record_type, description, status")
+    .eq("meeting_id", id)
+    .order("created_at", { ascending: true });
+  if (callRecordsError) throw callRecordsError;
+
+  const { data: truthProposals, error: truthProposalsError } = await supabase
+    .from("customer_truth_facts")
+    .select("id, field_key, value, status")
+    .eq("source_meeting_id", id)
+    .order("detected_at", { ascending: true });
+  if (truthProposalsError) throw truthProposalsError;
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -206,6 +223,61 @@ export default async function MeetingDetailPage({
           </>
         )}
       </section>
+
+      {((callRecords ?? []).length > 0 ||
+        (truthProposals ?? []).length > 0) && (
+        <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
+          <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+            <h2 className="text-sm font-medium">
+              Call records &amp; truth proposals from this meeting
+            </h2>
+            <p className="text-xs text-zinc-400">
+              Review and confirm/reject on{" "}
+              <Link href="/customers" className="hover:underline">
+                Customers
+              </Link>{" "}
+              or{" "}
+              <Link href="/actions" className="hover:underline">
+                Actions
+              </Link>
+              .
+            </p>
+          </div>
+          <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
+            {(callRecords ?? []).map((record) => (
+              <li
+                key={record.id}
+                className="flex items-center justify-between px-4 py-2 text-sm"
+              >
+                <span>{record.description}</span>
+                <StatusBadge
+                  tone={record.status === "detected" ? "warning" : "success"}
+                >
+                  {record.status}
+                </StatusBadge>
+              </li>
+            ))}
+            {(truthProposals ?? []).map((fact) => (
+              <li
+                key={fact.id}
+                className="flex items-center justify-between px-4 py-2 text-sm"
+              >
+                <span>
+                  {fact.field_key.replaceAll("_", " ")}:{" "}
+                  {typeof fact.value === "string"
+                    ? fact.value
+                    : JSON.stringify(fact.value)}
+                </span>
+                <StatusBadge
+                  tone={fact.status === "proposed" ? "warning" : "neutral"}
+                >
+                  {fact.status}
+                </StatusBadge>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

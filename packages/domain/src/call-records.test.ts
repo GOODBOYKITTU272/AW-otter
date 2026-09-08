@@ -33,10 +33,13 @@ describe("resolveCallRecord", () => {
   });
 
   it("throws the RPC error rather than swallowing it", async () => {
-    const { client } = fakeSupabase({ data: null, error: new Error("not authorized") });
-    await expect(resolveCallRecord(client, "rec1", "completed")).rejects.toThrow(
-      "not authorized",
-    );
+    const { client } = fakeSupabase({
+      data: null,
+      error: new Error("not authorized"),
+    });
+    await expect(
+      resolveCallRecord(client, "rec1", "completed"),
+    ).rejects.toThrow("not authorized");
   });
 });
 
@@ -45,7 +48,12 @@ describe("assignCallRecordOwner", () => {
     const row = { id: "rec1", owner_membership_id: "mem1" };
     const { client, rpc } = fakeSupabase({ data: row, error: null });
 
-    const result = await assignCallRecordOwner(client, "rec1", "mem1", "2026-09-10T00:00:00Z");
+    const result = await assignCallRecordOwner(
+      client,
+      "rec1",
+      "mem1",
+      "2026-09-10T00:00:00Z",
+    );
 
     expect(rpc).toHaveBeenCalledWith("assign_call_record_owner", {
       p_record_id: "rec1",
@@ -60,8 +68,8 @@ describe("assignCallRecordOwner", () => {
       data: null,
       error: new Error("must belong to the caller's own organization"),
     });
-    await expect(assignCallRecordOwner(client, "rec1", "mem-other-org")).rejects.toThrow(
-      "must belong to the caller's own organization",
-    );
+    await expect(
+      assignCallRecordOwner(client, "rec1", "mem-other-org"),
+    ).rejects.toThrow("must belong to the caller's own organization");
   });
 });

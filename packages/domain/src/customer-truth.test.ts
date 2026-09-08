@@ -140,7 +140,11 @@ describe("rejectCustomerTruthFact", () => {
     const row = { id: "fact-1", status: "rejected" };
     const { client, rpc } = fakeRpcSupabase({ data: row, error: null });
 
-    const result = await rejectCustomerTruthFact(client, "fact-1", "not accurate");
+    const result = await rejectCustomerTruthFact(
+      client,
+      "fact-1",
+      "not accurate",
+    );
 
     expect(rpc).toHaveBeenCalledWith("reject_customer_truth_fact", {
       p_fact_id: "fact-1",
@@ -150,7 +154,10 @@ describe("rejectCustomerTruthFact", () => {
   });
 
   it("passes null when no reason is given", async () => {
-    const { client, rpc } = fakeRpcSupabase({ data: { id: "fact-1" }, error: null });
+    const { client, rpc } = fakeRpcSupabase({
+      data: { id: "fact-1" },
+      error: null,
+    });
     await rejectCustomerTruthFact(client, "fact-1");
     expect(rpc).toHaveBeenCalledWith("reject_customer_truth_fact", {
       p_fact_id: "fact-1",
