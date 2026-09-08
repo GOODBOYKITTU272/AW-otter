@@ -516,6 +516,60 @@ export type Database = {
           },
         ];
       };
+      customer_context_snapshots: {
+        Row: {
+          content_fingerprint: string;
+          created_at: string;
+          customer_id: string;
+          external_applywizz_id: string;
+          fetched_at: string;
+          id: string;
+          normalized_data: Json;
+          organization_id: string;
+          source: string;
+          source_updated_at: string | null;
+        };
+        Insert: {
+          content_fingerprint: string;
+          created_at?: string;
+          customer_id: string;
+          external_applywizz_id: string;
+          fetched_at?: string;
+          id?: string;
+          normalized_data: Json;
+          organization_id: string;
+          source?: string;
+          source_updated_at?: string | null;
+        };
+        Update: {
+          content_fingerprint?: string;
+          created_at?: string;
+          customer_id?: string;
+          external_applywizz_id?: string;
+          fetched_at?: string;
+          id?: string;
+          normalized_data?: Json;
+          organization_id?: string;
+          source?: string;
+          source_updated_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "customer_context_snapshots_customer_id_fkey";
+            columns: ["customer_id"];
+            isOneToOne: false;
+            referencedRelation: "customers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "customer_context_snapshots_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       customer_truth_facts: {
         Row: {
           confirmed_at: string | null;

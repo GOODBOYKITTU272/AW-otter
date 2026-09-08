@@ -23,7 +23,8 @@
     "./transcription": "./src/transcription.ts",
     "./m8-language-eval": "./src/m8-language-eval.ts",
     "./meeting-intelligence": "./src/meeting-intelligence.ts",
-    "./call-records": "./src/call-records.ts"
+    "./call-records": "./src/call-records.ts",
+    "./customer-context": "./src/customer-context.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -36,7 +37,8 @@
     "@applywizz/meeting-bots": "workspace:*",
     "@applywizz/scheduler": "workspace:*",
     "@applywizz/transcription": "workspace:*",
-    "@applywizz/ai": "workspace:*"
+    "@applywizz/ai": "workspace:*",
+    "@applywizz/crm": "workspace:*"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.58.0",

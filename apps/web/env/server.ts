@@ -135,6 +135,26 @@ export function getSchedulerEnv() {
   } as const;
 }
 
+/**
+ * M10 amendment: the real customer-details/onboarding-baseline API
+ * (apply-wizz.me) — a DIFFERENT service from getCrmEnv() below (which
+ * remains reserved for a future full CRM adapter, still unused). The
+ * example endpoint shown had no visible auth in its URL — API key is
+ * left optional here rather than required, since it's genuinely unknown
+ * whether this service needs one; @applywizz/crm's client only sends an
+ * Authorization header when a key is actually configured.
+ */
+export function getCustomerDetailsEnv() {
+  return {
+    APPLYWIZZ_CUSTOMER_DETAILS_BASE_URL: required(
+      "APPLYWIZZ_CUSTOMER_DETAILS_BASE_URL",
+      process.env.APPLYWIZZ_CUSTOMER_DETAILS_BASE_URL,
+    ),
+    APPLYWIZZ_CUSTOMER_DETAILS_API_KEY:
+      process.env.APPLYWIZZ_CUSTOMER_DETAILS_API_KEY || null,
+  } as const;
+}
+
 export function getCrmEnv() {
   return {
     APPLYWIZZ_CRM_BASE_URL: required(

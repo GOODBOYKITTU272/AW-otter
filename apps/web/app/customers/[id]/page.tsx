@@ -1,6 +1,11 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import {
+  getEffectiveCustomerTruth,
+  isSemanticallySameValue,
+} from "@applywizz/domain/customer-context";
 import { ConfirmRejectActions } from "@/components/customer-truth/confirm-reject-actions";
+import { RefreshCrmButton } from "@/components/customer-truth/refresh-crm-button";
 import {
   EvidenceSegments,
   type EvidenceSegment,
@@ -63,6 +68,20 @@ export default async function CustomerDetailPage({
   // for generated-type gaps).
   const currentByField = new Map<string, unknown>(
     (current ?? []).map((row) => [row.field_key as string, row.value]),
+  );
+
+  // M10 amendment: effective truth = confirmed Signal fact if one exists,
+  // else the CRM baseline (never the reverse — a CRM refresh can never
+  // overwrite a confirmed Signal fact). Only covers the fields the CRM
+  // baseline actually maps to; other Signal-only fields (skills,
+  // concerns, application_strategy, ...) are Signal-confirmed-only and
+  // stay in currentByField above.
+  const effectiveTruth = await getEffectiveCustomerTruth(supabase, id);
+  const effectiveByField = new Map(
+    effectiveTruth.map((f) => [f.fieldKey as string, f]),
+  );
+  const signalOnlyFields = Array.from(currentByField.entries()).filter(
+    ([fieldKey]) => !effectiveByField.has(fieldKey),
   );
 
   const { data: facts, error: factsError } = await supabase
@@ -136,19 +155,55 @@ export default async function CustomerDetailPage({
       </div>
 
       <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
-        <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+        <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
           <h2 className="text-sm font-medium">Current truth</h2>
+          <RefreshCrmButton customerId={customer.id} />
         </div>
-        {currentByField.size === 0 ? (
+        {effectiveTruth.every((f) => f.provenance === "none") &&
+        signalOnlyFields.length === 0 ? (
           <p className="px-4 py-6 text-sm text-zinc-500">
-            No confirmed Customer Truth yet.
+            No Customer Truth yet — confirm a proposed change below, or refresh
+            from the CRM.
           </p>
         ) : (
           <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
-            {Array.from(currentByField.entries()).map(([fieldKey, value]) => (
+            {effectiveTruth
+              .filter((f) => f.provenance !== "none")
+              .map((f) => (
+                <li
+                  key={f.fieldKey}
+                  className="flex flex-col gap-1 px-4 py-2 text-sm"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-500 dark:text-zinc-400">
+                      {humanizeFieldKey(f.fieldKey)}
+                    </span>
+                    <span className="font-medium">
+                      {formatValue(f.currentValue)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-end gap-2 text-xs text-zinc-400">
+                    {f.provenance === "signal_confirmed" ? (
+                      <StatusBadge tone="success">AM-confirmed</StatusBadge>
+                    ) : (
+                      <StatusBadge tone="neutral">CRM baseline</StatusBadge>
+                    )}
+                    {f.provenance === "signal_confirmed" &&
+                      f.crmBaseline !== null &&
+                      f.crmBaseline !== undefined &&
+                      !isSemanticallySameValue(
+                        f.crmBaseline,
+                        f.currentValue,
+                      ) && (
+                        <span>CRM still says {formatValue(f.crmBaseline)}</span>
+                      )}
+                  </div>
+                </li>
+              ))}
+            {signalOnlyFields.map(([fieldKey, value]) => (
               <li
                 key={fieldKey}
-                className="flex justify-between px-4 py-2 text-sm"
+                className="flex items-center justify-between px-4 py-2 text-sm"
               >
                 <span className="text-zinc-500 dark:text-zinc-400">
                   {humanizeFieldKey(fieldKey)}
@@ -170,35 +225,51 @@ export default async function CustomerDetailPage({
           </p>
         ) : (
           <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
-            {proposed.map((fact) => (
-              <li key={fact.id} className="flex flex-col gap-2 px-4 py-3">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium">
-                      {humanizeFieldKey(fact.field_key)}
-                    </p>
-                    <p className="mt-1 text-sm">
-                      <span className="text-zinc-400 line-through">
-                        {formatValue(
-                          currentByField.get(fact.field_key) ?? null,
+            {proposed.map((fact) => {
+              // §11: compare against EFFECTIVE current truth (confirmed
+              // Signal fact if any, else the CRM baseline) — deterministic
+              // structured comparison, no second AI call.
+              const effectiveCurrent =
+                effectiveByField.get(fact.field_key)?.currentValue ??
+                currentByField.get(fact.field_key) ??
+                null;
+              const noChange = isSemanticallySameValue(
+                effectiveCurrent,
+                fact.value,
+              );
+              return (
+                <li key={fact.id} className="flex flex-col gap-2 px-4 py-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium">
+                          {humanizeFieldKey(fact.field_key)}
+                        </p>
+                        {noChange && (
+                          <StatusBadge tone="neutral">No change</StatusBadge>
                         )}
-                      </span>
-                      <span className="mx-2 text-zinc-400">→</span>
-                      <span className="font-medium">
-                        {formatValue(fact.value)}
-                      </span>
-                    </p>
-                    <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                      Detected {formatDateTime(fact.detected_at)}
-                    </p>
+                      </div>
+                      <p className="mt-1 text-sm">
+                        <span className="text-zinc-400 line-through">
+                          {formatValue(effectiveCurrent)}
+                        </span>
+                        <span className="mx-2 text-zinc-400">→</span>
+                        <span className="font-medium">
+                          {formatValue(fact.value)}
+                        </span>
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                        Detected {formatDateTime(fact.detected_at)}
+                      </p>
+                    </div>
+                    <ConfirmRejectActions factId={fact.id} />
                   </div>
-                  <ConfirmRejectActions factId={fact.id} />
-                </div>
-                <EvidenceSegments
-                  segments={evidenceFor(fact.evidence_segment_ids)}
-                />
-              </li>
-            ))}
+                  <EvidenceSegments
+                    segments={evidenceFor(fact.evidence_segment_ids)}
+                  />
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>

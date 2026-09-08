@@ -18,6 +18,7 @@
     "@applywizz/meeting-bots": "workspace:*",
     "@applywizz/transcription": "workspace:*",
     "@applywizz/ai": "workspace:*",
+    "@applywizz/crm": "workspace:*",
     "@supabase/ssr": "^0.8.0",
     "next": "16.3.4",
     "react": "19.2.8",
