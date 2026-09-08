@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  confirmCustomerTruthFact,
+  rejectCustomerTruthFact,
   seedCustomerTruthFact,
   type AppSupabaseClient,
 } from "./customer-truth";
@@ -101,5 +103,58 @@ describe("seedCustomerTruthFact", () => {
     expect(auditSpy).toHaveBeenCalledWith(
       expect.objectContaining({ action: "customer_truth.seeded" }),
     );
+  });
+});
+
+function fakeRpcSupabase(response: { data: unknown; error: unknown }) {
+  const rpc = vi.fn(async () => response);
+  return { client: { rpc } as unknown as AppSupabaseClient, rpc };
+}
+
+describe("confirmCustomerTruthFact", () => {
+  it("calls confirm_customer_truth_fact and returns the confirmed row", async () => {
+    const row = { id: "fact-1", status: "confirmed" };
+    const { client, rpc } = fakeRpcSupabase({ data: row, error: null });
+
+    const result = await confirmCustomerTruthFact(client, "fact-1");
+
+    expect(rpc).toHaveBeenCalledWith("confirm_customer_truth_fact", {
+      p_fact_id: "fact-1",
+    });
+    expect(result).toEqual(row);
+  });
+
+  it("throws the RPC error (e.g. an unauthorized/blocked-transition rejection) rather than swallowing it", async () => {
+    const { client } = fakeRpcSupabase({
+      data: null,
+      error: new Error("Cannot confirm a fact with status rejected."),
+    });
+    await expect(confirmCustomerTruthFact(client, "fact-1")).rejects.toThrow(
+      /Cannot confirm/,
+    );
+  });
+});
+
+describe("rejectCustomerTruthFact", () => {
+  it("calls reject_customer_truth_fact with the given reason and returns the rejected row", async () => {
+    const row = { id: "fact-1", status: "rejected" };
+    const { client, rpc } = fakeRpcSupabase({ data: row, error: null });
+
+    const result = await rejectCustomerTruthFact(client, "fact-1", "not accurate");
+
+    expect(rpc).toHaveBeenCalledWith("reject_customer_truth_fact", {
+      p_fact_id: "fact-1",
+      p_reason: "not accurate",
+    });
+    expect(result).toEqual(row);
+  });
+
+  it("passes null when no reason is given", async () => {
+    const { client, rpc } = fakeRpcSupabase({ data: { id: "fact-1" }, error: null });
+    await rejectCustomerTruthFact(client, "fact-1");
+    expect(rpc).toHaveBeenCalledWith("reject_customer_truth_fact", {
+      p_fact_id: "fact-1",
+      p_reason: null,
+    });
   });
 });

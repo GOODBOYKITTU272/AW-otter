@@ -3,6 +3,12 @@ import type { Database, Json } from "@applywizz/database/types";
 import { logAuditEvent } from "./audit";
 
 export type AppSupabaseClient = SupabaseClient<Database>;
+type CustomerTruthFactRow =
+  Database["public"]["Tables"]["customer_truth_facts"]["Row"];
+// Codegen gap: generated RPC arg types mark nullable params as
+// non-nullable. This cast only relaxes that, it doesn't change what's sent.
+type RejectCustomerTruthFactArgs =
+  Database["public"]["Functions"]["reject_customer_truth_fact"]["Args"];
 
 type SeedSourceType = Extract<
   Database["public"]["Enums"]["customer_truth_source_type"],
@@ -65,4 +71,40 @@ export async function seedCustomerTruthFact(
   });
 
   return { factId: fact.id };
+}
+
+/**
+ * M10: promotes a proposed (M9-detected) fact into confirmed current
+ * truth, atomically superseding whatever was previously confirmed for
+ * the same field. `supabase` must be the caller's OWN authenticated
+ * client — confirm_customer_truth_fact is a SECURITY DEFINER RPC that
+ * embeds its own authorization check (admin / customer owner / manager
+ * with intelligence.read) using auth.uid(), it is never called with a
+ * service-role client. Idempotent: confirming an already-confirmed fact
+ * returns it unchanged rather than erroring; confirming a fact that's
+ * rejected/superseded raises, which surfaces here as a thrown error.
+ */
+export async function confirmCustomerTruthFact(
+  supabase: AppSupabaseClient,
+  factId: string,
+): Promise<CustomerTruthFactRow> {
+  const { data, error } = await supabase.rpc("confirm_customer_truth_fact", {
+    p_fact_id: factId,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/** M10: the reject counterpart of confirmCustomerTruthFact — see its doc comment. */
+export async function rejectCustomerTruthFact(
+  supabase: AppSupabaseClient,
+  factId: string,
+  reason?: string,
+): Promise<CustomerTruthFactRow> {
+  const { data, error } = await supabase.rpc("reject_customer_truth_fact", {
+    p_fact_id: factId,
+    p_reason: reason ?? null,
+  } as RejectCustomerTruthFactArgs);
+  if (error) throw error;
+  return data;
 }
