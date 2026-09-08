@@ -4,8 +4,10 @@ import {
   getEffectiveCustomerTruth,
   isSemanticallySameValue,
 } from "@applywizz/domain/customer-context";
+import { listRecentMeetingSummaries } from "@applywizz/domain/meeting-recap";
 import { ConfirmRejectActions } from "@/components/customer-truth/confirm-reject-actions";
 import { RefreshCrmButton } from "@/components/customer-truth/refresh-crm-button";
+import { ResolveAction } from "@/components/actions/resolve-action";
 import {
   EvidenceSegments,
   type EvidenceSegment,
@@ -13,6 +15,31 @@ import {
 import { StatusBadge } from "@/components/admin/status-badge";
 import { requireRole } from "@/lib/require-role";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+
+const CALL_TYPE_LABEL: Record<string, string> = {
+  discovery: "Discovery",
+  resume_review: "Resume Review",
+  orientation: "Orientation",
+  progress: "Progress Review",
+  renewal: "Renewal",
+  other_unknown: "Other / Unknown",
+};
+
+const RECORD_TYPE_LABELS: Record<string, string> = {
+  action_item: "Action",
+  commitment: "Commitment",
+  decision: "Decision",
+  question: "Question",
+  blocker: "Blocker",
+};
+
+function formatShortDate(value: string | null) {
+  if (!value) return null;
+  return new Date(value).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
 
 function formatDateTime(value: string | null) {
   if (!value) return "—";
@@ -136,6 +163,34 @@ export default async function CustomerDetailPage({
       .map((segId) => segmentsById.get(segId))
       .filter((s): s is EvidenceSegment => Boolean(s));
   }
+
+  // M11: recent meetings, open actions, and journey timeline — additive
+  // sections reusing M9/M10 data already scoped by the RLS this page
+  // already relies on above. Nothing here duplicates the Current
+  // Truth/Pending Changes/History sections.
+  const recentMeetings = await listRecentMeetingSummaries(supabase, {
+    customerId: id,
+    limit: 5,
+  });
+
+  const { data: openActionRows, error: openActionsError } = await supabase
+    .from("call_records")
+    .select(
+      "id, meeting_id, record_type, description, due_at, evidence_segment_ids",
+    )
+    .eq("customer_id", id)
+    .eq("status", "detected")
+    .order("due_at", { ascending: true, nullsFirst: false });
+  if (openActionsError) throw openActionsError;
+
+  const { data: journeyRows, error: journeyError } = await supabase
+    .from("scheduler_calls")
+    .select(
+      "id, canonical_call_type, scheduled_at, external_status, meeting_id",
+    )
+    .eq("customer_id", id)
+    .order("scheduled_at", { ascending: true });
+  if (journeyError) throw journeyError;
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -319,6 +374,119 @@ export default async function CustomerDetailPage({
                         ) ?? "—"
                       } · ${formatDateTime(fact.confirmed_at)}`}
                 </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
+        <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+          <h2 className="text-sm font-medium">Recent meetings</h2>
+        </div>
+        {recentMeetings.length === 0 ? (
+          <p className="px-4 py-6 text-sm text-zinc-500">
+            No meetings with intelligence ready yet.
+          </p>
+        ) : (
+          <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
+            {recentMeetings.map((m) => (
+              <li
+                key={m.meetingId}
+                className="flex flex-col gap-1 px-4 py-3 text-sm"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link
+                    href={`/meetings/${m.meetingId}/recap`}
+                    className="font-medium hover:underline"
+                  >
+                    {m.callType
+                      ? (CALL_TYPE_LABEL[m.callType] ?? m.callType)
+                      : "Call"}
+                  </Link>
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                    {formatShortDate(m.scheduledStart)}
+                  </span>
+                </div>
+                {m.summary ? (
+                  <p className="text-zinc-600 dark:text-zinc-400">
+                    {m.summary}
+                  </p>
+                ) : null}
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  {m.truthChangeCount} truth change
+                  {m.truthChangeCount === 1 ? "" : "s"} · {m.openActionCount}{" "}
+                  action{m.openActionCount === 1 ? "" : "s"}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
+        <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+          <h2 className="text-sm font-medium">Open actions</h2>
+        </div>
+        {(openActionRows ?? []).length === 0 ? (
+          <p className="px-4 py-6 text-sm text-zinc-500">
+            Nothing outstanding.
+          </p>
+        ) : (
+          <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
+            {(openActionRows ?? []).map((record) => (
+              <li key={record.id} className="flex flex-col gap-2 px-4 py-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusBadge tone="info">
+                        {RECORD_TYPE_LABELS[record.record_type] ??
+                          record.record_type}
+                      </StatusBadge>
+                      {record.due_at ? (
+                        <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                          Due {formatShortDate(record.due_at)}
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="mt-1 text-sm">{record.description}</p>
+                  </div>
+                  <ResolveAction recordId={record.id} />
+                </div>
+                <EvidenceSegments
+                  segments={evidenceFor(record.evidence_segment_ids)}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
+        <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+          <h2 className="text-sm font-medium">Customer history</h2>
+        </div>
+        {(journeyRows ?? []).length === 0 ? (
+          <p className="px-4 py-6 text-sm text-zinc-500">
+            No scheduled or completed calls yet.
+          </p>
+        ) : (
+          <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
+            {(journeyRows ?? []).map((call) => (
+              <li
+                key={call.id}
+                className="flex items-center justify-between px-4 py-2 text-sm"
+              >
+                <span>
+                  {CALL_TYPE_LABEL[call.canonical_call_type] ??
+                    call.canonical_call_type}
+                </span>
+                <span className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                  {formatShortDate(call.scheduled_at)}
+                  <StatusBadge tone={call.meeting_id ? "success" : "neutral"}>
+                    {call.meeting_id ? "Completed" : call.external_status}
+                  </StatusBadge>
+                </span>
               </li>
             ))}
           </ul>

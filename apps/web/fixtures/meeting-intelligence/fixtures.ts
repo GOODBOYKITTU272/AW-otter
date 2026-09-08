@@ -1,26 +1,15 @@
-import type { MeetingIntelligenceResult } from "@applywizz/ai";
-
-export interface TranscriptSegmentFixture {
-  id: string;
-  startMs: number;
-  endMs: number;
-  speakerLabel: string;
-  originalText: string;
-  canonicalEnglishText: string;
-}
-
-export interface MeetingRecapFixture {
-  id: string;
-  customer: {
-    name: string;
-    lifecycleStage: string;
-    ownerName: string;
-  };
-  meetingDate: string;
-  nextJourneyStep: string;
-  transcriptSegments: TranscriptSegmentFixture[];
-  result: MeetingIntelligenceResult;
-}
+// M11: the recap contract now lives in @applywizz/domain (the real
+// getMeetingRecapData returns this same shape) — imported here under its
+// original fixture names so this module's own literal fixture array and
+// any existing imports of it keep working unchanged. See
+// packages/domain/src/meeting-recap.ts for the real, backend-wired
+// version; this file stays fixture-only (no DB calls), useful for visual
+// regression / component tests of MeetingRecap in isolation.
+import type {
+  MeetingRecapData as MeetingRecapFixture,
+  TranscriptSegmentData as TranscriptSegmentFixture,
+} from "@applywizz/domain/meeting-recap";
+export type { MeetingRecapFixture, TranscriptSegmentFixture };
 
 export const meetingRecapFixtures = [
   {
