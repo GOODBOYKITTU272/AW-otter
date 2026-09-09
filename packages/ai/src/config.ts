@@ -30,3 +30,13 @@ export const CURRENT_PROVIDER_CONFIG_VERSION = "v1";
 export const MEETING_INTELLIGENCE_RUN_TYPE = "meeting_intelligence";
 
 export const DEFAULT_INTELLIGENCE_TIMEOUT_MS = 120_000;
+
+/**
+ * M13 §9: Ask Signal is the first synchronous, user-request-blocking AI
+ * call in the codebase (M9 is a background queue worker) — a much shorter
+ * timeout budget than M9's 120s, and a faster/cheaper model since it only
+ * synthesizes over an already-retrieved, already-bounded evidence bundle
+ * rather than extracting structure from a full transcript.
+ */
+export const DEFAULT_ASK_SIGNAL_MODEL = "openai/gpt-4o-mini";
+export const DEFAULT_ASK_SIGNAL_TIMEOUT_MS = 30_000;

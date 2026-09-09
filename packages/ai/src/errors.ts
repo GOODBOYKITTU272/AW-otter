@@ -23,3 +23,29 @@ export class IntelligenceTimeoutError extends Error {
     this.name = "IntelligenceTimeoutError";
   }
 }
+
+/** Non-2xx HTTP response from the Ask Signal provider. Message is always generic — never includes the raw response body (may contain evidence/transcript content). */
+export class AskSignalApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "AskSignalApiError";
+    this.status = status;
+  }
+}
+
+/** 2xx response whose body isn't valid JSON, or fails askSignalModelOutputSchema validation. */
+export class AskSignalMalformedResponseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AskSignalMalformedResponseError";
+  }
+}
+
+export class AskSignalTimeoutError extends Error {
+  constructor() {
+    super("Ask Signal provider request timed out.");
+    this.name = "AskSignalTimeoutError";
+  }
+}

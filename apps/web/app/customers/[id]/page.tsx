@@ -207,6 +207,12 @@ export default async function CustomerDetailPage({
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
           {customer.lifecycle_stage ?? "Lifecycle stage unknown"}
         </p>
+        <Link
+          href={`/customers/${customer.id}/ask`}
+          className="mt-2 inline-block text-sm text-zinc-700 underline dark:text-zinc-300"
+        >
+          Ask Signal about this customer →
+        </Link>
       </div>
 
       <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">

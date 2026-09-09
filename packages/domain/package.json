@@ -27,7 +27,8 @@
     "./customer-context": "./src/customer-context.ts",
     "./meeting-recap": "./src/meeting-recap.ts",
     "./am-portfolio": "./src/am-portfolio.ts",
-    "./meeting-prep": "./src/meeting-prep.ts"
+    "./meeting-prep": "./src/meeting-prep.ts",
+    "./ask-signal": "./src/ask-signal.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
