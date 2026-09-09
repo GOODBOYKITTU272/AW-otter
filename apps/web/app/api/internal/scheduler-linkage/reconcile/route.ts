@@ -2,27 +2,26 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServiceRoleClient } from "@applywizz/database/server";
 import { reconcileOrganizationSchedulerCalls } from "@applywizz/domain/scheduler-linkage";
 import { reconcileOrganizationCustomerLinkage } from "@applywizz/domain/customer-linkage";
-import { validateState } from "@applywizz/microsoft";
 import {
-  getInternalQueueSecret,
   getSchedulerEnv,
   getSupabaseServiceRoleKey,
 } from "@/env/server";
 import { getClientEnv } from "@/env/client";
+import { isAuthorizedInternalRequest } from "@/lib/internal-route-auth";
 
 /**
- * Same secret-header gate as every other /api/internal route. Runs the
- * FULL M7A linkage pipeline for every active organization, in the order
- * the revised plan requires: scheduler-driven Tiers 1-3 (highest
- * confidence — real lead_id/AM/Teams identity) first, then the existing,
- * UNCHANGED attendee-email Tier 4 fallback — whose own RESOLVED_STATUSES
- * check already skips anything the scheduler tier just linked, so running
- * them in this order is what gives the right tier priority; no shared
- * code path between the two was needed.
+ * Same auth gate as every other /api/internal route. Runs the FULL M7A
+ * linkage pipeline for every active organization, in the order the
+ * revised plan requires: scheduler-driven Tiers 1-3 (highest confidence —
+ * real lead_id/AM/Teams identity) first, then the existing, UNCHANGED
+ * attendee-email Tier 4 fallback — whose own RESOLVED_STATUSES check
+ * already skips anything the scheduler tier just linked, so running them
+ * in this order is what gives the right tier priority; no shared code
+ * path between the two was needed. M17B: scheduled per
+ * docs/product/m17-plan.md §6.
  */
 export async function POST(request: NextRequest) {
-  const provided = request.headers.get("x-internal-queue-secret");
-  if (!validateState(provided, getInternalQueueSecret())) {
+  if (!isAuthorizedInternalRequest(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -74,3 +73,5 @@ export async function POST(request: NextRequest) {
     { status: 200 },
   );
 }
+
+export const GET = POST;

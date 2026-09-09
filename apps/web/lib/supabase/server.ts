@@ -21,7 +21,8 @@ export async function getSupabaseServerClient() {
           }
         } catch {
           // Server Components can't set cookies during render — fine, because
-          // middleware.ts refreshes the session on every request instead.
+          // proxy.ts (Next.js 16's renamed middleware convention) refreshes
+          // the session on every request instead.
         }
       },
     },

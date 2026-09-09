@@ -6,25 +6,22 @@ import {
   syncBotStatuses,
 } from "@applywizz/domain/meeting-bots";
 import { VexaMeetingBotProvider } from "@applywizz/meeting-bots";
-import { validateState } from "@applywizz/microsoft";
 import {
-  getInternalQueueSecret,
   getSupabaseServiceRoleKey,
   getVexaEnv,
   toVexaEnv,
 } from "@/env/server";
 import { getClientEnv } from "@/env/client";
+import { isAuthorizedInternalRequest } from "@/lib/internal-route-auth";
 
-// Same secret-header gate as every other /api/internal route. One
-// combined tick — reconcile intent, schedule pending bots, sync live bot
-// statuses — for every active organization. This IS the durable
-// job/worker step (workers/orchestrator/bot-worker.mjs calls this same
-// domain code directly on an interval); this route exists so the same
-// tick can also be triggered on demand, matching every other M3-M5
-// internal route's "no scheduler yet, called on demand" convention.
+// Same auth gate as every other /api/internal route. One combined tick —
+// reconcile intent, schedule pending bots, sync live bot statuses — for
+// every active organization. This IS the durable job/worker step
+// (workers/orchestrator/bot-worker.mjs calls this same domain code
+// directly on an interval); this route also serves as the M17B scheduled
+// entry point (GET) and remains callable on demand (POST).
 export async function POST(request: NextRequest) {
-  const provided = request.headers.get("x-internal-queue-secret");
-  if (!validateState(provided, getInternalQueueSecret())) {
+  if (!isAuthorizedInternalRequest(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -88,3 +85,5 @@ export async function POST(request: NextRequest) {
     { status: 200 },
   );
 }
+
+export const GET = POST;

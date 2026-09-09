@@ -171,12 +171,22 @@ async function cancelExceptionsForCancelledMeetings(
     if (meetingError) throw meetingError;
     if (meeting.lifecycle_status !== "cancelled") continue;
 
-    const { error: updateError } = await serviceRoleClient
+    // M17B concurrency audit fix: CAS-guarded on the row's own observed
+    // status, matching the same idiom writeLinkStatus already uses
+    // elsewhere in this codebase — without it, two overlapping scheduled
+    // runs (now genuinely possible on a 10-min cadence, not just
+    // hypothetical) both pass the read-check above and both update+log,
+    // producing a duplicate audit event for one real cancellation.
+    const { data: claimed, error: updateError } = await serviceRoleClient
       .from("recording_exemption_requests")
       .update({ status: "cancelled", reviewed_at: new Date().toISOString() })
       .eq("id", request.id)
-      .eq("organization_id", organizationId);
+      .eq("organization_id", organizationId)
+      .eq("status", "requested")
+      .select("id")
+      .maybeSingle();
     if (updateError) throw updateError;
+    if (!claimed) continue; // lost the race — another run already handled it
 
     await logAuditEvent(serviceRoleClient, {
       organizationId,
@@ -233,12 +243,20 @@ async function resolveCutoffExceptions(serviceRoleClient: AppSupabaseClient, org
     const cutoffAt = new Date(meeting.scheduled_start).getTime() - cutoffMs;
     if (Date.now() < cutoffAt) continue;
 
-    const { error: updateError } = await serviceRoleClient
+    // M17B concurrency audit fix: same CAS guard as
+    // cancelExceptionsForCancelledMeetings above — this path additionally
+    // resets eligibility_status and re-evaluates policy, so an
+    // unguarded double-run duplicates more than just the audit log.
+    const { data: claimed, error: updateError } = await serviceRoleClient
       .from("recording_exemption_requests")
       .update({ status: "expired", reviewed_at: new Date().toISOString() })
       .eq("id", request.id)
-      .eq("organization_id", organizationId);
+      .eq("organization_id", organizationId)
+      .eq("status", "requested")
+      .select("id")
+      .maybeSingle();
     if (updateError) throw updateError;
+    if (!claimed) continue; // lost the race — another run already handled it
 
     const { error: resetError } = await serviceRoleClient
       .from("meetings")

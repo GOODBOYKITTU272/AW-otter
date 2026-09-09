@@ -97,6 +97,35 @@ export async function createPerson(
   return data;
 }
 
+/**
+ * M17B: sends the real Supabase Auth invite for a just-created membership.
+ * Must be called with a service_role client — `auth.admin.inviteUserByEmail`
+ * is an admin-only API, unreachable from the RLS-scoped client `createPerson`
+ * itself uses. Deliberately separate from `createPerson`: the membership
+ * insert is the record of intent (and RLS-checkable via `people.manage`),
+ * this is the side effect of actually reaching the person, done with the
+ * narrowest possible privilege escalation (one call, not a wider
+ * service-role client threaded through the whole request).
+ *
+ * Failure here is non-fatal to the caller's overall request — the
+ * membership row itself is a real, useful, self-service-invitable record
+ * either way (an admin can be shown that no invite went out and act on it),
+ * not something to roll back over an email provider hiccup.
+ */
+export async function inviteMembership(
+  serviceRoleClient: AppSupabaseClient,
+  input: { workEmail: string; displayName: string; redirectTo: string },
+): Promise<{ error: string | null }> {
+  const { error } = await serviceRoleClient.auth.admin.inviteUserByEmail(
+    normalizeWorkEmail(input.workEmail),
+    {
+      data: { display_name: input.displayName },
+      redirectTo: input.redirectTo,
+    },
+  );
+  return { error: error?.message ?? null };
+}
+
 export interface UpdatePersonInput {
   displayName?: string;
   roleId?: string;

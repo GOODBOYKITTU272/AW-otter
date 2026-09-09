@@ -31,7 +31,8 @@
     "./ask-signal": "./src/ask-signal.ts",
     "./operations": "./src/operations.ts",
     "./operations-recovery": "./src/operations-recovery.ts",
-    "./operational-incidents": "./src/operational-incidents.ts"
+    "./operational-incidents": "./src/operational-incidents.ts",
+    "./microsoft-subscription-renewal": "./src/microsoft-subscription-renewal.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

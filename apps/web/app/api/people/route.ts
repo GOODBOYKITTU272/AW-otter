@@ -10,7 +10,11 @@ import {
   DuplicateWorkEmailError,
   SelfManagementError,
   createPerson,
+  inviteMembership,
 } from "@applywizz/domain/people";
+import { createSupabaseServiceRoleClient } from "@applywizz/database/server";
+import { getAppBaseUrl, getSupabaseServiceRoleKey } from "@/env/server";
+import { getClientEnv } from "@/env/client";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 function errorResponse(error: unknown) {
@@ -63,7 +67,30 @@ export async function POST(request: Request) {
       meetingAiEnabled: body.meetingAiEnabled ?? true,
     });
 
-    return NextResponse.json({ person }, { status: 201 });
+    // Narrowest possible service-role use: one admin API call, not a wider
+    // service-role client for the rest of this RLS-scoped request. Never
+    // blocks the response on failure — the membership itself is already a
+    // real, useful record; the caller is told so they can retry the invite.
+    const clientEnv = getClientEnv();
+    const serviceRoleClient = createSupabaseServiceRoleClient(
+      clientEnv.NEXT_PUBLIC_SUPABASE_URL,
+      getSupabaseServiceRoleKey(),
+    );
+    const { error: inviteError } = await inviteMembership(serviceRoleClient, {
+      workEmail: person.work_email,
+      displayName: person.display_name,
+      redirectTo: `${getAppBaseUrl()}/auth/set-password`,
+    });
+
+    return NextResponse.json(
+      {
+        person,
+        inviteWarning: inviteError
+          ? `Person created, but the invite email failed to send: ${inviteError}`
+          : null,
+      },
+      { status: 201 },
+    );
   } catch (error) {
     return errorResponse(error);
   }

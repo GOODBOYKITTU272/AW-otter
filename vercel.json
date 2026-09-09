@@ -1,0 +1,14 @@
+{
+  "crons": [
+    { "path": "/api/internal/calendar-events/process", "schedule": "* * * * *" },
+    { "path": "/api/internal/meeting-bots/tick", "schedule": "* * * * *" },
+    { "path": "/api/internal/meeting-intelligence/process", "schedule": "*/2 * * * *" },
+    { "path": "/api/internal/tenant-sync/reconcile", "schedule": "*/10 * * * *" },
+    { "path": "/api/internal/customer-linkage/reconcile", "schedule": "*/10 * * * *" },
+    { "path": "/api/internal/scheduler-linkage/reconcile", "schedule": "*/10 * * * *" },
+    { "path": "/api/internal/meeting-policy/evaluate", "schedule": "*/10 * * * *" },
+    { "path": "/api/internal/recording-exceptions/maintain", "schedule": "*/10 * * * *" },
+    { "path": "/api/internal/operations/recover", "schedule": "*/5 * * * *" },
+    { "path": "/api/internal/microsoft-subscriptions/renew", "schedule": "0 6 * * *" }
+  ]
+}

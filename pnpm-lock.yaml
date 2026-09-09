@@ -221,6 +221,26 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.58.0
         version: 2.115.0
+    devDependencies:
+      tsx:
+        specifier: ^4.23.13
+        version: 4.23.13
+
+  workers/transcription-worker:
+    dependencies:
+      '@applywizz/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      '@applywizz/transcription':
+        specifier: workspace:*
+        version: link:../../packages/transcription
+      '@supabase/supabase-js':
+        specifier: ^2.58.0
+        version: 2.115.0
+    devDependencies:
+      tsx:
+        specifier: ^4.23.13
+        version: 4.23.13
 
 packages:
 

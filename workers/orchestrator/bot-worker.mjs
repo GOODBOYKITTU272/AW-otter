@@ -5,7 +5,15 @@
 // interval, until the process is killed.
 //
 // Run with:
-//   node --env-file=apps/web/.env.local workers/orchestrator/bot-worker.mjs
+//   npx tsx --env-file=apps/web/.env.local workers/orchestrator/bot-worker.mjs
+//
+// M17B fix: plain `node` cannot resolve this file's transitive workspace
+// imports (@applywizz/domain -> meeting-bots.ts -> its own extensionless
+// relative imports like "./types") — Node's ESM loader does not add a
+// .ts extension the way a bundler/TS-aware runner does, so `node
+// bot-worker.mjs` has always thrown ERR_MODULE_NOT_FOUND immediately,
+// confirmed by actually running it. tsx (already a repo devDependency)
+// resolves this correctly — verified the same way.
 //
 // Requires: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
 // VEXA_BASE_URL, VEXA_API_KEY (same env vars the app itself uses).
@@ -74,15 +82,51 @@ async function tick() {
 
 console.log(`[bot-worker] starting, tick every ${TICK_INTERVAL_MS}ms`);
 
+// M17B: graceful shutdown, same small pattern added to
+// workers/transcription-worker/transcription-worker.mjs — never aborts an
+// in-progress tick (identical orchestration semantics/timing to before),
+// only stops scheduling the next tick and wakes an in-progress sleep
+// immediately instead of waiting out the rest of the interval.
+let shuttingDown = false;
+let currentSleepResolve = null;
+
+function interruptibleSleep(ms) {
+  return new Promise((resolve) => {
+    currentSleepResolve = resolve;
+    setTimeout(() => {
+      currentSleepResolve = null;
+      resolve();
+    }, ms);
+  });
+}
+
+function requestShutdown(signal) {
+  console.log(
+    `[bot-worker] received ${signal}, shutting down after the current tick (if any) completes...`,
+  );
+  shuttingDown = true;
+  if (currentSleepResolve) {
+    const resolve = currentSleepResolve;
+    currentSleepResolve = null;
+    resolve();
+  }
+}
+
+process.on("SIGTERM", () => requestShutdown("SIGTERM"));
+process.on("SIGINT", () => requestShutdown("SIGINT"));
+
 async function loop() {
-  while (true) {
+  while (!shuttingDown) {
     try {
       await tick();
     } catch (tickError) {
       console.error("[bot-worker] tick failed:", tickError);
     }
-    await new Promise((resolve) => setTimeout(resolve, TICK_INTERVAL_MS));
+    if (shuttingDown) break;
+    await interruptibleSleep(TICK_INTERVAL_MS);
   }
+  console.log("[bot-worker] shut down cleanly");
+  process.exit(0);
 }
 
 loop();

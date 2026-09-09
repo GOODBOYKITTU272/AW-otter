@@ -6,13 +6,9 @@ import {
   processIntelligenceQueue,
 } from "@applywizz/domain/meeting-intelligence";
 import { OpenRouterMeetingIntelligenceProvider } from "@applywizz/ai";
-import { validateState } from "@applywizz/microsoft";
-import {
-  getInternalQueueSecret,
-  getOpenRouterEnv,
-  getSupabaseServiceRoleKey,
-} from "@/env/server";
+import { getOpenRouterEnv, getSupabaseServiceRoleKey } from "@/env/server";
 import { getClientEnv } from "@/env/client";
+import { isAuthorizedInternalRequest } from "@/lib/internal-route-auth";
 
 /**
  * Same secret-header gate and three-phase shape as
@@ -26,8 +22,7 @@ import { getClientEnv } from "@/env/client";
  * OpenRouterMeetingIntelligenceProvider gets constructed with a real key.
  */
 export async function POST(request: NextRequest) {
-  const provided = request.headers.get("x-internal-queue-secret");
-  if (!validateState(provided, getInternalQueueSecret())) {
+  if (!isAuthorizedInternalRequest(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -109,3 +104,5 @@ export async function POST(request: NextRequest) {
     { status: 200 },
   );
 }
+
+export const GET = POST;

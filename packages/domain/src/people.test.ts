@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { PostgrestError } from "@supabase/supabase-js";
 import {
   CircularReportingError,
   CrossOrganizationAssignmentError,
   DuplicateWorkEmailError,
   SelfManagementError,
+  inviteMembership,
   normalizeWorkEmail,
   translatePersonError,
   validateReportingRelationship,
@@ -130,5 +131,45 @@ describe("validateReportingRelationship", () => {
     const supabase = createFakeSupabase({ b: "a" });
     const result = await validateReportingRelationship(supabase, "a", "b");
     expect(result.valid).toBe(false);
+  });
+});
+
+describe("inviteMembership", () => {
+  function fakeServiceRoleClient(inviteResult: { error: { message: string } | null }) {
+    const inviteUserByEmail = vi.fn().mockResolvedValue(inviteResult);
+    return {
+      client: { auth: { admin: { inviteUserByEmail } } } as unknown as AppSupabaseClient,
+      inviteUserByEmail,
+    };
+  }
+
+  it("calls inviteUserByEmail with the normalized email, display name, and redirectTo, and reports no error on success", async () => {
+    const { client, inviteUserByEmail } = fakeServiceRoleClient({ error: null });
+
+    const result = await inviteMembership(client, {
+      workEmail: "  Am1@ApplyWizz.com  ",
+      displayName: "AM One",
+      redirectTo: "https://signal.applywizz.com/auth/set-password",
+    });
+
+    expect(result.error).toBeNull();
+    expect(inviteUserByEmail).toHaveBeenCalledWith("am1@applywizz.com", {
+      data: { display_name: "AM One" },
+      redirectTo: "https://signal.applywizz.com/auth/set-password",
+    });
+  });
+
+  it("surfaces the provider's error message without throwing", async () => {
+    const { client } = fakeServiceRoleClient({
+      error: { message: "User already registered" },
+    });
+
+    const result = await inviteMembership(client, {
+      workEmail: "existing@applywizz.com",
+      displayName: "Existing Person",
+      redirectTo: "https://signal.applywizz.com/auth/set-password",
+    });
+
+    expect(result.error).toBe("User already registered");
   });
 });

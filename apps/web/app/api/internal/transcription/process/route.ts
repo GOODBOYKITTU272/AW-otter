@@ -8,21 +8,20 @@ import {
   OpenRouterNormalizationProvider,
   OpenRouterTranscriptionProvider,
 } from "@applywizz/transcription";
-import { validateState } from "@applywizz/microsoft";
 import {
-  getInternalQueueSecret,
   getOpenRouterEnv,
   getSupabaseServiceRoleKey,
   getVexaEnv,
   toVexaEnv,
 } from "@/env/server";
 import { getClientEnv } from "@/env/client";
+import { isAuthorizedInternalRequest } from "@/lib/internal-route-auth";
 
 /**
- * Same secret-header gate as every other /api/internal route. Two
- * distinct phases: (1) per-org enqueue of any newly-completed bot
- * sessions (enqueuePendingTranscriptions takes an organizationId — it
- * genuinely needs the loop), then (2) ONE global queue drain.
+ * Same auth gate as every other /api/internal route. Two distinct phases:
+ * (1) per-org enqueue of any newly-completed bot sessions
+ * (enqueuePendingTranscriptions takes an organizationId — it genuinely
+ * needs the loop), then (2) ONE global queue drain.
  *
  * Codex post-implementation review (SHOULD-FIX): claim_next_transcription_job
  * has no organization_id parameter at all — it's a system-wide FOR UPDATE
@@ -34,10 +33,19 @@ import { getClientEnv } from "@/env/client";
  * Never runs synchronously in a user-facing request — this is the only
  * place OpenRouterTranscriptionProvider/OpenRouterNormalizationProvider
  * get constructed with a real key.
+ *
+ * M17B: deliberately NOT wired to GET/cron here, unlike the other
+ * /api/internal routes — this route's own transcodeToOpusOgg step shells
+ * out to the system ffmpeg/ffprobe binaries (packages/domain/src/
+ * audio-transcode.ts), which a bare serverless function doesn't provide
+ * (see docs/ops/production-environment.md §11). The scheduled trigger for
+ * this queue is workers/transcription-worker/ instead, which calls the
+ * exact same enqueuePendingTranscriptions/processTranscriptionQueue
+ * domain functions directly, on a host where ffmpeg is actually
+ * installed. This route stays POST-only for manual/on-demand invocation.
  */
 export async function POST(request: NextRequest) {
-  const provided = request.headers.get("x-internal-queue-secret");
-  if (!validateState(provided, getInternalQueueSecret())) {
+  if (!isAuthorizedInternalRequest(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

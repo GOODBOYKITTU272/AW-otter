@@ -33,5 +33,14 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // M17B: also exclude /api/webhooks, /api/internal, and /api/health —
+  // none of these ever carries a browser session (webhooks are
+  // server-to-server from Microsoft; internal routes are secret-header/
+  // scheduler-gated; health is a public liveness probe). Running the
+  // session-refresh call against them was harmless (empty cookies -> "no
+  // user", cheap no-op) but wasted, and these routes are about to be hit
+  // very frequently once M17B's scheduling + uptime monitoring are wired up.
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|api/webhooks|api/internal|api/health).*)",
+  ],
 };

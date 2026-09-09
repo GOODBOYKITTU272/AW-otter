@@ -173,6 +173,25 @@ export function getInternalQueueSecret(): string {
   return required("INTERNAL_QUEUE_SECRET", process.env.INTERNAL_QUEUE_SECRET);
 }
 
+/**
+ * M17B: the credential a scheduled-HTTP cron trigger presents as
+ * `Authorization: Bearer <value>` — the shape Vercel Cron Jobs (and most
+ * equivalent schedulers) send natively, which cannot carry a custom
+ * `x-internal-queue-secret` header. A SEPARATE secret from
+ * INTERNAL_QUEUE_SECRET on purpose: the scheduler's own credential and the
+ * "call this route directly" credential should be independently
+ * rotatable — compromising one shouldn't require rotating both.
+ * Deliberately not required() — a deployment that isn't using a
+ * GET/Authorization-based scheduler (e.g. local dev, CI, or a scheduler
+ * that can send custom headers and just uses INTERNAL_QUEUE_SECRET
+ * directly) never needs to set this at all; see
+ * lib/internal-route-auth.ts, which only calls this if a Bearer token was
+ * actually presented.
+ */
+export function getCronSecret(): string {
+  return required("CRON_SECRET", process.env.CRON_SECRET);
+}
+
 export function getLogLevel(): string {
   return process.env.LOG_LEVEL ?? "info";
 }

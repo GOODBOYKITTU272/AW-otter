@@ -8,27 +8,25 @@ import {
   VexaMeetingBotProvider,
   type MeetingBotProvider,
 } from "@applywizz/meeting-bots";
-import { validateState } from "@applywizz/microsoft";
 import {
-  getInternalQueueSecret,
   getSupabaseServiceRoleKey,
   getVexaEnv,
   toVexaEnv,
 } from "@/env/server";
 import { getClientEnv } from "@/env/client";
+import { isAuthorizedInternalRequest } from "@/lib/internal-route-auth";
 
 /**
  * M16 Slice A/B: recovers stuck jobs and keeps incidents in sync with
- * current queue state, per org. Same secret-header gate as every other
- * /api/internal route; intended to be called on a schedule (cron), not
- * from a browser-facing request. Constructs the real VexaMeetingBotProvider
- * here (same pattern as /api/internal/meeting-bots/tick) — the domain
- * layer only ever sees the provider-agnostic MeetingBotProvider interface,
- * used to verify a stuck bot job is actually gone before recovering it.
+ * current queue state, per org. Same auth gate as every other
+ * /api/internal route. M17B: scheduled per docs/product/m17-plan.md §6.
+ * Constructs the real VexaMeetingBotProvider here (same pattern as
+ * /api/internal/meeting-bots/tick) — the domain layer only ever sees the
+ * provider-agnostic MeetingBotProvider interface, used to verify a stuck
+ * bot job is actually gone before recovering it.
  */
 export async function POST(request: NextRequest) {
-  const provided = request.headers.get("x-internal-queue-secret");
-  if (!validateState(provided, getInternalQueueSecret())) {
+  if (!isAuthorizedInternalRequest(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -91,3 +89,5 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ results }, { status: 200 });
 }
+
+export const GET = POST;

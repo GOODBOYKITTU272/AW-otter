@@ -1,13 +1,21 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServiceRoleClient } from "@applywizz/database/server";
-import { reconcileOrganizationCustomerLinkage } from "@applywizz/domain/customer-linkage";
-import { getSupabaseServiceRoleKey } from "@/env/server";
+import { renewExpiringMicrosoftSubscriptions } from "@applywizz/domain/microsoft-subscription-renewal";
+import {
+  getEncryptionKey,
+  getMicrosoftEnv,
+  getSupabaseServiceRoleKey,
+  toMicrosoftEnv,
+} from "@/env/server";
 import { getClientEnv } from "@/env/client";
 import { isAuthorizedInternalRequest } from "@/lib/internal-route-auth";
 
-// Same auth gate as every other /api/internal route — not reachable by any
-// authenticated app user. Runs customer-linkage reconciliation for every
-// active organization. M17B: scheduled per docs/product/m17-plan.md §6.
+/**
+ * M17B: the scheduled caller renewMicrosoftSubscription has needed since
+ * M3 (M17A finding — coded, never wired). Same auth gate and per-org loop
+ * shape as every other /api/internal route. Intended cadence: daily, per
+ * docs/product/m17-plan.md §6.
+ */
 export async function POST(request: NextRequest) {
   if (!isAuthorizedInternalRequest(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -18,6 +26,8 @@ export async function POST(request: NextRequest) {
     clientEnv.NEXT_PUBLIC_SUPABASE_URL,
     getSupabaseServiceRoleKey(),
   );
+  const microsoftEnv = toMicrosoftEnv(getMicrosoftEnv());
+  const encryptionKey = getEncryptionKey();
 
   const { data: organizations, error } = await serviceRoleClient
     .from("organizations")
@@ -30,26 +40,23 @@ export async function POST(request: NextRequest) {
   const results = [];
   for (const org of organizations ?? []) {
     try {
-      const result = await reconcileOrganizationCustomerLinkage(
+      const outcome = await renewExpiringMicrosoftSubscriptions(
+        serviceRoleClient,
         serviceRoleClient,
         org.id,
+        microsoftEnv,
+        encryptionKey,
       );
-      results.push({ organizationId: org.id, ...result });
-    } catch (reconcileError) {
+      results.push({ organizationId: org.id, ...outcome });
+    } catch (orgError) {
       results.push({
         organizationId: org.id,
-        error:
-          reconcileError instanceof Error
-            ? reconcileError.message
-            : String(reconcileError),
+        error: orgError instanceof Error ? orgError.message : String(orgError),
       });
     }
   }
 
-  return NextResponse.json(
-    { organizationsProcessed: results.length, results },
-    { status: 200 },
-  );
+  return NextResponse.json({ results }, { status: 200 });
 }
 
 export const GET = POST;

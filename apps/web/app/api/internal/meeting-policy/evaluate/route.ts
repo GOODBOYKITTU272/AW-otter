@@ -1,17 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServiceRoleClient } from "@applywizz/database/server";
 import { evaluateOrganizationMeetings } from "@applywizz/domain/meeting-policy";
-import { validateState } from "@applywizz/microsoft";
-import { getInternalQueueSecret, getSupabaseServiceRoleKey } from "@/env/server";
+import { getSupabaseServiceRoleKey } from "@/env/server";
 import { getClientEnv } from "@/env/client";
+import { isAuthorizedInternalRequest } from "@/lib/internal-route-auth";
 
-// Same secret-header gate as every other /api/internal route — not
-// reachable by any authenticated app user. Runs policy evaluation for
-// every active organization; called on demand for now, no scheduler yet
-// (same as M4's reconciliation paths).
+// Same auth gate as every other /api/internal route — not reachable by any
+// authenticated app user. Runs policy evaluation for every active
+// organization. M17B: scheduled per docs/product/m17-plan.md §6.
 export async function POST(request: NextRequest) {
-  const provided = request.headers.get("x-internal-queue-secret");
-  if (!validateState(provided, getInternalQueueSecret())) {
+  if (!isAuthorizedInternalRequest(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -44,3 +42,5 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ organizationsProcessed: results.length, results }, { status: 200 });
 }
+
+export const GET = POST;

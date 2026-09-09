@@ -50,7 +50,8 @@ export function AddPersonForm({ reference }: { reference: OrgReferenceData }) {
       return;
     }
 
-    const { person } = await response.json();
+    const { person, inviteWarning } = await response.json();
+    if (inviteWarning) window.alert(inviteWarning);
     router.push(`/admin/people/${person.id}`);
   }
 

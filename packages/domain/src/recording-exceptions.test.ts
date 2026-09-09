@@ -188,7 +188,10 @@ describe("reviewException", () => {
 
 describe("runExceptionMaintenance", () => {
   it("cancels a pending request whose meeting was cancelled, and audits it — no email/notes needed", async () => {
-    const requestUpdateSpy = vi.fn((_p?: unknown) => ok(null));
+    // M17B: the CAS-guarded update now does .select("id").maybeSingle() —
+    // must return a truthy row (a real match) for the caller to treat the
+    // claim as won, matching what a genuine CAS-matched update returns.
+    const requestUpdateSpy = vi.fn((_p?: unknown) => ok({ id: "req-1" }));
     const auditSpy = vi.fn((_p?: unknown) => ok(null));
     const supabase = createFakeSupabase({
       recording_exemption_requests: (c) => {
@@ -209,8 +212,32 @@ describe("runExceptionMaintenance", () => {
     );
   });
 
-  it("resolves a request past cutoff to expired, re-evaluates the meeting, and audits it", async () => {
+  it("M17B concurrency fix: if another (concurrent) run already claimed the request — the CAS update matches no row — this run does not double-audit or double-count", async () => {
+    // ok(null) here simulates the real CAS predicate (.eq("status",
+    // "requested")) matching zero rows because another overlapping
+    // scheduled invocation already flipped this exact row to "cancelled"
+    // moments earlier — the shape a genuinely lost race actually returns.
     const requestUpdateSpy = vi.fn((_p?: unknown) => ok(null));
+    const auditSpy = vi.fn((_p?: unknown) => ok(null));
+    const supabase = createFakeSupabase({
+      recording_exemption_requests: (c) => {
+        if (c.op === "select") return ok([{ id: "req-1", meeting_id: "m1" }]);
+        return requestUpdateSpy(c.payload);
+      },
+      meetings: () => ok({ lifecycle_status: "cancelled", scheduled_start: new Date().toISOString() }),
+      meeting_policy_sets: () => ok({ cutoff_minutes_before_start: 0 }),
+      audit_events: (c) => auditSpy(c.payload),
+    });
+
+    const result = await runExceptionMaintenance(supabase, "org-1");
+
+    expect(result.cancelledForCancelledMeetings).toBe(0);
+    expect(auditSpy).not.toHaveBeenCalled();
+  });
+
+  it("resolves a request past cutoff to expired, re-evaluates the meeting, and audits it", async () => {
+    // M17B: same CAS-claim-must-return-a-row requirement as above.
+    const requestUpdateSpy = vi.fn((_p?: unknown) => ok({ id: "req-1" }));
     const meetingsUpdateSpy = vi.fn((_p?: unknown) => ok(null));
     const auditSpy = vi.fn((_p?: unknown) => ok(null));
     let requestedCallCount = 0;

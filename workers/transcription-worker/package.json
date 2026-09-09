@@ -1,14 +1,14 @@
 {
-  "name": "@applywizz/orchestrator",
+  "name": "@applywizz/transcription-worker",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "bot-worker": "tsx --env-file=../../apps/web/.env.local bot-worker.mjs"
+    "transcription-worker": "tsx --env-file=../../apps/web/.env.local transcription-worker.mjs"
   },
   "dependencies": {
     "@applywizz/domain": "workspace:*",
-    "@applywizz/meeting-bots": "workspace:*",
+    "@applywizz/transcription": "workspace:*",
     "@supabase/supabase-js": "^2.58.0"
   },
   "devDependencies": {
