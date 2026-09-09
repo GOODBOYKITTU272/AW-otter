@@ -77,11 +77,20 @@ export default async function CustomerDetailPage({
 
   const { data: customer, error: customerError } = await supabase
     .from("customers")
-    .select("id, name, lifecycle_stage")
+    .select("id, name, lifecycle_stage, owner_membership_id")
     .eq("id", id)
     .maybeSingle();
   if (customerError) throw customerError;
   if (!customer) notFound();
+
+  // M14: shown for manager clarity when viewing a report's customer —
+  // harmless for an AM viewing their own (it's just their own name).
+  const { data: ownerMembership, error: ownerError } = await supabase
+    .from("organization_memberships")
+    .select("display_name")
+    .eq("id", customer.owner_membership_id)
+    .maybeSingle();
+  if (ownerError) throw ownerError;
 
   const { data: current, error: currentError } = await supabase
     .from("customer_truth_current")
@@ -206,6 +215,7 @@ export default async function CustomerDetailPage({
         </h1>
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
           {customer.lifecycle_stage ?? "Lifecycle stage unknown"}
+          {ownerMembership ? ` · Owned by ${ownerMembership.display_name}` : ""}
         </p>
         <Link
           href={`/customers/${customer.id}/ask`}

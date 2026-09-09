@@ -36,11 +36,33 @@ export default async function ActionsPage() {
   const { data: records, error } = await supabase
     .from("call_records")
     .select(
-      "id, meeting_id, record_type, description, owner_type, owner_membership_id, external_owner_name, due_at, evidence_segment_ids, created_at",
+      "id, meeting_id, customer_id, record_type, description, owner_type, owner_membership_id, external_owner_name, due_at, evidence_segment_ids, created_at",
     )
     .eq("status", "detected")
     .order("due_at", { ascending: true, nullsFirst: false });
   if (error) throw error;
+
+  // M14: a manager viewing their team's actions needs to know WHICH
+  // customer each one is about (an AM viewing their own didn't strictly
+  // need this — they know their own customers — but it was harmless to
+  // add for everyone).
+  const customerIds = Array.from(
+    new Set(
+      (records ?? [])
+        .map((r) => r.customer_id)
+        .filter((v): v is string => Boolean(v)),
+    ),
+  );
+  const customerNameById = new Map<string, string>();
+  if (customerIds.length > 0) {
+    const { data: customers, error: customersError } = await supabase
+      .from("customers")
+      .select("id, name")
+      .in("id", customerIds);
+    if (customersError) throw customersError;
+    for (const customer of customers ?? [])
+      customerNameById.set(customer.id, customer.name);
+  }
 
   const meetingIds = Array.from(
     new Set((records ?? []).map((r) => r.meeting_id)),
@@ -121,6 +143,18 @@ export default async function ActionsPage() {
                     </div>
                     <p className="mt-1 text-sm">{record.description}</p>
                     <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                      {record.customer_id ? (
+                        <>
+                          <Link
+                            href={`/customers/${record.customer_id}`}
+                            className="hover:underline"
+                          >
+                            {customerNameById.get(record.customer_id) ??
+                              "Customer"}
+                          </Link>{" "}
+                          ·{" "}
+                        </>
+                      ) : null}
                       Owner: {ownerLabel ?? "Unassigned"} ·{" "}
                       <Link
                         href={`/admin/meetings/${record.meeting_id}`}

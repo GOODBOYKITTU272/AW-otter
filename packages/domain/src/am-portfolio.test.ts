@@ -374,7 +374,12 @@ describe("getPortfolioOverview", () => {
     const supabase = fakeSupabase({
       organizations: [{ id: "org-1", timezone: "UTC" }],
       customers: [
-        { id: "cust-1", name: "Test Customer", lifecycle_stage: "Progress" },
+        {
+          id: "cust-1",
+          name: "Test Customer",
+          lifecycle_stage: "Progress",
+          owner_membership_id: "am-1",
+        },
       ],
       scheduler_calls: [
         {
@@ -431,6 +436,7 @@ describe("getPortfolioOverview", () => {
     expect(result).toHaveLength(1);
     const row = result[0]!;
     expect(row.name).toBe("Test Customer");
+    expect(row.ownerMembershipId).toBe("am-1");
     expect(row.nextCall?.callType).toBe("progress");
     expect(row.lastCall?.callType).toBe("discovery");
     expect(row.overdueActionCount).toBe(1);

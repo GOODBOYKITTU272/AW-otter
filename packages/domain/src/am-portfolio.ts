@@ -142,6 +142,8 @@ export interface PortfolioCustomerRow {
   customerId: string;
   name: string;
   lifecycleStage: string | null;
+  /** M14: which AM owns this customer — needed for a manager viewing their whole team's portfolio, not just their own. */
+  ownerMembershipId: string;
   nextCall: PortfolioCallSummary | null;
   lastCall: PortfolioCallSummary | null;
   isCallToday: boolean;
@@ -361,7 +363,7 @@ export async function getPortfolioOverview(
 
   const { data: customerRows, error: customersError } = await supabase
     .from("customers")
-    .select("id, name, lifecycle_stage")
+    .select("id, name, lifecycle_stage, owner_membership_id")
     .order("name", { ascending: true });
   if (customersError) throw customersError;
   const customers = customerRows ?? [];
@@ -614,6 +616,7 @@ export async function getPortfolioOverview(
       customerId: customer.id,
       name: customer.name,
       lifecycleStage: customer.lifecycle_stage,
+      ownerMembershipId: customer.owner_membership_id,
       nextCall,
       lastCall,
       isCallToday,

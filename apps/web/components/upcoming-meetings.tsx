@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@applywizz/database/types";
 import { StatusBadge, type BadgeTone } from "@/components/admin/status-badge";
@@ -67,9 +68,12 @@ const BOT_STATUS_LABEL: Record<string, string> = {
 export async function UpcomingMeetings({
   supabase,
   showRequestAction = false,
+  showOwner = false,
 }: {
   supabase: SupabaseClient<Database>;
   showRequestAction?: boolean;
+  /** M14: manager-facing team view — shows which AM owns each meeting and links to its prep page. Off by default so /home (an AM viewing their own meetings) is unchanged. */
+  showOwner?: boolean;
 }) {
   const { data: meetings, error } = await supabase
     .from("meetings")
@@ -88,6 +92,27 @@ export async function UpcomingMeetings({
         No upcoming meetings.
       </p>
     );
+  }
+
+  let ownerNameById = new Map<string, string>();
+  if (showOwner) {
+    const ownerIds = Array.from(
+      new Set(
+        meetings
+          .map((m) => m.owner_membership_id)
+          .filter((v): v is string => Boolean(v)),
+      ),
+    );
+    if (ownerIds.length > 0) {
+      const { data: owners, error: ownersError } = await supabase
+        .from("organization_memberships")
+        .select("id, display_name")
+        .in("id", ownerIds);
+      if (ownersError) throw ownersError;
+      ownerNameById = new Map(
+        (owners ?? []).map((o) => [o.id, o.display_name]),
+      );
+    }
   }
 
   let pendingMeetingIds = new Set<string>();
@@ -190,6 +215,11 @@ export async function UpcomingMeetings({
             {meeting.customer_id && !meeting.call_type ? (
               <CallTypeConfirmControl meetingId={meeting.id} />
             ) : null}
+            {showOwner && meeting.owner_membership_id ? (
+              <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                {ownerNameById.get(meeting.owner_membership_id) ?? "Unassigned"}
+              </span>
+            ) : null}
           </div>
           <div className="flex shrink-0 flex-col items-end gap-2">
             {meeting.meeting_url ? (
@@ -201,6 +231,14 @@ export async function UpcomingMeetings({
               >
                 Join
               </a>
+            ) : null}
+            {showOwner ? (
+              <Link
+                href={`/meetings/${meeting.id}/prep`}
+                className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+              >
+                View prep
+              </Link>
             ) : null}
             {showRequestAction ? (
               <RequestDoNotRecordAction
