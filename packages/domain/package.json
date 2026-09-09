@@ -25,7 +25,9 @@
     "./meeting-intelligence": "./src/meeting-intelligence.ts",
     "./call-records": "./src/call-records.ts",
     "./customer-context": "./src/customer-context.ts",
-    "./meeting-recap": "./src/meeting-recap.ts"
+    "./meeting-recap": "./src/meeting-recap.ts",
+    "./am-portfolio": "./src/am-portfolio.ts",
+    "./meeting-prep": "./src/meeting-prep.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
