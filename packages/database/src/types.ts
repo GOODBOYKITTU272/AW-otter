@@ -1426,6 +1426,72 @@ export type Database = {
           },
         ];
       };
+      operational_incidents: {
+        Row: {
+          created_at: string;
+          entity_id: string;
+          first_seen_at: string;
+          id: string;
+          incident_type: string;
+          last_seen_at: string;
+          meeting_id: string | null;
+          occurrence_count: number;
+          organization_id: string;
+          queue: string;
+          reason: string;
+          resolved_at: string | null;
+          severity: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          entity_id: string;
+          first_seen_at?: string;
+          id?: string;
+          incident_type: string;
+          last_seen_at?: string;
+          meeting_id?: string | null;
+          occurrence_count?: number;
+          organization_id: string;
+          queue: string;
+          reason: string;
+          resolved_at?: string | null;
+          severity: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          entity_id?: string;
+          first_seen_at?: string;
+          id?: string;
+          incident_type?: string;
+          last_seen_at?: string;
+          meeting_id?: string | null;
+          occurrence_count?: number;
+          organization_id?: string;
+          queue?: string;
+          reason?: string;
+          resolved_at?: string | null;
+          severity?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "operational_incidents_meeting_id_fkey";
+            columns: ["meeting_id"];
+            isOneToOne: false;
+            referencedRelation: "meetings";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "operational_incidents_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       organization_memberships: {
         Row: {
           created_at: string;
@@ -2277,6 +2343,18 @@ export type Database = {
       materialize_customer_truth_deltas: {
         Args: { p_organization_id: string; p_run_id: string };
         Returns: boolean;
+      };
+      record_operational_incident: {
+        Args: {
+          p_entity_id: string;
+          p_incident_type: string;
+          p_meeting_id?: string;
+          p_organization_id: string;
+          p_queue: string;
+          p_reason: string;
+          p_severity: string;
+        };
+        Returns: undefined;
       };
       reject_customer_truth_fact: {
         Args: { p_fact_id: string; p_reason?: string };

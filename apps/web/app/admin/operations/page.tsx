@@ -1,5 +1,6 @@
 import { getCurrentMembership } from "@applywizz/auth";
 import { getOperationalHealth } from "@applywizz/domain/operations";
+import { listOpenIncidents } from "@applywizz/domain/operational-incidents";
 import { StatusBadge, type BadgeTone } from "@/components/admin/status-badge";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -23,6 +24,10 @@ export default async function AdminOperationsPage() {
   const supabase = await getSupabaseServerClient();
   const membership = await getCurrentMembership(supabase);
   const health = await getOperationalHealth(
+    supabase,
+    membership.organizationId,
+  );
+  const openIncidents = await listOpenIncidents(
     supabase,
     membership.organizationId,
   );
@@ -52,6 +57,48 @@ export default async function AdminOperationsPage() {
           </p>
         </div>
       </div>
+
+      <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
+        <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+          <h2 className="text-sm font-medium">Open incidents</h2>
+          <StatusBadge tone={openIncidents.length > 0 ? "critical" : "success"}>
+            {openIncidents.length > 0 ? `${openIncidents.length} open` : "None"}
+          </StatusBadge>
+        </div>
+        {openIncidents.length === 0 ? (
+          <p className="px-4 py-6 text-sm text-zinc-500">No open incidents.</p>
+        ) : (
+          <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
+            {openIncidents.map((incident) => (
+              <li
+                key={incident.id}
+                className="flex flex-col gap-1 px-4 py-3 text-sm"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium">
+                    {incident.queue} · {incident.incidentType}
+                  </span>
+                  <StatusBadge
+                    tone={incident.severity === "critical" ? "critical" : "warning"}
+                  >
+                    {incident.severity}
+                  </StatusBadge>
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                    First seen {formatTime(incident.firstSeenAt)} · last seen{" "}
+                    {formatTime(incident.lastSeenAt)}
+                    {incident.occurrenceCount > 1
+                      ? ` · ${incident.occurrenceCount}x`
+                      : ""}
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  {incident.reason}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {health.map((queue) => {
         const tone: BadgeTone =
