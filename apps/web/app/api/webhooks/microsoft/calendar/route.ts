@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createSupabaseServiceRoleClient } from "@applywizz/database/server";
 import { enqueueCalendarEventJobForSubscription } from "@applywizz/domain/meetings";
+import { validateState } from "@applywizz/microsoft";
 import { getMicrosoftEnv, getSupabaseServiceRoleKey } from "@/env/server";
 import { getClientEnv } from "@/env/client";
 
@@ -42,7 +43,17 @@ export async function POST(request: NextRequest) {
     // Never trust org/membership identifiers from the payload — clientState
     // must match ours, and the subscription is looked up by an id WE
     // generated and stored, resolving connection/membership server-side.
-    if (notification.clientState !== MICROSOFT_WEBHOOK_CLIENT_STATE) continue;
+    // M15 audit (P2, fixed): this is a real secret comparison — use the
+    // same constant-time check every other secret compare in this
+    // codebase already uses (validateState), not a naive `!==` that
+    // leaks timing information about how many leading characters match.
+    if (
+      !validateState(
+        notification.clientState ?? null,
+        MICROSOFT_WEBHOOK_CLIENT_STATE,
+      )
+    )
+      continue;
     if (!notification.subscriptionId) continue;
 
     const { error } = await serviceRoleClient
@@ -63,7 +74,10 @@ export async function POST(request: NextRequest) {
         changeType: notification.changeType ?? "updated",
       });
     } catch (enqueueError) {
-      console.error("Failed to enqueue Microsoft calendar event job", enqueueError);
+      console.error(
+        "Failed to enqueue Microsoft calendar event job",
+        enqueueError,
+      );
     }
   }
 

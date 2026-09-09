@@ -28,7 +28,14 @@ function errorResponse(error: unknown) {
   ) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
-  console.error(error);
+  // M15 audit (P2, fixed): work_email carries a unique constraint, and
+  // Postgres embeds the actual conflicting VALUE in a 23505 violation's
+  // DETAIL message — an unanticipated constraint hit here (anything not
+  // already caught as DuplicateWorkEmailError above) could otherwise log
+  // a real employee email address. Same safer convention as
+  // hydrate-crm's error logging: name/code only, never the raw error.
+  const pgError = error as { name?: string; code?: string };
+  console.error("People create failed:", pgError?.code ?? pgError?.name);
   return NextResponse.json({ error: "Unexpected error." }, { status: 500 });
 }
 

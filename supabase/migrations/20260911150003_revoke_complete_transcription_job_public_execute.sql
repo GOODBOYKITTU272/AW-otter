@@ -1,0 +1,31 @@
+-- Security hardening (M15 audit, P0, independently verified before
+-- fixing): the exhaustive SECURITY DEFINER/RPC exposure matrix (queried
+-- directly from pg_proc/has_function_privilege, not migration-file
+-- parsing) found a THIRD instance of the "grant to service_role but
+-- never revoke the default PUBLIC EXECUTE grant" bug, on the single
+-- highest-impact function found so far:
+--
+-- public.complete_transcription_job(uuid, uuid, text, text, boolean,
+-- jsonb, jsonb, numeric, numeric, jsonb) (M8,
+-- 20260908060003_transcription_complete_job_function.sql) returns
+-- boolean (a real type, not trigger) and takes p_transcript_id,
+-- p_organization_id, p_model, p_detected_language,
+-- p_has_canonical_english, p_provider_metadata, p_usage_seconds,
+-- p_usage_cost, and p_segments (raw jsonb) as entirely caller-supplied
+-- arguments, with no internal caller-authorization check of its own —
+-- its only intended security boundary was the GRANT. Confirmed live
+-- before this fix: `has_function_privilege('authenticated',
+-- 'public.complete_transcription_job(...)', 'execute')` and the same for
+-- `anon` both returned true.
+--
+-- This is worse than the earlier three queue-claim fixes
+-- (20260911150001, 20260911150002): those let an unauthorized caller
+-- dequeue/claim a job or link two existing rows. This one lets an
+-- unauthorized caller WRITE arbitrary fabricated transcript segments
+-- (p_segments, raw jsonb, no shape validation beyond what the function
+-- body itself does) into ANY organization's meeting_transcripts row of
+-- their choosing (p_transcript_id, p_organization_id both attacker-
+-- supplied), and mark it 'completed' — a genuine cross-tenant data-
+-- integrity/injection vulnerability, not just an authorization gap.
+revoke execute on function public.complete_transcription_job(uuid, uuid, text, text, boolean, jsonb, jsonb, numeric, numeric, jsonb) from public, anon, authenticated, service_role;
+grant execute on function public.complete_transcription_job(uuid, uuid, text, text, boolean, jsonb, jsonb, numeric, numeric, jsonb) to service_role;

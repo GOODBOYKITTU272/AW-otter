@@ -4,7 +4,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(40);
+select plan(42);
 
 -- ---------------------------------------------------------------------
 -- Fixtures: two orgs (P, Q), an owning AM, a sibling AM, a cross-org AM,
@@ -220,7 +220,27 @@ select is(
 
 -- ---------------------------------------------------------------------
 -- 5. claim_next_meeting_intelligence_run: FOR UPDATE SKIP LOCKED claim.
+-- M15 audit (test-coverage gap, closed): the live grant was already
+-- correct (service_role only), but unlike complete_meeting_intelligence_run
+-- and materialize_customer_truth_deltas below, this function had no
+-- role-based throws_ok/lives_ok of its own — a future accidental removal
+-- of its revoke statement would have gone uncaught. A permission-denied
+-- error happens at the grant check, before the function body's row-lock
+-- ever runs, so this is safe to check before the real claim in 5b below.
 -- ---------------------------------------------------------------------
+set role authenticated;
+select throws_ok(
+  $$ select public.claim_next_meeting_intelligence_run() $$,
+  '42501', null,
+  '4g. authenticated cannot call claim_next_meeting_intelligence_run() (service_role only)'
+);
+reset role;
+set role anon;
+select throws_ok(
+  $$ select public.claim_next_meeting_intelligence_run() $$,
+  '42501', null,
+  '4h. anon cannot call claim_next_meeting_intelligence_run() (service_role only)'
+);
 reset role;
 
 select is(

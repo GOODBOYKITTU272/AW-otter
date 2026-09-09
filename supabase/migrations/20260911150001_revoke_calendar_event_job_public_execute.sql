@@ -1,0 +1,29 @@
+-- Security hardening (M15 audit finding, P0, independently verified before
+-- fixing): public.claim_next_calendar_event_job() (M4,
+-- 20260906020017_meeting_tables.sql) was created and granted EXECUTE to
+-- service_role, but the migration never revoked the default PUBLIC EXECUTE
+-- grant Postgres applies to every newly created function. Because
+-- `public` is a PostgREST-exposed schema (supabase/config.toml's
+-- api.schemas) and this function returns a real row type (not `trigger`,
+-- which Postgres would otherwise block from direct invocation), it was
+-- genuinely callable by `anon` and `authenticated` over
+-- /rest/v1/rpc/claim_next_calendar_event_job.
+--
+-- Confirmed exploitable against the real local database before this fix:
+-- `set role authenticated; select public.claim_next_calendar_event_job();`
+-- and the same as `anon` both succeeded (no permission error) — either
+-- role could dequeue the oldest pending calendar_event_jobs row ACROSS
+-- EVERY ORGANIZATION, mutate its status to 'processing', and read its full
+-- contents (calendar_connection_id, organization_id, external_event_id,
+-- last_error, etc.) — despite calendar_event_jobs itself having zero
+-- policies/grants for anon/authenticated (20260906020018_meeting_tables_rls.sql:
+-- "zero policies, zero grants to anon/authenticated" by design). This RPC
+-- was a real, live bypass of that deliberate table-level lockdown.
+--
+-- This is the exact "M9 CI grant lesson" (see
+-- 20260908070001_meeting_intelligence_tables.sql's own comment on
+-- claim_next_meeting_intelligence_run: explicit named-role revokes, not
+-- just `from public`) applied retroactively to the one M4-era function
+-- that predates that lesson and was never patched.
+revoke execute on function public.claim_next_calendar_event_job() from public, anon, authenticated, service_role;
+grant execute on function public.claim_next_calendar_event_job() to service_role;
