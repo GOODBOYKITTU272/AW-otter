@@ -3,6 +3,8 @@ import type { Database } from "@applywizz/database/types";
 
 export type AppSupabaseClient = SupabaseClient<Database>;
 
+type MeetingRecordingRow = Database["public"]["Tables"]["meeting_recordings"]["Row"];
+
 export const MEETING_RECORDINGS_BUCKET = "meeting-recordings";
 
 /**
@@ -37,4 +39,46 @@ export interface OwnedRecordingRef {
   durationSeconds: number | null;
   checksumSha256: string | null;
   capturedAt: string | null;
+}
+
+/**
+ * snake_case DB row -> camelCase OwnedRecordingRef. Deliberately drops
+ * source_metadata/source_provider — those stay internal to this module
+ * (see OwnedRecordingRef doc comment above) and must never leak out
+ * through this mapping.
+ */
+function toOwnedRecordingRef(row: MeetingRecordingRow): OwnedRecordingRef {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    meetingId: row.meeting_id,
+    storageBucket: row.storage_bucket,
+    storagePath: row.storage_path,
+    contentType: row.content_type,
+    byteSize: row.byte_size,
+    durationSeconds: row.duration_seconds,
+    checksumSha256: row.checksum_sha256,
+    capturedAt: row.captured_at,
+  };
+}
+
+/**
+ * UNIQUE(organization_id, meeting_id) (Task 1 migration) means at most one
+ * row per meeting — .maybeSingle() is correct here, not .single() or an
+ * array read.
+ */
+export async function getOwnedMeetingRecording(
+  supabase: AppSupabaseClient,
+  meetingId: string,
+): Promise<OwnedRecordingRef | null> {
+  const { data, error } = await supabase
+    .from("meeting_recordings")
+    .select(
+      "id, organization_id, meeting_id, storage_bucket, storage_path, content_type, byte_size, duration_seconds, checksum_sha256, captured_at",
+    )
+    .eq("meeting_id", meetingId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return toOwnedRecordingRef(data as MeetingRecordingRow);
 }
