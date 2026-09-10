@@ -271,3 +271,64 @@ describe("ensureOwnedRecording — crash recovery (object exists, no DB row)", (
     expect(insertSpy).not.toHaveBeenCalled();
   });
 });
+
+describe("ensureOwnedRecording — concurrent DB insert race", () => {
+  it("treats a 23505 duplicate-insert error as 'someone else already reconciled it', not a failure", async () => {
+    const existingRow = {
+      id: "rec-1",
+      organization_id: "org-1",
+      meeting_id: "meeting-1",
+      storage_bucket: "meeting-recordings",
+      storage_path: "organizations/org-1/meetings/meeting-1/original.webm",
+      content_type: "audio/webm",
+      byte_size: 474476,
+      duration_seconds: null,
+      checksum_sha256: "abc123",
+      captured_at: null,
+    };
+    let selectCallCount = 0;
+    const supabase = {
+      from(table: string) {
+        if (table !== "meeting_recordings") throw new Error(`unexpected table: ${table}`);
+        const builder = {
+          select() {
+            return builder;
+          },
+          eq() {
+            return builder;
+          },
+          async maybeSingle() {
+            selectCallCount += 1;
+            // First call (the initial getOwnedMeetingRecording check): not owned yet.
+            // Second call (after the insert loses the race): the winner's row is now visible.
+            return selectCallCount === 1 ? { data: null, error: null } : { data: existingRow, error: null };
+          },
+          insert() {
+            return builder;
+          },
+          async single() {
+            return { data: null, error: { code: "23505", message: "duplicate key value violates unique constraint" } };
+          },
+        };
+        return builder;
+      },
+    } as unknown as Parameters<typeof ensureOwnedRecording>[0];
+
+    const bytes = new ArrayBuffer(474476);
+    const storage: RecordingStorageClient = {
+      upload: vi.fn(async () => ({ error: null })),
+      download: vi.fn(),
+      info: vi.fn(async () => ({ data: null, error: { message: "not found" } })),
+    };
+
+    const result = await ensureOwnedRecording(supabase, storage, {
+      organizationId: "org-1",
+      meetingId: "meeting-1",
+      vexaMeetingId: 28075,
+      vexaEnv: { baseUrl: "https://vexa.test", apiKey: "test-key" },
+      fetchImpl: fakeVexaFetch(bytes),
+    });
+
+    expect(result.recordingRef.id).toBe("rec-1");
+  });
+});

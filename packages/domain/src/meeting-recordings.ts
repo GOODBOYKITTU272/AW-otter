@@ -240,7 +240,18 @@ async function insertRecordingRow(
       "id, organization_id, meeting_id, storage_bucket, storage_path, content_type, byte_size, duration_seconds, checksum_sha256, captured_at",
     )
     .single();
-  if (error) throw error;
+
+  if (error) {
+    // Same idempotency idiom as syncMeetingBotIntent (meeting-bots.ts)
+    // and enqueuePendingTranscriptions (transcription.ts): a 23505 here
+    // IS the unique(organization_id, meeting_id) constraint working, not
+    // a real error — a concurrent caller already won this exact insert.
+    if ((error as { code?: string }).code === "23505") {
+      const existing = await getOwnedMeetingRecording(supabase, input.meetingId);
+      if (existing) return existing;
+    }
+    throw error;
+  }
   return toOwnedRecordingRef(data as MeetingRecordingRow);
 }
 
