@@ -41,6 +41,7 @@ interface RawMediaFile {
   type?: string;
   format?: string;
   is_final?: boolean;
+  file_size_bytes?: number;
 }
 
 interface RawRecording {
@@ -57,6 +58,15 @@ export interface RecordingRef {
   recordingId: number;
   mediaFileId: number;
   format: string;
+  /**
+   * Vexa's own reported byte size for the audio media file (`file_size_bytes`
+   * on the raw media file entry), `null` when Vexa didn't report one. This is
+   * the strongest independent evidence packages/domain's crash-recovery
+   * reconciliation (Task 5) has for validating a pre-existing Storage object
+   * without re-downloading it — it must NEVER be invented/defaulted to a
+   * number when the provider didn't actually report one.
+   */
+  fileSizeBytes: number | null;
 }
 
 async function vexaGet<T>(
@@ -124,6 +134,8 @@ export async function getMeetingRecordingRef(
     recordingId: recording.id,
     mediaFileId: audioFile.id,
     format: audioFile.format ?? "webm",
+    fileSizeBytes:
+      typeof audioFile.file_size_bytes === "number" ? audioFile.file_size_bytes : null,
   };
 }
 

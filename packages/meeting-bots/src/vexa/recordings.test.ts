@@ -33,7 +33,12 @@ describe("getMeetingRecordingRef", () => {
         ],
       }),
     );
-    expect(ref).toEqual({ recordingId: 2, mediaFileId: 20, format: "webm" });
+    expect(ref).toEqual({
+      recordingId: 2,
+      mediaFileId: 20,
+      format: "webm",
+      fileSizeBytes: null, // fixture doesn't include file_size_bytes
+    });
   });
 
   it("returns null when no recording is completed yet", async () => {
@@ -73,6 +78,25 @@ describe("getMeetingRecordingRef", () => {
     await expect(
       getMeetingRecordingRef(env, 28075, fakeFetch(500, { error: "boom" })),
     ).rejects.toBeInstanceOf(VexaApiError);
+  });
+
+  it("passes through the audio media file's reported file_size_bytes", async () => {
+    const ref = await getMeetingRecordingRef(
+      env,
+      28075,
+      fakeFetch(200, {
+        recordings: [
+          {
+            id: 1,
+            status: "completed",
+            media_files: [
+              { id: 10, type: "audio", format: "webm", file_size_bytes: 474476 },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(ref?.fileSizeBytes).toBe(474476);
   });
 
   it("requests /recordings filtered by the numeric meeting id, not /transcripts", async () => {

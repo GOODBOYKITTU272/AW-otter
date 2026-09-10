@@ -209,3 +209,65 @@ describe("ensureOwnedRecording — fresh ingestion", () => {
     ).rejects.toThrow("No completed Vexa recording is available for this meeting yet.");
   });
 });
+
+describe("ensureOwnedRecording — crash recovery (object exists, no DB row)", () => {
+  it("reconciles without re-uploading or re-downloading when the existing object matches Vexa's reported size", async () => {
+    const expectedSize = 474476;
+    const insertSpy = vi.fn((payload: unknown) => ({
+      data: {
+        id: "rec-1",
+        organization_id: "org-1",
+        meeting_id: "meeting-1",
+        storage_bucket: "meeting-recordings",
+        storage_path: "organizations/org-1/meetings/meeting-1/original.webm",
+        content_type: "audio/webm",
+        byte_size: expectedSize,
+        duration_seconds: null,
+        checksum_sha256: null, // never computed — we didn't download it ourselves this time
+        captured_at: null,
+      },
+      error: null,
+    }));
+    const supabase = fakeRecordingsTable(insertSpy);
+
+    const downloadedBytes = new TextEncoder().encode("x".repeat(expectedSize)).buffer;
+    const uploadSpy = vi.fn(); // must NEVER be called in this test
+    const downloadSpy = vi.fn(async () => ({ data: new Blob([downloadedBytes]), error: null }));
+    const infoSpy = vi.fn(async () => ({ data: { size: expectedSize, contentType: "audio/webm" }, error: null }));
+    const storage: RecordingStorageClient = { upload: uploadSpy, download: downloadSpy, info: infoSpy };
+
+    const result = await ensureOwnedRecording(supabase, storage, {
+      organizationId: "org-1",
+      meetingId: "meeting-1",
+      vexaMeetingId: 28075,
+      vexaEnv: { baseUrl: "https://vexa.test", apiKey: "test-key" },
+      fetchImpl: fakeVexaFetch(new ArrayBuffer(expectedSize)),
+    });
+
+    expect(uploadSpy).not.toHaveBeenCalled();
+    expect(insertSpy).toHaveBeenCalled();
+    expect(result.recordingRef.byteSize).toBe(expectedSize);
+  });
+
+  it("fails closed — never overwrites — when the existing object's size does not match Vexa's reported size", async () => {
+    const insertSpy = vi.fn();
+    const supabase = fakeRecordingsTable(insertSpy);
+
+    const uploadSpy = vi.fn();
+    const infoSpy = vi.fn(async () => ({ data: { size: 999, contentType: "audio/webm" }, error: null })); // wrong size
+    const storage: RecordingStorageClient = { upload: uploadSpy, download: vi.fn(), info: infoSpy };
+
+    await expect(
+      ensureOwnedRecording(supabase, storage, {
+        organizationId: "org-1",
+        meetingId: "meeting-1",
+        vexaMeetingId: 28075,
+        vexaEnv: { baseUrl: "https://vexa.test", apiKey: "test-key" },
+        fetchImpl: fakeVexaFetch(new ArrayBuffer(474476)), // Vexa says 474476, Storage has 999
+      }),
+    ).rejects.toBeInstanceOf(RecordingStorageMismatchError);
+
+    expect(uploadSpy).not.toHaveBeenCalled();
+    expect(insertSpy).not.toHaveBeenCalled();
+  });
+});

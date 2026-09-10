@@ -158,7 +158,21 @@ export async function ensureOwnedRecording(
 
   const preexisting = await storage.info(path);
   if (preexisting.data) {
-    return reconcilePreexistingObject(supabase, storage, input, path, contentType, preexisting.data.size);
+    // Fail closed if Vexa itself didn't report a size for this media file —
+    // we have no independent evidence to validate the pre-existing Storage
+    // object against, and we must never treat "no evidence" as "safe to
+    // accept" (see RecordingStorageMismatchError docs above).
+    if (vexaRecording.fileSizeBytes === null) {
+      throw new RecordingStorageMismatchError();
+    }
+    return reconcilePreexistingObject(
+      supabase,
+      storage,
+      input,
+      path,
+      contentType,
+      vexaRecording.fileSizeBytes,
+    );
   }
 
   const bytes = await downloadRecordingMedia(
@@ -205,7 +219,7 @@ async function insertRecordingRow(
     path: string;
     contentType: string;
     byteSize: number;
-    checksum: string;
+    checksum: string | null;
     sourceMetadata: Json;
   },
 ): Promise<OwnedRecordingRef> {
@@ -230,17 +244,61 @@ async function insertRecordingRow(
   return toOwnedRecordingRef(data as MeetingRecordingRow);
 }
 
-// Task 5 replaces this body with the real validate-then-reconcile logic.
-// For Task 4's scope, this is only reachable if Storage already had an
-// object at a brand-new path, which none of this task's tests exercise.
+/**
+ * Handles the case where a Storage object already exists at the
+ * deterministic path but no `meeting_recordings` row owns it yet — either
+ * because a previous ingestion attempt uploaded successfully and then
+ * crashed before its DB write, or because our own upload() just above hit
+ * an upsert:false conflict from a concurrent attempt.
+ *
+ * SECURITY-CRITICAL (spec's crash-recovery guardrail): we never assume an
+ * existing object is correct merely because it's present at the path. We
+ * independently re-verify with storage.info() and compare its real
+ * reported size against `expectedSizeFromVexa` — the strongest evidence
+ * available (either Vexa's own reported file_size_bytes for this
+ * recording, or, when this is called after our own fresh download+upload
+ * conflict, the byte length of what we actually downloaded ourselves,
+ * which is stronger still). ANY mismatch, however small, fails closed:
+ * throws RecordingStorageMismatchError, inserts no DB row, and never
+ * touches/overwrites the Storage object.
+ */
 async function reconcilePreexistingObject(
-  _supabase: AppSupabaseClient,
-  _storage: RecordingStorageClient,
-  _input: EnsureOwnedRecordingInput,
-  _path: string,
-  _contentType: string,
-  _observedSize: number,
-  _freshlyDownloaded?: { checksum: string; bytes: ArrayBuffer },
+  supabase: AppSupabaseClient,
+  storage: RecordingStorageClient,
+  input: EnsureOwnedRecordingInput,
+  path: string,
+  contentType: string,
+  expectedSizeFromVexa: number,
+  freshlyDownloaded?: { checksum: string; bytes: ArrayBuffer },
 ): Promise<{ recordingRef: OwnedRecordingRef; bytes: ArrayBuffer }> {
-  throw new Error("reconcilePreexistingObject is implemented in Task 5");
+  const { data: objectInfo, error: infoError } = await storage.info(path);
+  if (infoError || !objectInfo) throw infoError ?? new Error("Expected an existing object but info() found none.");
+
+  if (objectInfo.size !== expectedSizeFromVexa) {
+    throw new RecordingStorageMismatchError();
+  }
+
+  const row = await insertRecordingRow(supabase, {
+    organizationId: input.organizationId,
+    meetingId: input.meetingId,
+    bucket: MEETING_RECORDINGS_BUCKET,
+    path,
+    contentType,
+    byteSize: objectInfo.size,
+    // No freshly-downloaded bytes to hash in the pure crash-recovery case
+    // (we deliberately never re-download just to compute a checksum) —
+    // persist a genuine SQL NULL, not an empty-string sentinel.
+    checksum: freshlyDownloaded?.checksum ?? null,
+    sourceMetadata: {
+      reconciled: true,
+      sourceFileSizeBytes: expectedSizeFromVexa,
+    },
+  });
+
+  if (freshlyDownloaded) {
+    return { recordingRef: row, bytes: freshlyDownloaded.bytes };
+  }
+  const { data, error } = await storage.download(path);
+  if (error || !data) throw error ?? new Error("Reconciled recording download returned no data.");
+  return { recordingRef: row, bytes: await data.arrayBuffer() };
 }
