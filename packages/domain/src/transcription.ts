@@ -5,8 +5,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   decodeProviderBotId,
-  downloadRecordingMedia,
-  getMeetingRecordingRef,
   type VexaEnv,
 } from "@applywizz/meeting-bots";
 import type {
@@ -20,6 +18,11 @@ import {
   transcodeToOpusOgg,
 } from "./audio-transcode";
 import { logLifecycleEvent } from "./meeting-bots";
+import {
+  ensureOwnedRecording,
+  RecordingNotReadyError,
+  type RecordingStorageClient,
+} from "./meeting-recordings";
 
 export type AppSupabaseClient = SupabaseClient<Database>;
 
@@ -97,6 +100,7 @@ export interface TranscriptionDeps {
   vexaEnv: VexaEnv;
   transcriptionProvider: TranscriptionProvider;
   normalizationProvider: EnglishNormalizationProvider;
+  storage: RecordingStorageClient;
   fetchImpl?: typeof fetch;
 }
 
@@ -145,12 +149,13 @@ function classifyError(error: unknown): { code: FailureCode; message: string } {
   return { code: "unknown", message: String(error) };
 }
 
-export class RecordingNotReadyError extends Error {
-  constructor() {
-    super("No completed Vexa recording is available for this meeting yet.");
-    this.name = "RecordingNotReadyError";
-  }
-}
+// Single source of truth lives in meeting-recordings.ts (Task 4) — that
+// module's own RecordingNotReadyError was deliberately kept byte-identical
+// to this one, so re-exporting it here (rather than keeping a second class
+// with the same name/message) is a no-op for every existing
+// `instanceof RecordingNotReadyError` check below (classifyError) and for
+// every external caller of this module that imports the error from here.
+export { RecordingNotReadyError };
 
 /**
  * The full real pipeline, proven for real during the M8 readiness
@@ -203,19 +208,19 @@ export async function processTranscriptionJob(
           : NaN;
     if (!Number.isFinite(vexaMeetingId)) throw new RecordingNotReadyError();
 
-    const recordingRef = await getMeetingRecordingRef(
-      deps.vexaEnv,
-      vexaMeetingId,
-      deps.fetchImpl,
-    );
-    if (!recordingRef) throw new RecordingNotReadyError();
-
-    const rawBytes = await downloadRecordingMedia(
-      deps.vexaEnv,
-      recordingRef.recordingId,
-      recordingRef.mediaFileId,
-      deps.fetchImpl,
-    );
+    // Ownership handoff (P2): if this meeting's recording is already owned
+    // (a meeting_recordings row exists), ensureOwnedRecording downloads it
+    // straight from our own Storage bucket and never contacts Vexa at all.
+    // Only a first-time/never-ingested meeting reaches out to Vexa here —
+    // once owned, Vexa is no longer needed for transcription.
+    const { recordingRef: ownedRecordingRef, bytes: rawBytes } =
+      await ensureOwnedRecording(serviceRoleClient, deps.storage, {
+        organizationId: transcript.organization_id,
+        meetingId: transcript.meeting_id,
+        vexaMeetingId,
+        vexaEnv: deps.vexaEnv,
+        fetchImpl: deps.fetchImpl,
+      });
     assertTranscodableInputSize(rawBytes.byteLength);
 
     workDir = await mkdtemp(join(tmpdir(), "signal-transcode-"));
@@ -316,8 +321,9 @@ export async function processTranscriptionJob(
           (s) => s.canonical_english_text !== null,
         ),
         p_source_audio_reference: {
-          recordingId: recordingRef.recordingId,
-          mediaFileId: recordingRef.mediaFileId,
+          recordingId: ownedRecordingRef.id,
+          storageBucket: ownedRecordingRef.storageBucket,
+          storagePath: ownedRecordingRef.storagePath,
           platform: identity.platform,
           nativeMeetingId: identity.nativeMeetingId,
         } as Json,

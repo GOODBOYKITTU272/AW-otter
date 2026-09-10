@@ -82,7 +82,18 @@ function matchesFilters(row: Row, filters: Record<string, unknown>): boolean {
 
 function createFakeSupabase(
   tables: Record<string, FakeTable>,
+  // Optional fixed-row overrides, keyed by table name — lets a test
+  // pre-seed e.g. an already-owned meeting_recordings row without
+  // restructuring the shared FakeTable/matchesFilters harness above.
+  overrides?: Record<string, Row>,
 ): AppSupabaseClient {
+  if (overrides) {
+    for (const [tableName, row] of Object.entries(overrides)) {
+      const table = tables[tableName];
+      if (!table) continue;
+      table.rows.push({ id: table.genId(), created_at: new Date().toISOString(), ...row });
+    }
+  }
   function from(tableName: string) {
     const table = tables[tableName];
     const filters: Record<string, unknown> = {};
@@ -309,6 +320,18 @@ function makeTables() {
       "segment",
     ),
     meeting_lifecycle_events: new FakeTable([], "event"),
+    meeting_recordings: new FakeTable(
+      [["organization_id", "meeting_id"]],
+      "rec",
+    ),
+  };
+}
+
+function fakeStorage() {
+  return {
+    upload: vi.fn(async () => ({ error: null })),
+    download: vi.fn(),
+    info: vi.fn(async () => ({ data: null, error: { message: "not found" } })),
   };
 }
 
@@ -449,6 +472,7 @@ describe("processTranscriptionJob", () => {
       transcriptionProvider: fakeEnglishProvider(),
       normalizationProvider: fakeNormalizationProvider(),
       fetchImpl: fakeVexaFetch(),
+      storage: fakeStorage(),
     });
 
     expect(tables.meeting_transcripts.rows[0]?.processing_status).toBe(
@@ -485,6 +509,7 @@ describe("processTranscriptionJob", () => {
       transcriptionProvider: fakeTeluguProvider(),
       normalizationProvider,
       fetchImpl: fakeVexaFetch(),
+      storage: fakeStorage(),
     });
 
     expect(normalizationProvider.normalize).toHaveBeenCalledWith(
@@ -521,6 +546,7 @@ describe("processTranscriptionJob", () => {
       transcriptionProvider: fakeTeluguProvider(),
       normalizationProvider: failingNormalizer,
       fetchImpl: fakeVexaFetch(),
+      storage: fakeStorage(),
     });
 
     // The transcript pipeline itself still completes — one bad
@@ -561,6 +587,7 @@ describe("processTranscriptionJob", () => {
       transcriptionProvider: fakeEnglishProvider(),
       normalizationProvider: fakeNormalizationProvider(),
       fetchImpl: noRecordingFetch,
+      storage: fakeStorage(),
     });
 
     expect(tables.meeting_transcripts.rows[0]?.processing_status).toBe(
@@ -601,6 +628,7 @@ describe("processTranscriptionJob", () => {
       transcriptionProvider: fakeEnglishProvider(),
       normalizationProvider: fakeNormalizationProvider(),
       fetchImpl: shouldNotBeCalledFetch,
+      storage: fakeStorage(),
     });
 
     expect(tables.meeting_transcripts.rows[0]?.processing_status).toBe(
@@ -637,12 +665,62 @@ describe("processTranscriptionJob", () => {
       transcriptionProvider: fakeEnglishProvider(),
       normalizationProvider: fakeNormalizationProvider(),
       fetchImpl: fakeVexaFetch(),
+      storage: fakeStorage(),
     });
 
     expect(tables.transcript_segments.rows).toHaveLength(1);
     expect(tables.transcript_segments.rows[0]?.original_text).toBe(
       "We should shift toward Python.",
     );
+  });
+
+  it("does not call any Vexa endpoint when the recording is already owned — proves Vexa independence after ingestion", async () => {
+    const tables = makeTables();
+    tables.meeting_bot_jobs.rows.push({ ...baseJob });
+    const transcript = {
+      id: "t1",
+      organization_id: "org-1",
+      meeting_id: "meeting-1",
+      processing_status: "processing",
+      retry_count: 0,
+    };
+    tables.meeting_transcripts.rows.push(transcript);
+
+    // meeting_recordings already has a row — owned, per Task 6's shape.
+    const ownedRow = {
+      id: "rec-1",
+      organization_id: "org-1",
+      meeting_id: "meeting-1",
+      storage_bucket: "meeting-recordings",
+      storage_path: "organizations/org-1/meetings/meeting-1/original.webm",
+      content_type: "audio/webm",
+      byte_size: syntheticAudioBytes.byteLength,
+      duration_seconds: null,
+      checksum_sha256: "abc123",
+      captured_at: null,
+    };
+
+    const supabase = createFakeSupabase(tables, { meeting_recordings: ownedRow });
+
+    let vexaEndpointCalled = false;
+    const vexaCallDetectingFetch = (async (url: string | URL) => {
+      vexaEndpointCalled = true;
+      throw new Error(`Vexa was contacted but should not have been: ${String(url)}`);
+    }) as unknown as typeof fetch;
+
+    const storageDownloadSpy = vi.fn(async () => ({ data: new Blob([syntheticAudioBytes]), error: null }));
+
+    await processTranscriptionJob(supabase, transcript as never, {
+      vexaEnv: { baseUrl: "https://vexa.test", apiKey: "k" },
+      transcriptionProvider: fakeEnglishProvider(),
+      normalizationProvider: fakeNormalizationProvider(),
+      fetchImpl: vexaCallDetectingFetch,
+      storage: { upload: vi.fn(), download: storageDownloadSpy, info: vi.fn() },
+    });
+
+    expect(vexaEndpointCalled).toBe(false);
+    expect(storageDownloadSpy).toHaveBeenCalledWith("organizations/org-1/meetings/meeting-1/original.webm");
+    expect(tables.meeting_transcripts.rows[0]?.processing_status).toBe("completed");
   });
 });
 
@@ -666,6 +744,7 @@ describe("processTranscriptionQueue", () => {
         transcriptionProvider: fakeEnglishProvider(),
         normalizationProvider: fakeNormalizationProvider(),
         fetchImpl: fakeVexaFetch(),
+        storage: fakeStorage(),
       },
       5,
     );
@@ -685,6 +764,7 @@ describe("processTranscriptionQueue", () => {
         transcriptionProvider: fakeEnglishProvider(),
         normalizationProvider: fakeNormalizationProvider(),
         fetchImpl: fakeVexaFetch(),
+        storage: fakeStorage(),
       },
       5,
     );
