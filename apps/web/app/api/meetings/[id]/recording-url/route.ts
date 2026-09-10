@@ -25,34 +25,58 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id: meetingId } = await params;
-  const supabase = await getSupabaseServerClient();
+  try {
+    const { id: meetingId } = await params;
+    const supabase = await getSupabaseServerClient();
 
-  const recording = await getOwnedMeetingRecording(supabase, meetingId);
-  if (!recording) {
-    return NextResponse.json(
-      { error: "No recording is available for this meeting." },
-      { status: 404 },
+    const recording = await getOwnedMeetingRecording(supabase, meetingId);
+    if (!recording) {
+      return NextResponse.json(
+        { error: "No recording is available for this meeting." },
+        { status: 404 },
+      );
+    }
+
+    const clientEnv = getClientEnv();
+    const serviceRoleClient = createSupabaseServiceRoleClient(
+      clientEnv.NEXT_PUBLIC_SUPABASE_URL,
+      getSupabaseServiceRoleKey(),
     );
-  }
+    const { data, error } = await serviceRoleClient.storage
+      .from(recording.storageBucket)
+      .createSignedUrl(recording.storagePath, SIGNED_URL_EXPIRY_SECONDS);
+    if (error || !data) {
+      return NextResponse.json(
+        { error: "Could not create a playback link right now." },
+        { status: 500 },
+      );
+    }
 
-  const clientEnv = getClientEnv();
-  const serviceRoleClient = createSupabaseServiceRoleClient(
-    clientEnv.NEXT_PUBLIC_SUPABASE_URL,
-    getSupabaseServiceRoleKey(),
-  );
-  const { data, error } = await serviceRoleClient.storage
-    .from(recording.storageBucket)
-    .createSignedUrl(recording.storagePath, SIGNED_URL_EXPIRY_SECONDS);
-  if (error || !data) {
+    return NextResponse.json({
+      url: data.signedUrl,
+      expiresInSeconds: SIGNED_URL_EXPIRY_SECONDS,
+    });
+  } catch (error) {
+    // meeting_recordings has zero table-level grants for `anon` (Task 1's
+    // migration: `revoke all ... from anon`), so an unauthenticated caller's
+    // request-scoped client hits a genuine Postgres permission-denied error
+    // (42501) inside getOwnedMeetingRecording, not an RLS-filtered empty
+    // result. An authenticated caller who simply isn't authorized for this
+    // meeting never reaches this catch — RLS filters their read to zero
+    // rows, which getOwnedMeetingRecording already turns into the same 404
+    // as "no recording yet" above, so that property is unaffected. Only the
+    // genuinely-unauthenticated case is translated here, into the same 401
+    // the sibling routes (meeting-policy/set, meetings/[id]/call-type) use
+    // for UnauthenticatedError — it reveals nothing about this meeting,
+    // only that the caller has no session at all.
+    const pgError = error as { code?: string };
+    if (pgError.code === "42501") {
+      return NextResponse.json({ error: "No authenticated user." }, { status: 401 });
+    }
+    console.error(error);
     return NextResponse.json(
       { error: "Could not create a playback link right now." },
       { status: 500 },
     );
   }
-
-  return NextResponse.json({
-    url: data.signedUrl,
-    expiresInSeconds: SIGNED_URL_EXPIRY_SECONDS,
-  });
 }
