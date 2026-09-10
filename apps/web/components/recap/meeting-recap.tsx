@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 
 // Codex Pass 2 (NIT, fixed): import the real contract type directly from
@@ -10,6 +13,8 @@ import { StatusBadge, type BadgeTone } from "../admin/status-badge";
 import { ResolveAction } from "../actions/resolve-action";
 import { ConfirmRejectActions } from "../customer-truth/confirm-reject-actions";
 import { CustomerSafeRecapSection } from "./customer-safe-recap";
+import { MediaPlayer } from "./media-player";
+import { MeetingIntegrityCard } from "./meeting-integrity-card";
 
 const CALL_TYPE_LABELS = {
   discovery: "Discovery",
@@ -54,6 +59,13 @@ const TRUTH_STATUS_TONE: Record<string, BadgeTone> = {
 };
 
 export function MeetingRecap({ recap }: { recap: MeetingRecapData }) {
+  const [seekMs, setSeekMs] = useState<number | null>(null);
+  const [currentPlaybackMs, setCurrentPlaybackMs] = useState<number>(0);
+
+  const handleSeek = (ms: number) => {
+    setSeekMs(ms);
+  };
+
   const segmentById = new Map(
     recap.transcriptSegments.map((segment) => [segment.id, segment]),
   );
@@ -114,6 +126,21 @@ export function MeetingRecap({ recap }: { recap: MeetingRecapData }) {
         </div>
       </div>
 
+      {/* Audio Player */}
+      <MediaPlayer
+        recordingUrl={recap.recordingUrl}
+        externalSeekMs={seekMs}
+        onTimeUpdate={setCurrentPlaybackMs}
+      />
+
+      {/* Conversational Integrity & Talk Ratio */}
+      {recap.integrityReport && (
+        <MeetingIntegrityCard
+          integrity={recap.integrityReport}
+          onSeek={handleSeek}
+        />
+      )}
+
       <section className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
         <h2 className="text-sm font-medium">Summary</h2>
         <p className="mt-2 text-sm leading-6 text-zinc-700 dark:text-zinc-300">
@@ -143,6 +170,8 @@ export function MeetingRecap({ recap }: { recap: MeetingRecapData }) {
                 meta={`Confidence ${Math.round(delta.confidence * 100)}%`}
                 evidenceSegmentIds={delta.evidenceSegmentIds}
                 segmentById={segmentById}
+                onSeek={handleSeek}
+                currentPlaybackMs={currentPlaybackMs}
                 badge={
                   delta.noChange ? (
                     <StatusBadge tone="neutral">No change</StatusBadge>
@@ -175,11 +204,15 @@ export function MeetingRecap({ recap }: { recap: MeetingRecapData }) {
           title="Actions"
           records={actions}
           segmentById={segmentById}
+          onSeek={handleSeek}
+          currentPlaybackMs={currentPlaybackMs}
         />
         <RecordSection
           title="Commitments"
           records={commitments}
           segmentById={segmentById}
+          onSeek={handleSeek}
+          currentPlaybackMs={currentPlaybackMs}
         />
       </div>
 
@@ -188,10 +221,15 @@ export function MeetingRecap({ recap }: { recap: MeetingRecapData }) {
         records={blockers}
         segmentById={segmentById}
         emptyText="No missing information or blockers detected."
+        onSeek={handleSeek}
+        currentPlaybackMs={currentPlaybackMs}
       />
 
       {recap.customerSafeRecap ? (
-        <CustomerSafeRecapSection recap={recap.customerSafeRecap} />
+        <CustomerSafeRecapSection
+          meetingId={recap.id}
+          recap={recap.customerSafeRecap}
+        />
       ) : null}
 
       {callSpecificNotes.length > 0 && (
@@ -205,9 +243,47 @@ export function MeetingRecap({ recap }: { recap: MeetingRecapData }) {
                 meta={note.label}
                 evidenceSegmentIds={note.claim.evidenceSegmentIds}
                 segmentById={segmentById}
+                onSeek={handleSeek}
+                currentPlaybackMs={currentPlaybackMs}
               />
             ))}
           </div>
+        </section>
+      )}
+
+      {/* Full Synchronized Transcript */}
+      {recap.transcriptSegments.length > 0 && (
+        <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
+          <details className="group">
+            <summary className="cursor-pointer list-none border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-medium">
+                  Full Transcript ({recap.transcriptSegments.length} segments)
+                </h2>
+                <span className="text-xs text-zinc-400 group-open:hidden">
+                  Expand
+                </span>
+                <span className="hidden text-xs text-zinc-400 group-open:inline">
+                  Collapse
+                </span>
+              </div>
+            </summary>
+            <div className="flex flex-col gap-2 p-4 max-h-[450px] overflow-y-auto">
+              {recap.transcriptSegments.map((segment) => {
+                const isActive =
+                  currentPlaybackMs >= segment.startMs &&
+                  currentPlaybackMs <= segment.endMs;
+                return (
+                  <TranscriptSegment
+                    key={segment.id}
+                    segment={segment}
+                    onSeek={handleSeek}
+                    isActive={isActive}
+                  />
+                );
+              })}
+            </div>
+          </details>
         </section>
       )}
 
@@ -227,11 +303,15 @@ function RecordSection({
   records,
   segmentById,
   emptyText = "Nothing detected.",
+  onSeek,
+  currentPlaybackMs,
 }: {
   title: string;
   records: MeetingRecapData["result"]["callRecords"];
   segmentById: Map<string, TranscriptSegmentData>;
   emptyText?: string;
+  onSeek?: (ms: number) => void;
+  currentPlaybackMs?: number;
 }) {
   return (
     <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
@@ -251,6 +331,8 @@ function RecordSection({
               }`}
               evidenceSegmentIds={record.evidenceSegmentIds}
               segmentById={segmentById}
+              onSeek={onSeek}
+              currentPlaybackMs={currentPlaybackMs}
               badge={
                 record.status ? (
                   <StatusBadge
@@ -281,6 +363,8 @@ function EvidenceItem({
   badge,
   action,
   children,
+  onSeek,
+  currentPlaybackMs,
 }: {
   title: string;
   meta: string;
@@ -289,6 +373,8 @@ function EvidenceItem({
   badge?: React.ReactNode;
   action?: React.ReactNode;
   children?: React.ReactNode;
+  onSeek?: (ms: number) => void;
+  currentPlaybackMs?: number;
 }) {
   return (
     <div className="px-4 py-3">
@@ -319,7 +405,19 @@ function EvidenceItem({
               const segment = segmentById.get(id);
               if (!segment) return null;
 
-              return <TranscriptSegment key={id} segment={segment} />;
+              const isActive =
+                currentPlaybackMs != null &&
+                currentPlaybackMs >= segment.startMs &&
+                currentPlaybackMs <= segment.endMs;
+
+              return (
+                <TranscriptSegment
+                  key={id}
+                  segment={segment}
+                  onSeek={onSeek}
+                  isActive={isActive}
+                />
+              );
             })}
           </div>
         </div>
@@ -329,13 +427,38 @@ function EvidenceItem({
   );
 }
 
-function TranscriptSegment({ segment }: { segment: TranscriptSegmentData }) {
+function TranscriptSegment({
+  segment,
+  onSeek,
+  isActive,
+}: {
+  segment: TranscriptSegmentData;
+  onSeek?: (ms: number) => void;
+  isActive?: boolean;
+}) {
   return (
-    <div className="rounded-md bg-zinc-50 p-3 dark:bg-zinc-950">
-      <div className="flex flex-wrap gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-        <span className="font-mono">
-          {formatTimestamp(segment.startMs)}-{formatTimestamp(segment.endMs)}
-        </span>
+    <div
+      className={`rounded-md p-3 transition ${
+        isActive
+          ? "bg-indigo-50 border border-indigo-200 dark:bg-indigo-950/40 dark:border-indigo-800"
+          : "bg-zinc-50 dark:bg-zinc-950"
+      }`}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+        {onSeek ? (
+          <button
+            type="button"
+            onClick={() => onSeek(segment.startMs)}
+            className="font-mono hover:text-indigo-600 hover:underline cursor-pointer"
+            title="Click to jump audio here"
+          >
+            {formatTimestamp(segment.startMs)}-{formatTimestamp(segment.endMs)}
+          </button>
+        ) : (
+          <span className="font-mono">
+            {formatTimestamp(segment.startMs)}-{formatTimestamp(segment.endMs)}
+          </span>
+        )}
         <span>{segment.speakerLabel}</span>
       </div>
       <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">

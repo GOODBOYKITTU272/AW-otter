@@ -4,6 +4,8 @@ import {
   getJourneyContext,
   getMeetingRecapData,
   listRecentMeetingSummaries,
+  saveMeetingRecapDraft,
+  approveMeetingRecap,
   type AppSupabaseClient,
 } from "./meeting-recap";
 
@@ -46,9 +48,79 @@ function fakeSupabase(tables: Record<string, Row[]>) {
         limitN = n;
         return builder;
       },
+      async single() {
+        const result = apply();
+        return { data: result[0] ?? null, error: null };
+      },
       async maybeSingle() {
         const result = apply();
         return { data: result[0] ?? null, error: null };
+      },
+      insert(row: Row) {
+        const id = (row.id as string) ?? `gen-${Date.now()}`;
+        const newRow = { id, ...row };
+        tables[table] = tables[table] ?? [];
+        tables[table].push(newRow);
+        return {
+          select() {
+            return {
+              single: async () => ({ data: newRow, error: null }),
+            };
+          },
+          then(resolve: (v: unknown) => unknown) {
+            return Promise.resolve({ data: newRow, error: null }).then(resolve);
+          },
+        };
+      },
+      upsert(row: Row) {
+        const id = (row.id as string) ?? `recap-${Date.now()}`;
+        const newRow = { id, ...row };
+        tables[table] = tables[table] ?? [];
+        const idx = tables[table].findIndex(
+          (r) => r.meeting_id === row.meeting_id,
+        );
+        if (idx >= 0) {
+          tables[table][idx] = { ...tables[table][idx], ...newRow };
+        } else {
+          tables[table].push(newRow);
+        }
+        return {
+          select() {
+            return {
+              single: async () => ({
+                data: (idx >= 0 ? tables[table]?.[idx] : newRow) ?? newRow,
+                error: null,
+              }),
+            };
+          },
+        };
+      },
+      update(row: Row) {
+        tables[table] = tables[table] ?? [];
+        const updatedRows: Row[] = [];
+        const updateBuilder = {
+          eq(col: string, val: unknown) {
+            for (let i = 0; i < tables[table]!.length; i++) {
+              if (tables[table]![i]![col] === val) {
+                tables[table]![i] = { ...tables[table]![i], ...row };
+                updatedRows.push(tables[table]![i]!);
+              }
+            }
+            return updateBuilder;
+          },
+          select() {
+            return {
+              single: async () => ({
+                data: updatedRows[0] ?? null,
+                error: null,
+              }),
+            };
+          },
+          then(resolve: (v: unknown) => unknown) {
+            return Promise.resolve({ data: updatedRows, error: null }).then(resolve);
+          },
+        };
+        return updateBuilder;
       },
       then(
         onFulfilled: (v: {
@@ -518,4 +590,76 @@ describe("getMeetingRecapData", () => {
       errorCode: "provider_timeout",
     });
   });
+
+  it("saves a draft meeting recap into meeting_recaps and appends revision", async () => {
+    const supabase = fakeSupabase({
+      meetings: [
+        {
+          id: "meeting-1",
+          organization_id: "org-1",
+          customer_id: "cust-1",
+        },
+      ],
+      meeting_recaps: [],
+      meeting_recap_revisions: [],
+    });
+
+    const res1 = await saveMeetingRecapDraft(supabase, {
+      meetingId: "meeting-1",
+      greeting: "Hi Candidate,",
+      agreements: ["Resume reviewed"],
+      actions: ["Apply to 50 jobs"],
+      nextStep: "Check back tomorrow",
+    });
+
+    expect(res1.recapId).toBeDefined();
+    expect(res1.revisionNumber).toBe(1);
+
+    const res2 = await saveMeetingRecapDraft(supabase, {
+      meetingId: "meeting-1",
+      greeting: "Hi Candidate, updated,",
+      agreements: ["Resume reviewed and approved"],
+      actions: ["Apply to 50 jobs"],
+      nextStep: "Check back Monday",
+    });
+
+    expect(res2.recapId).toBe(res1.recapId);
+    expect(res2.revisionNumber).toBe(2);
+  });
+
+  it("approves meeting recap and records audit event", async () => {
+    const supabase = fakeSupabase({
+      meetings: [
+        {
+          id: "meeting-1",
+          organization_id: "org-1",
+          customer_id: "cust-1",
+        },
+      ],
+      meeting_recaps: [
+        {
+          id: "recap-1",
+          organization_id: "org-1",
+          meeting_id: "meeting-1",
+          status: "draft",
+        },
+      ],
+      meeting_recap_revisions: [],
+      audit_events: [],
+    });
+
+    const res = await approveMeetingRecap(supabase, {
+      meetingId: "meeting-1",
+      actorUserId: "user-am-1",
+      actorMembershipId: "mem-am-1",
+      greeting: "Hi Candidate,",
+      agreements: ["Targeting Senior Backend roles"],
+      actions: ["Submit applications to target list"],
+      nextStep: "Next checkin on Monday",
+    });
+
+    expect(res.status).toBe("approved");
+    expect(res.recapId).toBeDefined();
+  });
 });
+

@@ -958,6 +958,114 @@ export type Database = {
           },
         ];
       };
+      meeting_integrity_flags: {
+        Row: {
+          created_at: string;
+          detector_version: string;
+          end_ms: number;
+          flag_type: string;
+          id: string;
+          message: string;
+          organization_id: string;
+          reason_code: string;
+          report_id: string;
+          severity: string;
+          start_ms: number;
+        };
+        Insert: {
+          created_at?: string;
+          detector_version?: string;
+          end_ms: number;
+          flag_type: string;
+          id?: string;
+          message: string;
+          organization_id: string;
+          reason_code: string;
+          report_id: string;
+          severity: string;
+          start_ms: number;
+        };
+        Update: {
+          created_at?: string;
+          detector_version?: string;
+          end_ms?: number;
+          flag_type?: string;
+          id?: string;
+          message?: string;
+          organization_id?: string;
+          reason_code?: string;
+          report_id?: string;
+          severity?: string;
+          start_ms?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "meeting_integrity_flags_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "meeting_integrity_flags_report_id_fkey";
+            columns: ["report_id"];
+            isOneToOne: false;
+            referencedRelation: "meeting_integrity_reports";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      meeting_integrity_reports: {
+        Row: {
+          created_at: string;
+          evaluated_at: string;
+          id: string;
+          meeting_id: string;
+          metrics: Json;
+          organization_id: string;
+          overall_verdict: string;
+          summary: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          evaluated_at?: string;
+          id?: string;
+          meeting_id: string;
+          metrics?: Json;
+          organization_id: string;
+          overall_verdict: string;
+          summary: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          evaluated_at?: string;
+          id?: string;
+          meeting_id?: string;
+          metrics?: Json;
+          organization_id?: string;
+          overall_verdict?: string;
+          summary?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "meeting_integrity_reports_meeting_id_fkey";
+            columns: ["meeting_id"];
+            isOneToOne: false;
+            referencedRelation: "meetings";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "meeting_integrity_reports_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       meeting_lifecycle_events: {
         Row: {
           bot_job_id: string | null;
@@ -1146,6 +1254,125 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "meeting_policy_sets_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      meeting_recap_revisions: {
+        Row: {
+          actions: Json;
+          agreements: Json;
+          created_at: string;
+          created_by_membership_id: string | null;
+          greeting: string;
+          id: string;
+          next_step: string;
+          organization_id: string;
+          recap_id: string;
+          revision_number: number;
+          revision_reason: string | null;
+        };
+        Insert: {
+          actions?: Json;
+          agreements?: Json;
+          created_at?: string;
+          created_by_membership_id?: string | null;
+          greeting: string;
+          id?: string;
+          next_step: string;
+          organization_id: string;
+          recap_id: string;
+          revision_number: number;
+          revision_reason?: string | null;
+        };
+        Update: {
+          actions?: Json;
+          agreements?: Json;
+          created_at?: string;
+          created_by_membership_id?: string | null;
+          greeting?: string;
+          id?: string;
+          next_step?: string;
+          organization_id?: string;
+          recap_id?: string;
+          revision_number?: number;
+          revision_reason?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "meeting_recap_revisions_created_by_membership_id_fkey";
+            columns: ["created_by_membership_id"];
+            isOneToOne: false;
+            referencedRelation: "organization_memberships";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "meeting_recap_revisions_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "meeting_recap_revisions_recap_id_fkey";
+            columns: ["recap_id"];
+            isOneToOne: false;
+            referencedRelation: "meeting_recaps";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      meeting_recaps: {
+        Row: {
+          approved_at: string | null;
+          approved_by_membership_id: string | null;
+          created_at: string;
+          id: string;
+          meeting_id: string;
+          organization_id: string;
+          status: string;
+          updated_at: string;
+        };
+        Insert: {
+          approved_at?: string | null;
+          approved_by_membership_id?: string | null;
+          created_at?: string;
+          id?: string;
+          meeting_id: string;
+          organization_id: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          approved_at?: string | null;
+          approved_by_membership_id?: string | null;
+          created_at?: string;
+          id?: string;
+          meeting_id?: string;
+          organization_id?: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "meeting_recaps_approved_by_membership_id_fkey";
+            columns: ["approved_by_membership_id"];
+            isOneToOne: false;
+            referencedRelation: "organization_memberships";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "meeting_recaps_meeting_id_fkey";
+            columns: ["meeting_id"];
+            isOneToOne: false;
+            referencedRelation: "meetings";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "meeting_recaps_organization_id_fkey";
             columns: ["organization_id"];
             isOneToOne: false;
             referencedRelation: "organizations";
