@@ -315,7 +315,7 @@ function makeTables() {
 function fakeVexaFetch(): typeof fetch {
   return (async (url: string | URL) => {
     const u = String(url);
-    if (u.includes("/transcripts/")) {
+    if (u.includes("/recordings?meeting_id=")) {
       return new Response(
         JSON.stringify({
           recordings: [
@@ -401,6 +401,7 @@ const baseJob = {
   meeting_id: "meeting-1",
   status: "completed",
   provider_bot_id: "teams/19%3Ameeting_abc%40thread.v2",
+  provider_metadata: { id: 28075 },
 };
 
 describe("enqueuePendingTranscriptions", () => {
@@ -547,7 +548,7 @@ describe("processTranscriptionJob", () => {
     const supabase = createFakeSupabase(tables);
 
     const noRecordingFetch = (async (url: string | URL) => {
-      if (String(url).includes("/transcripts/")) {
+      if (String(url).includes("/recordings?meeting_id=")) {
         return new Response(JSON.stringify({ recordings: [] }), {
           status: 200,
         });
@@ -570,6 +571,44 @@ describe("processTranscriptionJob", () => {
     );
     expect(tables.meeting_transcripts.rows[0]?.retry_count).toBe(1);
     expect(tables.transcript_segments.rows).toHaveLength(0);
+  });
+
+  it("marks the transcript retryable with error_code=recording_not_ready when the bot job's provider_metadata has no usable numeric id", async () => {
+    // M17C regression: GET /recordings only accepts Vexa's numeric
+    // meeting id (from provider_metadata.id) as an honored filter — a job
+    // row with no provider_metadata, or one missing/malformed `id`, has
+    // nothing valid to look up and must fail closed the same way a
+    // missing provider_bot_id already does, not throw an unhandled error
+    // or silently pass an invalid id to the API.
+    const tables = makeTables();
+    tables.meeting_bot_jobs.rows.push({ ...baseJob, provider_metadata: {} });
+    const transcript = {
+      id: "t1",
+      organization_id: "org-1",
+      meeting_id: "meeting-1",
+      processing_status: "processing",
+      retry_count: 0,
+    };
+    tables.meeting_transcripts.rows.push(transcript);
+    const supabase = createFakeSupabase(tables);
+
+    const shouldNotBeCalledFetch = (async (url: string | URL) => {
+      throw new Error(`should not reach Vexa at all: ${String(url)}`);
+    }) as unknown as typeof fetch;
+
+    await processTranscriptionJob(supabase, transcript as never, {
+      vexaEnv: { baseUrl: "https://vexa.test", apiKey: "k" },
+      transcriptionProvider: fakeEnglishProvider(),
+      normalizationProvider: fakeNormalizationProvider(),
+      fetchImpl: shouldNotBeCalledFetch,
+    });
+
+    expect(tables.meeting_transcripts.rows[0]?.processing_status).toBe(
+      "retryable",
+    );
+    expect(tables.meeting_transcripts.rows[0]?.error_code).toBe(
+      "recording_not_ready",
+    );
   });
 
   it("does not create duplicate segments when reprocessed after a partial prior attempt (retry idempotency)", async () => {

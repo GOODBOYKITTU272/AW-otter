@@ -17,8 +17,7 @@ describe("getMeetingRecordingRef", () => {
   it("returns the audio media file from the most recent completed recording", async () => {
     const ref = await getMeetingRecordingRef(
       env,
-      "teams",
-      "19:meeting_abc@thread.v2",
+      28075,
       fakeFetch(200, {
         recordings: [
           {
@@ -40,8 +39,7 @@ describe("getMeetingRecordingRef", () => {
   it("returns null when no recording is completed yet", async () => {
     const ref = await getMeetingRecordingRef(
       env,
-      "teams",
-      "19:meeting_abc@thread.v2",
+      28075,
       fakeFetch(200, {
         recordings: [{ id: 1, status: "processing", media_files: [] }],
       }),
@@ -50,20 +48,14 @@ describe("getMeetingRecordingRef", () => {
   });
 
   it("returns null when there is no recordings array at all", async () => {
-    const ref = await getMeetingRecordingRef(
-      env,
-      "teams",
-      "19:meeting_abc@thread.v2",
-      fakeFetch(200, {}),
-    );
+    const ref = await getMeetingRecordingRef(env, 28075, fakeFetch(200, {}));
     expect(ref).toBeNull();
   });
 
   it("returns null when the completed recording has no audio media file", async () => {
     const ref = await getMeetingRecordingRef(
       env,
-      "teams",
-      "19:meeting_abc@thread.v2",
+      28075,
       fakeFetch(200, {
         recordings: [
           {
@@ -79,13 +71,25 @@ describe("getMeetingRecordingRef", () => {
 
   it("throws a typed error on a Vexa API failure", async () => {
     await expect(
-      getMeetingRecordingRef(
-        env,
-        "teams",
-        "19:meeting_abc@thread.v2",
-        fakeFetch(500, { error: "boom" }),
-      ),
+      getMeetingRecordingRef(env, 28075, fakeFetch(500, { error: "boom" })),
     ).rejects.toBeInstanceOf(VexaApiError);
+  });
+
+  it("requests /recordings filtered by the numeric meeting id, not /transcripts", async () => {
+    // M17C regression: /transcripts/{platform}/{native_meeting_id} returns
+    // 403 "Insufficient scope" on the real hosted account — the numeric
+    // meeting_id filter on /recordings is the endpoint that actually
+    // works, confirmed against real hosted Vexa.
+    let requestedUrl: string | null = null;
+    const capturingFetch: typeof fetch = (async (url: string | URL) => {
+      requestedUrl = String(url);
+      return new Response(JSON.stringify({ recordings: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    await getMeetingRecordingRef(env, 28075, capturingFetch);
+
+    expect(requestedUrl).toContain("/recordings?meeting_id=28075");
+    expect(requestedUrl).not.toContain("/transcripts/");
   });
 });
 

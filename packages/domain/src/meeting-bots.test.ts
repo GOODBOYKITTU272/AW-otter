@@ -87,6 +87,26 @@ function ok(data: unknown = null) {
   return { data, error: null };
 }
 
+// processPendingBotJobs now makes a bulk timing lookup against `meetings`
+// (filtered with .in("id", ...)) BEFORE the per-job meeting_url fetch
+// (filtered with .eq("id", ...)) — same table, distinguishable by which
+// filter key the fake harness recorded. `dueTimingRow` describes a
+// meeting that started "now" (always due under any positive lead time)
+// and ends 30 minutes out (never trips the already-ended check) — the
+// right default for every test that isn't specifically testing timing.
+function dueTimingRow(meetingId = "m1") {
+  return {
+    id: meetingId,
+    scheduled_start: new Date().toISOString(),
+    scheduled_end: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+  };
+}
+
+function meetingsHandler(meetingUrlRow: { meeting_url: string | null }) {
+  return (call: Call) =>
+    "in_id" in call.filters ? ok([dueTimingRow()]) : ok(meetingUrlRow);
+}
+
 const eligibleMeeting = {
   id: "m1",
   organization_id: "org-1",
@@ -283,7 +303,7 @@ describe("processPendingBotJobs", () => {
           ? claimSpy(call.payload)
           : confirmSpy(call.payload);
       },
-      meetings: () => ok({ meeting_url: "https://teams.example/x" }),
+      meetings: meetingsHandler({ meeting_url: "https://teams.example/x" }),
       meeting_lifecycle_events: () => ok(null),
     });
 
@@ -322,7 +342,7 @@ describe("processPendingBotJobs", () => {
         if (updateCount === 1) return ok({ id: "job-1" }); // claim succeeds
         return ok(null); // confirm loses the race — job was cancelled in the meantime
       },
-      meetings: () => ok({ meeting_url: "https://teams.example/x" }),
+      meetings: meetingsHandler({ meeting_url: "https://teams.example/x" }),
       meeting_lifecycle_events: () => ok(null),
     });
     const provider = new FakeMeetingBotProvider();
@@ -351,7 +371,7 @@ describe("processPendingBotJobs", () => {
           ]);
         return ok(null); // claim update returns no row — already claimed elsewhere
       },
-      meetings: () => ok(null),
+      meetings: meetingsHandler({ meeting_url: "https://teams.example/x" }),
     });
 
     const result = await processPendingBotJobs(
@@ -381,7 +401,7 @@ describe("processPendingBotJobs", () => {
         updateCount += 1;
         return updateCount === 1 ? ok({ id: "job-1" }) : failSpy(call.payload);
       },
-      meetings: () => ok({ meeting_url: null }),
+      meetings: meetingsHandler({ meeting_url: null }),
     });
 
     const result = await processPendingBotJobs(
@@ -414,7 +434,7 @@ describe("processPendingBotJobs", () => {
         updateCount += 1;
         return updateCount === 1 ? ok({ id: "job-1" }) : failSpy(call.payload);
       },
-      meetings: () => ok({ meeting_url: "https://teams.example/x" }),
+      meetings: meetingsHandler({ meeting_url: "https://teams.example/x" }),
       meeting_lifecycle_events: () => ok(null),
     });
     const provider = {
@@ -453,7 +473,7 @@ describe("processPendingBotJobs", () => {
         updateCount += 1;
         return updateCount === 1 ? ok({ id: "job-1" }) : retrySpy(call.payload);
       },
-      meetings: () => ok({ meeting_url: "https://teams.example/x" }),
+      meetings: meetingsHandler({ meeting_url: "https://teams.example/x" }),
       meeting_lifecycle_events: () => ok(null),
     });
     const rateLimitError = Object.assign(new Error("rate limited"), {
@@ -475,6 +495,374 @@ describe("processPendingBotJobs", () => {
         next_retry_at: expect.any(String),
       }),
     );
+  });
+
+  // M17C follow-up: dispatch timing gate. Confirmed live that dispatching
+  // the instant a meeting is eligible — regardless of how far away it
+  // starts — sends the bot into an empty Teams lobby with nobody able to
+  // admit it. These tests cover the new gate; every test above this one
+  // covers the CAS claim / retry / cancellation behavior the gate must
+  // never touch, and none of it changed.
+
+  it("does not claim a job whose meeting is further away than the default 90s lead time", async () => {
+    const provider = new FakeMeetingBotProvider();
+    const createSpy = vi.spyOn(provider, "createBot");
+    let botJobsUpdateCalls = 0;
+    const supabase = createFakeSupabase({
+      meeting_bot_jobs: (call) => {
+        if (call.op === "select")
+          return ok([
+            {
+              id: "job-1",
+              meeting_id: "m1",
+              organization_id: "org-1",
+              idempotency_key: "m1:1",
+              retry_count: 0,
+            },
+          ]);
+        botJobsUpdateCalls += 1;
+        return ok({ id: "job-1" }); // would succeed if the claim were ever attempted
+      },
+      meetings: (call) =>
+        "in_id" in call.filters
+          ? ok([
+              {
+                id: "m1",
+                scheduled_start: new Date(
+                  Date.now() + 10 * 60 * 1000,
+                ).toISOString(),
+                scheduled_end: new Date(
+                  Date.now() + 40 * 60 * 1000,
+                ).toISOString(),
+              },
+            ])
+          : ok({ meeting_url: "https://teams.example/x" }),
+    });
+
+    const result = await processPendingBotJobs(supabase, provider, 10);
+
+    expect(result).toEqual({ scheduled: 0, failed: 0 });
+    expect(createSpy).not.toHaveBeenCalled();
+    // The row was never touched at all — not claimed, not retried, no
+    // wasted retry_count churn on a job that isn't due yet.
+    expect(botJobsUpdateCalls).toBe(0);
+  });
+
+  it("claims and dispatches once the meeting is within the default 90s lead time", async () => {
+    const claimSpy = vi.fn((_payload?: unknown) => ok({ id: "job-1" }));
+    const confirmSpy = vi.fn((_payload?: unknown) => ok({ id: "job-1" }));
+    let updateCount = 0;
+    const supabase = createFakeSupabase({
+      meeting_bot_jobs: (call) => {
+        if (call.op === "select")
+          return ok([
+            {
+              id: "job-1",
+              meeting_id: "m1",
+              organization_id: "org-1",
+              idempotency_key: "m1:1",
+              retry_count: 0,
+            },
+          ]);
+        updateCount += 1;
+        return updateCount === 1
+          ? claimSpy(call.payload)
+          : confirmSpy(call.payload);
+      },
+      meetings: (call) =>
+        "in_id" in call.filters
+          ? ok([
+              {
+                id: "m1",
+                scheduled_start: new Date(
+                  Date.now() + 60 * 1000,
+                ).toISOString(),
+                scheduled_end: new Date(
+                  Date.now() + 30 * 60 * 1000,
+                ).toISOString(),
+              },
+            ])
+          : ok({ meeting_url: "https://teams.example/x" }),
+      meeting_lifecycle_events: () => ok(null),
+    });
+
+    const result = await processPendingBotJobs(
+      supabase,
+      new FakeMeetingBotProvider(),
+      10,
+    );
+
+    expect(result).toEqual({ scheduled: 1, failed: 0 });
+    expect(claimSpy).toHaveBeenCalled();
+  });
+
+  it("honors a custom per-org bot_dispatch_lead_seconds instead of the default", async () => {
+    const provider = new FakeMeetingBotProvider();
+    const createSpy = vi.spyOn(provider, "createBot");
+    let botJobsUpdateCalls = 0;
+    const supabase = createFakeSupabase({
+      meeting_bot_jobs: (call) => {
+        if (call.op === "select")
+          return ok([
+            {
+              id: "job-1",
+              meeting_id: "m1",
+              organization_id: "org-1",
+              idempotency_key: "m1:1",
+              retry_count: 0,
+            },
+          ]);
+        botJobsUpdateCalls += 1;
+        return ok({ id: "job-1" });
+      },
+      // 60s out with this org's configured 30s lead: dispatch doesn't
+      // open until 30s before start, i.e. 30s from now — not due yet. A
+      // longer lead dispatches EARLIER, so if this custom (shorter) 30s
+      // value were wrongly ignored in favor of the 90s default, the job
+      // would incorrectly look already-due (90s lead opens at
+      // now+60-90 = 30s in the past) and get dispatched.
+      meetings: (call) =>
+        "in_id" in call.filters
+          ? ok([
+              {
+                id: "m1",
+                scheduled_start: new Date(
+                  Date.now() + 60 * 1000,
+                ).toISOString(),
+                scheduled_end: new Date(
+                  Date.now() + 30 * 60 * 1000,
+                ).toISOString(),
+              },
+            ])
+          : ok({ meeting_url: "https://teams.example/x" }),
+      meeting_policy_sets: () =>
+        ok([{ organization_id: "org-1", bot_dispatch_lead_seconds: 30 }]),
+    });
+
+    const result = await processPendingBotJobs(supabase, provider, 10);
+
+    expect(result).toEqual({ scheduled: 0, failed: 0 });
+    expect(createSpy).not.toHaveBeenCalled();
+    expect(botJobsUpdateCalls).toBe(0);
+  });
+
+  it("falls back to the 90s default when the org has no meeting_policy_sets row", async () => {
+    const claimSpy = vi.fn((_payload?: unknown) => ok({ id: "job-1" }));
+    const confirmSpy = vi.fn((_payload?: unknown) => ok({ id: "job-1" }));
+    let updateCount = 0;
+    const supabase = createFakeSupabase({
+      meeting_bot_jobs: (call) => {
+        if (call.op === "select")
+          return ok([
+            {
+              id: "job-1",
+              meeting_id: "m1",
+              organization_id: "org-1",
+              idempotency_key: "m1:1",
+              retry_count: 0,
+            },
+          ]);
+        updateCount += 1;
+        return updateCount === 1
+          ? claimSpy(call.payload)
+          : confirmSpy(call.payload);
+      },
+      // 80s out — due under the 90s default, would not be under e.g. 60s.
+      meetings: (call) =>
+        "in_id" in call.filters
+          ? ok([
+              {
+                id: "m1",
+                scheduled_start: new Date(
+                  Date.now() + 80 * 1000,
+                ).toISOString(),
+                scheduled_end: new Date(
+                  Date.now() + 30 * 60 * 1000,
+                ).toISOString(),
+              },
+            ])
+          : ok({ meeting_url: "https://teams.example/x" }),
+      meeting_policy_sets: () => ok([]), // no row for this org at all
+      meeting_lifecycle_events: () => ok(null),
+    });
+
+    const result = await processPendingBotJobs(
+      supabase,
+      new FakeMeetingBotProvider(),
+      10,
+    );
+
+    expect(result).toEqual({ scheduled: 1, failed: 0 });
+    expect(claimSpy).toHaveBeenCalled();
+  });
+
+  it("fails a job whose meeting has already ended, without ever calling the provider", async () => {
+    const claimSpy = vi.fn((_payload?: unknown) => ok({ id: "job-1" }));
+    const failSpy = vi.fn((_payload?: unknown) => ok(null));
+    let updateCount = 0;
+    const provider = new FakeMeetingBotProvider();
+    const createSpy = vi.spyOn(provider, "createBot");
+    const supabase = createFakeSupabase({
+      meeting_bot_jobs: (call) => {
+        if (call.op === "select")
+          return ok([
+            {
+              id: "job-1",
+              meeting_id: "m1",
+              organization_id: "org-1",
+              idempotency_key: "m1:1",
+              retry_count: 0,
+            },
+          ]);
+        updateCount += 1;
+        return updateCount === 1
+          ? claimSpy(call.payload)
+          : failSpy(call.payload);
+      },
+      // A meeting discovered an hour after it ended — well past any
+      // reasonable grace window.
+      meetings: (call) =>
+        "in_id" in call.filters
+          ? ok([
+              {
+                id: "m1",
+                scheduled_start: new Date(
+                  Date.now() - 60 * 60 * 1000,
+                ).toISOString(),
+                scheduled_end: new Date(
+                  Date.now() - 40 * 60 * 1000,
+                ).toISOString(),
+              },
+            ])
+          : ok({ meeting_url: "https://teams.example/x" }),
+      meeting_lifecycle_events: () => ok(null),
+    });
+
+    const result = await processPendingBotJobs(supabase, provider, 10);
+
+    expect(result).toEqual({ scheduled: 0, failed: 1 });
+    expect(createSpy).not.toHaveBeenCalled();
+    expect(failSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "failed",
+        last_error: expect.stringContaining("ended"),
+      }),
+    );
+  });
+
+  it("uses the CURRENT scheduled_start after a reschedule, not a stale earlier value", async () => {
+    // dispatch_at is deliberately never stored — it's computed fresh from
+    // meetings.scheduled_start on every single call, precisely so a
+    // reschedule can never leave a stale dispatch time behind. This test
+    // is the regression guard for that: the job's meeting was originally
+    // due (old scheduled_start 60s out, well inside the 90s default
+    // lead), then got rescheduled LATER to 10 minutes out before this
+    // poll ever ran. The fake `meetings` table reflects only the
+    // post-reschedule row — there is no "old" value anywhere for the
+    // code to accidentally read, which is exactly the property being
+    // verified: if a caching bug were ever introduced, this is the test
+    // that would catch it.
+    const provider = new FakeMeetingBotProvider();
+    const createSpy = vi.spyOn(provider, "createBot");
+    let botJobsUpdateCalls = 0;
+    const supabase = createFakeSupabase({
+      meeting_bot_jobs: (call) => {
+        if (call.op === "select")
+          return ok([
+            {
+              id: "job-1",
+              meeting_id: "m1",
+              organization_id: "org-1",
+              idempotency_key: "m1:1",
+              retry_count: 0,
+            },
+          ]);
+        botJobsUpdateCalls += 1;
+        return ok({ id: "job-1" });
+      },
+      // Post-reschedule state only: 10 minutes out now, not the ~60s-out
+      // value that would have been due before the reschedule happened.
+      meetings: (call) =>
+        "in_id" in call.filters
+          ? ok([
+              {
+                id: "m1",
+                scheduled_start: new Date(
+                  Date.now() + 10 * 60 * 1000,
+                ).toISOString(),
+                scheduled_end: new Date(
+                  Date.now() + 40 * 60 * 1000,
+                ).toISOString(),
+              },
+            ])
+          : ok({ meeting_url: "https://teams.example/x" }),
+    });
+
+    const result = await processPendingBotJobs(supabase, provider, 10);
+
+    expect(result).toEqual({ scheduled: 0, failed: 0 });
+    expect(createSpy).not.toHaveBeenCalled();
+    expect(botJobsUpdateCalls).toBe(0);
+  });
+
+  it("dispatches at the exact boundary: now === scheduled_start - lead_seconds", async () => {
+    // Deterministic, not timing-flaky: pin the clock, then construct a
+    // scheduled_start that makes the boundary land on precisely the
+    // millisecond under test, rather than relying on real elapsed time.
+    vi.useFakeTimers();
+    try {
+      const now = new Date("2026-09-10T10:00:00.000Z");
+      vi.setSystemTime(now);
+      const leadSeconds = 90;
+      // scheduled_start - lead_seconds*1000 === now, exactly.
+      const scheduledStart = new Date(now.getTime() + leadSeconds * 1000);
+
+      const claimSpy = vi.fn((_payload?: unknown) => ok({ id: "job-1" }));
+      const confirmSpy = vi.fn((_payload?: unknown) => ok({ id: "job-1" }));
+      let updateCount = 0;
+      const supabase = createFakeSupabase({
+        meeting_bot_jobs: (call) => {
+          if (call.op === "select")
+            return ok([
+              {
+                id: "job-1",
+                meeting_id: "m1",
+                organization_id: "org-1",
+                idempotency_key: "m1:1",
+                retry_count: 0,
+              },
+            ]);
+          updateCount += 1;
+          return updateCount === 1
+            ? claimSpy(call.payload)
+            : confirmSpy(call.payload);
+        },
+        meetings: (call) =>
+          "in_id" in call.filters
+            ? ok([
+                {
+                  id: "m1",
+                  scheduled_start: scheduledStart.toISOString(),
+                  scheduled_end: new Date(
+                    scheduledStart.getTime() + 30 * 60 * 1000,
+                  ).toISOString(),
+                },
+              ])
+            : ok({ meeting_url: "https://teams.example/x" }),
+        meeting_lifecycle_events: () => ok(null),
+      });
+
+      const result = await processPendingBotJobs(
+        supabase,
+        new FakeMeetingBotProvider(),
+        10,
+      );
+
+      expect(result).toEqual({ scheduled: 1, failed: 0 });
+      expect(claimSpy).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

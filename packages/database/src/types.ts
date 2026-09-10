@@ -1114,6 +1114,7 @@ export type Database = {
       };
       meeting_policy_sets: {
         Row: {
+          bot_dispatch_lead_seconds: number;
           created_at: string;
           cutoff_minutes_before_start: number;
           default_decision: Database["public"]["Enums"]["meeting_eligibility"];
@@ -1123,6 +1124,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          bot_dispatch_lead_seconds?: number;
           created_at?: string;
           cutoff_minutes_before_start?: number;
           default_decision?: Database["public"]["Enums"]["meeting_eligibility"];
@@ -1132,6 +1134,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          bot_dispatch_lead_seconds?: number;
           created_at?: string;
           cutoff_minutes_before_start?: number;
           default_decision?: Database["public"]["Enums"]["meeting_eligibility"];

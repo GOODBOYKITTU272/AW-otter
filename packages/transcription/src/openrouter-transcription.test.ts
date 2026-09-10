@@ -48,7 +48,7 @@ describe("OpenRouterTranscriptionProvider", () => {
         "Bearer test-key",
       );
       const form = init.body as FormData;
-      expect(form.get("model")).toBe("openai/whisper-large-v3");
+      expect(form.get("model")).toBe("openai/whisper-large-v3-turbo");
       expect(form.get("response_format")).toBe("verbose_json");
       expect(form.getAll("timestamp_granularities[]")).toEqual([
         "segment",
@@ -72,7 +72,7 @@ describe("OpenRouterTranscriptionProvider", () => {
       expect(result.segments[0]?.endMs).toBe(4500);
       expect(result.words).toHaveLength(2);
       expect(result.usage.cost).toBe(0.00003);
-      expect(result.model).toBe("openai/whisper-large-v3");
+      expect(result.model).toBe("openai/whisper-large-v3-turbo");
     });
   });
 

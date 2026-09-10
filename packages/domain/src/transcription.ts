@@ -173,7 +173,7 @@ export async function processTranscriptionJob(
   try {
     const { data: botJob, error: botJobError } = await serviceRoleClient
       .from("meeting_bot_jobs")
-      .select("provider_bot_id")
+      .select("provider_bot_id, provider_metadata")
       .eq("meeting_id", transcript.meeting_id)
       .eq("organization_id", transcript.organization_id)
       .eq("status", "completed")
@@ -185,10 +185,27 @@ export async function processTranscriptionJob(
     if (!botJob?.provider_bot_id) throw new RecordingNotReadyError();
 
     const identity = decodeProviderBotId(botJob.provider_bot_id);
+
+    // M17C: GET /recordings only honors a numeric `meeting_id` filter
+    // (Vexa's own id from the POST /bots response, stored verbatim in
+    // provider_metadata) — the platform/native_meeting_id pair above is
+    // NOT an honored filter on this endpoint (confirmed against the real
+    // hosted API: a bogus native_meeting_id still returned every
+    // recording). A job whose provider_metadata predates this or is
+    // malformed has nothing usable to look up yet.
+    const rawVexaMeetingId = (botJob.provider_metadata as { id?: unknown } | null)
+      ?.id;
+    const vexaMeetingId =
+      typeof rawVexaMeetingId === "number"
+        ? rawVexaMeetingId
+        : typeof rawVexaMeetingId === "string" && rawVexaMeetingId.trim() !== ""
+          ? Number(rawVexaMeetingId)
+          : NaN;
+    if (!Number.isFinite(vexaMeetingId)) throw new RecordingNotReadyError();
+
     const recordingRef = await getMeetingRecordingRef(
       deps.vexaEnv,
-      identity.platform,
-      identity.nativeMeetingId,
+      vexaMeetingId,
       deps.fetchImpl,
     );
     if (!recordingRef) throw new RecordingNotReadyError();
