@@ -1,8 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+  ensureOwnedRecording,
   getMeetingRecordingStoragePath,
   getOwnedMeetingRecording,
   MEETING_RECORDINGS_BUCKET,
+  RecordingStorageMismatchError,
+  type RecordingStorageClient,
 } from "./meeting-recordings";
 
 describe("getMeetingRecordingStoragePath", () => {
@@ -83,5 +86,126 @@ describe("getOwnedMeetingRecording", () => {
       checksumSha256: "abc123",
       capturedAt: null,
     });
+  });
+});
+
+function fakeRecordingsTable(insertSpy: (payload: unknown) => { data: unknown; error: unknown }) {
+  return {
+    from(table: string) {
+      if (table !== "meeting_recordings") throw new Error(`unexpected table: ${table}`);
+      const builder = {
+        select() {
+          return builder;
+        },
+        eq() {
+          return builder;
+        },
+        async maybeSingle() {
+          return { data: null, error: null }; // no existing row
+        },
+        insert(payload: unknown) {
+          builder._insertPayload = payload;
+          return builder;
+        },
+        async single() {
+          return insertSpy(builder._insertPayload);
+        },
+        _insertPayload: undefined as unknown,
+      };
+      return builder;
+    },
+  } as unknown as Parameters<typeof ensureOwnedRecording>[0];
+}
+
+function fakeVexaFetch(mediaBytes: ArrayBuffer): typeof fetch {
+  return (async (url: string | URL) => {
+    const u = String(url);
+    if (u.includes("/recordings?meeting_id=")) {
+      return new Response(
+        JSON.stringify({
+          recordings: [
+            {
+              id: 860952982728,
+              status: "completed",
+              media_files: [{ id: 559299580948, type: "audio", format: "webm", file_size_bytes: mediaBytes.byteLength }],
+            },
+          ],
+        }),
+        { status: 200 },
+      );
+    }
+    if (u.includes("/media/")) {
+      return new Response(mediaBytes, { status: 200 });
+    }
+    throw new Error(`unexpected fetch in test: ${u}`);
+  }) as unknown as typeof fetch;
+}
+
+describe("ensureOwnedRecording — fresh ingestion", () => {
+  it("downloads from Vexa, uploads to Storage, inserts the row, and returns the bytes — when nothing is owned yet", async () => {
+    const mediaBytes = new TextEncoder().encode("fake-audio-bytes").buffer;
+    const insertSpy = vi.fn((payload: unknown) => ({
+      data: {
+        id: "rec-1",
+        organization_id: "org-1",
+        meeting_id: "meeting-1",
+        storage_bucket: "meeting-recordings",
+        storage_path: "organizations/org-1/meetings/meeting-1/original.webm",
+        content_type: "audio/webm",
+        byte_size: mediaBytes.byteLength,
+        duration_seconds: null,
+        checksum_sha256: expect.any(String),
+        captured_at: null,
+      },
+      error: null,
+    }));
+    const supabase = fakeRecordingsTable(insertSpy);
+
+    const uploadSpy = vi.fn(async () => ({ error: null }));
+    const infoSpy = vi.fn(async () => ({ data: null, error: { message: "not found" } })); // nothing at the path yet
+    const storage: RecordingStorageClient = {
+      upload: uploadSpy,
+      download: vi.fn(),
+      info: infoSpy,
+    };
+
+    const result = await ensureOwnedRecording(supabase, storage, {
+      organizationId: "org-1",
+      meetingId: "meeting-1",
+      vexaMeetingId: 28075,
+      vexaEnv: { baseUrl: "https://vexa.test", apiKey: "test-key" },
+      fetchImpl: fakeVexaFetch(mediaBytes),
+    });
+
+    expect(infoSpy).toHaveBeenCalledWith("organizations/org-1/meetings/meeting-1/original.webm");
+    expect(uploadSpy).toHaveBeenCalledWith(
+      "organizations/org-1/meetings/meeting-1/original.webm",
+      expect.anything(),
+      { contentType: "audio/webm", upsert: false },
+    );
+    expect(insertSpy).toHaveBeenCalled();
+    expect(result.recordingRef.storagePath).toBe("organizations/org-1/meetings/meeting-1/original.webm");
+    expect(new Uint8Array(result.bytes)).toEqual(new Uint8Array(mediaBytes));
+  });
+
+  it("throws RecordingNotReadyError when Vexa has no completed recording yet — reuses the existing error, no new retry classification needed", async () => {
+    const supabase = fakeRecordingsTable(vi.fn());
+    const storage: RecordingStorageClient = { upload: vi.fn(), download: vi.fn(), info: vi.fn() };
+    const noRecordingFetch = (async (url: string | URL) => {
+      if (String(url).includes("/recordings?meeting_id=")) {
+        return new Response(JSON.stringify({ recordings: [] }), { status: 200 });
+      }
+      throw new Error("should not reach media download");
+    }) as unknown as typeof fetch;
+
+    await expect(
+      ensureOwnedRecording(supabase, storage, {
+        organizationId: "org-1",
+        meetingId: "meeting-1",
+        vexaMeetingId: 28075,
+        vexaEnv: { baseUrl: "https://vexa.test", apiKey: "test-key" },
+        fetchImpl: noRecordingFetch,
+      }),
+    ).rejects.toThrow("No completed Vexa recording is available for this meeting yet.");
   });
 });

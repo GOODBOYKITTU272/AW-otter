@@ -1,5 +1,11 @@
+import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@applywizz/database/types";
+import type { Database, Json } from "@applywizz/database/types";
+import {
+  downloadRecordingMedia,
+  getMeetingRecordingRef,
+  type VexaEnv,
+} from "@applywizz/meeting-bots";
 
 export type AppSupabaseClient = SupabaseClient<Database>;
 
@@ -81,4 +87,160 @@ export async function getOwnedMeetingRecording(
   if (error) throw error;
   if (!data) return null;
   return toOwnedRecordingRef(data as MeetingRecordingRow);
+}
+
+/** Duck-typed subset of @supabase/storage-js's real StorageFileApi (v2.115.0, confirmed during planning) — kept minimal and independently fakeable rather than importing the full SDK type. */
+export interface RecordingStorageClient {
+  upload(
+    path: string,
+    body: ArrayBuffer,
+    opts: { contentType: string; upsert: boolean },
+  ): Promise<{ error: { message: string } | null }>;
+  download(path: string): Promise<{ data: Blob | null; error: unknown }>;
+  info(path: string): Promise<{ data: { size: number; contentType?: string } | null; error: unknown }>;
+}
+
+export class RecordingStorageMismatchError extends Error {
+  constructor() {
+    super(
+      "An object already exists at this recording's storage path but does not match the expected recording — refusing to overwrite.",
+    );
+    this.name = "RecordingStorageMismatchError";
+  }
+}
+
+// Re-exported from transcription.ts's own definition would create a
+// circular import (transcription.ts will import FROM this module in
+// Task 7) — this module owns its own copy of the same error shape,
+// matching it exactly so transcription.ts's existing classifyError
+// continues to work unmodified.
+export class RecordingNotReadyError extends Error {
+  constructor() {
+    super("No completed Vexa recording is available for this meeting yet.");
+    this.name = "RecordingNotReadyError";
+  }
+}
+
+export interface EnsureOwnedRecordingInput {
+  organizationId: string;
+  meetingId: string;
+  vexaMeetingId: number;
+  vexaEnv: VexaEnv;
+  fetchImpl?: typeof fetch;
+}
+
+export async function ensureOwnedRecording(
+  supabase: AppSupabaseClient,
+  storage: RecordingStorageClient,
+  input: EnsureOwnedRecordingInput,
+): Promise<{ recordingRef: OwnedRecordingRef; bytes: ArrayBuffer }> {
+  const existing = await getOwnedMeetingRecording(supabase, input.meetingId);
+  if (existing) {
+    const { data, error } = await storage.download(existing.storagePath);
+    if (error || !data) throw error ?? new Error("Owned recording download returned no data.");
+    const bytes = await data.arrayBuffer();
+    return { recordingRef: existing, bytes };
+  }
+
+  const vexaRecording = await getMeetingRecordingRef(
+    input.vexaEnv,
+    input.vexaMeetingId,
+    input.fetchImpl,
+  );
+  if (!vexaRecording) throw new RecordingNotReadyError();
+
+  const path = getMeetingRecordingStoragePath(
+    input.organizationId,
+    input.meetingId,
+    vexaRecording.format,
+  );
+  const contentType = `audio/${vexaRecording.format}`;
+
+  const preexisting = await storage.info(path);
+  if (preexisting.data) {
+    return reconcilePreexistingObject(supabase, storage, input, path, contentType, preexisting.data.size);
+  }
+
+  const bytes = await downloadRecordingMedia(
+    input.vexaEnv,
+    vexaRecording.recordingId,
+    vexaRecording.mediaFileId,
+    input.fetchImpl,
+  );
+  const checksum = createHash("sha256").update(new Uint8Array(bytes)).digest("hex");
+
+  const uploadResult = await storage.upload(path, bytes, { contentType, upsert: false });
+  if (uploadResult.error) {
+    // Someone else uploaded between our info() check and our upload —
+    // re-run the same reconciliation path rather than trusting our own
+    // in-memory bytes over whatever is actually there now.
+    return reconcilePreexistingObject(supabase, storage, input, path, contentType, bytes.byteLength, { checksum, bytes });
+  }
+
+  const row = await insertRecordingRow(supabase, {
+    organizationId: input.organizationId,
+    meetingId: input.meetingId,
+    bucket: MEETING_RECORDINGS_BUCKET,
+    path,
+    contentType,
+    byteSize: bytes.byteLength,
+    checksum,
+    sourceMetadata: {
+      recordingId: vexaRecording.recordingId,
+      mediaFileId: vexaRecording.mediaFileId,
+      sourceFileSizeBytes: bytes.byteLength,
+      sourceFormat: vexaRecording.format,
+    },
+  });
+
+  return { recordingRef: row, bytes };
+}
+
+async function insertRecordingRow(
+  supabase: AppSupabaseClient,
+  input: {
+    organizationId: string;
+    meetingId: string;
+    bucket: string;
+    path: string;
+    contentType: string;
+    byteSize: number;
+    checksum: string;
+    sourceMetadata: Json;
+  },
+): Promise<OwnedRecordingRef> {
+  const { data, error } = await supabase
+    .from("meeting_recordings")
+    .insert({
+      organization_id: input.organizationId,
+      meeting_id: input.meetingId,
+      storage_bucket: input.bucket,
+      storage_path: input.path,
+      content_type: input.contentType,
+      byte_size: input.byteSize,
+      checksum_sha256: input.checksum,
+      source_provider: "vexa",
+      source_metadata: input.sourceMetadata,
+    })
+    .select(
+      "id, organization_id, meeting_id, storage_bucket, storage_path, content_type, byte_size, duration_seconds, checksum_sha256, captured_at",
+    )
+    .single();
+  if (error) throw error;
+  return toOwnedRecordingRef(data as MeetingRecordingRow);
+}
+
+// Task 5 replaces this body with the real validate-then-reconcile logic.
+// For Task 4's scope, this is only reachable if Storage already had an
+// object at a brand-new path, which none of this task's tests exercise.
+async function reconcilePreexistingObject(
+  _supabase: AppSupabaseClient,
+  _storage: RecordingStorageClient,
+  _input: EnsureOwnedRecordingInput,
+  _path: string,
+  _contentType: string,
+  _observedSize: number,
+  _freshlyDownloaded?: { checksum: string; bytes: ArrayBuffer },
+): Promise<{ recordingRef: OwnedRecordingRef; bytes: ArrayBuffer }> {
+  throw new Error("reconcilePreexistingObject is implemented in Task 5");
 }
