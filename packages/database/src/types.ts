@@ -1153,6 +1153,72 @@ export type Database = {
           },
         ];
       };
+      meeting_recordings: {
+        Row: {
+          byte_size: number;
+          captured_at: string | null;
+          checksum_sha256: string | null;
+          content_type: string;
+          created_at: string;
+          duration_seconds: number | null;
+          id: string;
+          meeting_id: string;
+          organization_id: string;
+          source_metadata: Json;
+          source_provider: string;
+          storage_bucket: string;
+          storage_path: string;
+          updated_at: string;
+        };
+        Insert: {
+          byte_size: number;
+          captured_at?: string | null;
+          checksum_sha256?: string | null;
+          content_type: string;
+          created_at?: string;
+          duration_seconds?: number | null;
+          id?: string;
+          meeting_id: string;
+          organization_id: string;
+          source_metadata?: Json;
+          source_provider: string;
+          storage_bucket: string;
+          storage_path: string;
+          updated_at?: string;
+        };
+        Update: {
+          byte_size?: number;
+          captured_at?: string | null;
+          checksum_sha256?: string | null;
+          content_type?: string;
+          created_at?: string;
+          duration_seconds?: number | null;
+          id?: string;
+          meeting_id?: string;
+          organization_id?: string;
+          source_metadata?: Json;
+          source_provider?: string;
+          storage_bucket?: string;
+          storage_path?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "meeting_recordings_meeting_id_fkey";
+            columns: ["meeting_id"];
+            isOneToOne: false;
+            referencedRelation: "meetings";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "meeting_recordings_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       meeting_transcripts: {
         Row: {
           completed_at: string | null;

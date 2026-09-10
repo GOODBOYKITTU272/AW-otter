@@ -12,6 +12,7 @@
     "./meetings": "./src/meetings.ts",
     "./microsoft-tenant-connection": "./src/microsoft-tenant-connection.ts",
     "./meeting-policy": "./src/meeting-policy.ts",
+    "./meeting-recordings": "./src/meeting-recordings.ts",
     "./recording-exceptions": "./src/recording-exceptions.ts",
     "./meeting-bots": "./src/meeting-bots.ts",
     "./audit": "./src/audit.ts",
