@@ -155,6 +155,26 @@ describe("VexaMeetingBotProvider", () => {
     });
   });
 
+  it("normalizes requested status to scheduled on creation", async () => {
+    const provider = new VexaMeetingBotProvider(
+      { baseUrl: "https://api.vexa.test", apiKey: "key" },
+      vi.fn(async () =>
+        response(201, {
+          status: "requested",
+          native_meeting_id: nativeMeetingId,
+        }),
+      ),
+    );
+
+    const result = await provider.createBot({
+      meetingUrl: teamsUrl,
+      idempotencyKey: "idem-req",
+      botName: "ApplyWizz Meeting Assistant",
+    });
+    expect(result.status).toBe("scheduled");
+    expect(result.providerBotId).toBe(providerBotId);
+  });
+
   it("checks status via GET /bots/status and matches by native_meeting_id", async () => {
     const fetchImpl = vi.fn(
       async (_input?: string | URL | Request, _init?: RequestInit) =>

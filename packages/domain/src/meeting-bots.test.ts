@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { FakeMeetingBotProvider } from "@applywizz/meeting-bots";
+import { FakeMeetingBotProvider, type MeetingBotProvider } from "@applywizz/meeting-bots";
 import {
   processPendingBotJobs,
   syncBotStatuses,
@@ -864,6 +864,75 @@ describe("processPendingBotJobs", () => {
       vi.useRealTimers();
     }
   });
+
+  it("dispatches exactly once when provider returns scheduled and does not redispatch on next tick", async () => {
+    const createBotSpy = vi.fn().mockResolvedValue({
+      providerBotId: "teams/19%3Ameeting_test%40thread.v2",
+      status: "scheduled",
+      raw: { id: 28159, status: "requested" },
+    });
+    const provider: MeetingBotProvider = {
+      name: "fake",
+      createBot: createBotSpy,
+      cancelBot: vi.fn(),
+      getBotStatus: vi.fn().mockResolvedValue({ status: "scheduled", raw: {} }),
+    };
+
+    let jobStatus = "pending";
+    const supabase = createFakeSupabase({
+      meeting_bot_jobs: (call) => {
+        if (call.op === "select") {
+          return ok(
+            jobStatus === "pending"
+              ? [
+                  {
+                    id: "job-1",
+                    meeting_id: "m1",
+                    organization_id: "org-1",
+                    idempotency_key: "m1:1",
+                    retry_count: 0,
+                  },
+                ]
+              : [],
+          );
+        }
+        if (call.op === "update") {
+          const payload = call.payload as Record<string, unknown>;
+          if (payload.status) {
+            jobStatus = payload.status as string;
+          }
+          return ok({ id: "job-1" });
+        }
+        return ok(null);
+      },
+      meetings: (call) =>
+        "in_id" in call.filters
+          ? ok([
+              {
+                id: "m1",
+                scheduled_start: new Date(Date.now() + 60 * 1000).toISOString(),
+                scheduled_end: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+              },
+            ])
+          : ok({ meeting_url: "https://teams.example/x" }),
+      meeting_lifecycle_events: () => ok(null),
+    });
+
+    // Tick 1: Job is pending -> provider.createBot is called
+    const tick1 = await processPendingBotJobs(supabase, provider, 10);
+    expect(tick1).toEqual({ scheduled: 1, failed: 0 });
+    expect(createBotSpy).toHaveBeenCalledTimes(1);
+    expect(jobStatus).toBe("scheduled");
+
+    // Intervening sync: syncBotStatuses runs with provider reporting scheduled
+    await syncBotStatuses(supabase, provider, 10);
+    expect(jobStatus).toBe("scheduled");
+
+    // Tick 2: Next worker tick runs processPendingBotJobs
+    const tick2 = await processPendingBotJobs(supabase, provider, 10);
+    expect(tick2).toEqual({ scheduled: 0, failed: 0 });
+    expect(createBotSpy).toHaveBeenCalledTimes(1); // Invocation count remains strictly 1
+  });
 });
 
 describe("syncBotStatuses", () => {
@@ -978,6 +1047,35 @@ describe("syncBotStatuses", () => {
       createBot: vi.fn(),
       cancelBot: vi.fn(),
       getBotStatus: vi.fn().mockResolvedValue({ status: "scheduled", raw: {} }),
+    };
+    const supabase = createFakeSupabase({
+      meeting_bot_jobs: (call) =>
+        call.op === "select"
+          ? ok([
+              {
+                id: "job-1",
+                meeting_id: "m1",
+                organization_id: "org-1",
+                provider_bot_id: "bot-1",
+                status: "scheduled",
+              },
+            ])
+          : updateSpy(call.payload),
+    });
+
+    const result = await syncBotStatuses(supabase, provider, 10);
+
+    expect(result).toEqual({ updated: 0 });
+    expect(updateSpy).not.toHaveBeenCalled();
+  });
+
+  it("never demotes a scheduled, joining, or joined job back to pending", async () => {
+    const updateSpy = vi.fn((_payload?: unknown) => ok(null));
+    const provider = {
+      name: "fake",
+      createBot: vi.fn(),
+      cancelBot: vi.fn(),
+      getBotStatus: vi.fn().mockResolvedValue({ status: "pending", raw: {} }),
     };
     const supabase = createFakeSupabase({
       meeting_bot_jobs: (call) =>

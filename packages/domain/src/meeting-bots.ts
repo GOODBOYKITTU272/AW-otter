@@ -531,6 +531,7 @@ export async function syncBotStatuses(
   for (const job of jobs ?? []) {
     const result = await provider.getBotStatus(job.provider_bot_id as string);
     if (result.status === job.status) continue;
+    if (result.status === "pending") continue;
 
     // Codex's M6 final review caught a real race: processPendingBotJobs and
     // syncBotStatuses run in the SAME tick, so a bot that was just created

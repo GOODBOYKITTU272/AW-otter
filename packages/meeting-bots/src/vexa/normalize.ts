@@ -10,12 +10,11 @@ export function normalizeVexaStatus(status: unknown): BotStatus {
 
   switch (status.toLowerCase()) {
     case "idle":
-      return "pending";
-    case "scheduled":
-      return "scheduled";
-    case "requested":
     case "pending":
       return "pending";
+    case "requested":
+    case "scheduled":
+      return "scheduled";
     case "joining":
     case "awaiting_admission":
     case "waiting_for_admission":
