@@ -73,6 +73,7 @@ export interface CustomerSafeRecap {
   whatWeAgreed?: string[];
   applyWizzWillDo?: string[];
   customerShouldDo?: string[];
+  candidateShouldDo?: string[];
   approvedAt?: string | null;
   approvedByMembershipId?: string | null;
   currentRevisionNumber?: number;
@@ -284,7 +285,9 @@ export async function getMeetingRecapData(
   let customerSafeRecap: CustomerSafeRecap | null = null;
   const { data: savedRecapRow } = await supabase
     .from("meeting_recaps")
-    .select("id, status, approved_at, approved_by_membership_id")
+    .select(
+      "id, status, approved_at, approved_by_membership_id, what_we_agreed, applywizz_will_do, candidate_should_do",
+    )
     .eq("meeting_id", meetingId)
     .maybeSingle();
 
@@ -298,17 +301,27 @@ export async function getMeetingRecapData(
       .maybeSingle();
 
     if (latestRev) {
-      const agreements = (latestRev.agreements as string[]) ?? [];
-      const actions = (latestRev.actions as string[]) ?? [];
+      const whatWeAgreed =
+        (latestRev.what_we_agreed as string[]) ??
+        (savedRecapRow.what_we_agreed as string[]) ??
+        [];
+      const applyWizzWillDo =
+        (latestRev.applywizz_will_do as string[]) ??
+        (savedRecapRow.applywizz_will_do as string[]) ??
+        [];
+      const candidateShouldDo =
+        (latestRev.candidate_should_do as string[]) ??
+        (savedRecapRow.candidate_should_do as string[]) ??
+        [];
+
       customerSafeRecap = {
         id: savedRecapRow.id,
         status: savedRecapRow.status as CustomerSafeRecap["status"],
         greeting: latestRev.greeting,
-        agreements,
-        actions,
-        whatWeAgreed: agreements,
-        applyWizzWillDo: actions,
-        customerShouldDo: [],
+        whatWeAgreed,
+        applyWizzWillDo,
+        candidateShouldDo,
+        customerShouldDo: candidateShouldDo,
         nextStep: latestRev.next_step,
         approvedAt: savedRecapRow.approved_at,
         approvedByMembershipId: savedRecapRow.approved_by_membership_id,
@@ -332,7 +345,7 @@ export async function getMeetingRecapData(
   let integrityReport: MeetingIntegrityAnalysis | null = null;
   const { data: savedIntegrityRow } = await supabase
     .from("meeting_integrity_reports")
-    .select("id, overall_verdict, summary, metrics")
+    .select("id, overall_verdict, summary, confidence_score_avg, suspected_background_media, metrics")
     .eq("meeting_id", meetingId)
     .maybeSingle();
 
@@ -347,11 +360,15 @@ export async function getMeetingRecapData(
     integrityReport = {
       verdict: savedIntegrityRow.overall_verdict as IntegrityVerdict,
       summary: savedIntegrityRow.summary,
-      usableSpeechPercentage: Number(metrics.usableSpeechPercentage ?? 100),
-      confidenceScoreAvg: Number(metrics.confidenceScoreAvg ?? 0.85),
-      backgroundMediaDetected: Boolean(metrics.backgroundMediaDetected),
+      confidenceScoreAvg:
+        typeof savedIntegrityRow.confidence_score_avg === "number"
+          ? savedIntegrityRow.confidence_score_avg
+          : null,
+      suspectedBackgroundMedia: Boolean(savedIntegrityRow.suspected_background_media),
       flags: (flagRows ?? []).map((f) => ({
         id: f.id,
+        meetingId: f.meeting_id,
+        transcriptSegmentId: f.transcript_segment_id,
         flagType: f.flag_type as MeetingIntegrityFlag["flagType"],
         severity: f.severity as MeetingIntegrityFlag["severity"],
         startMs: f.start_ms,
@@ -361,9 +378,11 @@ export async function getMeetingRecapData(
         detectorVersion: f.detector_version,
       })),
       metrics: {
-        usableSpeechPercentage: Number(metrics.usableSpeechPercentage ?? 100),
-        confidenceScoreAvg: Number(metrics.confidenceScoreAvg ?? 0.85),
-        backgroundMediaDetected: Boolean(metrics.backgroundMediaDetected),
+        confidenceScoreAvg:
+          typeof savedIntegrityRow.confidence_score_avg === "number"
+            ? savedIntegrityRow.confidence_score_avg
+            : null,
+        suspectedBackgroundMedia: Boolean(savedIntegrityRow.suspected_background_media),
         totalSpeechMs: Number(metrics.totalSpeechMs ?? 0),
         totalDurationSeconds: metrics.totalDurationSeconds as number | undefined,
         flagCount: flagRows?.length ?? 0,
@@ -371,6 +390,7 @@ export async function getMeetingRecapData(
     };
   } else if (transcriptSegments.length > 0) {
     integrityReport = analyzeMeetingIntegrity({
+      meetingId,
       segments: transcriptSegments.map((s) => ({
         id: s.id,
         startMs: s.startMs,
@@ -654,6 +674,7 @@ export function deriveCustomerSafeRecap(input: {
     whatWeAgreed,
     applyWizzWillDo,
     customerShouldDo,
+    candidateShouldDo: customerShouldDo,
     nextStep: input.nextJourneyStep,
   };
 }
@@ -813,28 +834,49 @@ export interface SaveMeetingRecapInput {
   reason?: string;
 }
 
+export interface SaveMeetingRecapResult {
+  recapId: string;
+  status: "draft" | "ready_for_review";
+  revisionNumber: number;
+  greeting: string;
+  whatWeAgreed: string[];
+  applyWizzWillDo: string[];
+  candidateShouldDo: string[];
+  nextStep: string;
+}
+
 /**
  * Saves or updates an in-progress candidate-safe recap draft in meeting_recaps
  * and appends a new snapshot revision into meeting_recap_revisions.
- * Ensures AM edits persist safely without external delivery.
+ * Preserves the 3 distinct semantic lists (whatWeAgreed, applyWizzWillDo, candidateShouldDo).
+ * Strictly checks that actor is the responsible AM for the meeting.
  */
 export async function saveMeetingRecapDraft(
   supabase: AppSupabaseClient,
   input: SaveMeetingRecapInput,
-): Promise<{ recapId: string; revisionNumber: number }> {
+): Promise<SaveMeetingRecapResult> {
   const { data: meeting, error: meetingError } = await supabase
     .from("meetings")
-    .select("id, organization_id")
+    .select("id, organization_id, owner_membership_id")
     .eq("id", input.meetingId)
     .single();
   if (meetingError) throw meetingError;
 
-  const agreements = input.agreements ?? input.whatWeAgreed ?? [];
-  const actions =
-    input.actions ?? [
-      ...(input.applyWizzWillDo ?? []),
-      ...(input.customerShouldDo ?? input.candidateShouldDo ?? []),
-    ];
+  if (
+    input.actorMembershipId &&
+    meeting.owner_membership_id !== input.actorMembershipId
+  ) {
+    throw new Error(
+      "Only the responsible Account Manager for this meeting can modify or draft the recap.",
+    );
+  }
+
+  const whatWeAgreed = input.whatWeAgreed ?? input.agreements ?? [];
+  const applyWizzWillDo = input.applyWizzWillDo ?? [];
+  const candidateShouldDo =
+    input.candidateShouldDo ?? input.customerShouldDo ?? [];
+
+  const targetStatus = input.status ?? "draft";
 
   // 1. Upsert head recap row
   const { data: recap, error: recapError } = await supabase
@@ -843,11 +885,16 @@ export async function saveMeetingRecapDraft(
       {
         meeting_id: input.meetingId,
         organization_id: meeting.organization_id,
-        status: input.status ?? "draft",
+        status: targetStatus,
+        greeting: input.greeting,
+        what_we_agreed: whatWeAgreed as unknown as Json,
+        applywizz_will_do: applyWizzWillDo as unknown as Json,
+        candidate_should_do: candidateShouldDo as unknown as Json,
+        next_step: input.nextStep,
       },
       { onConflict: "organization_id, meeting_id" },
     )
-    .select("id")
+    .select("id, status")
     .single();
 
   if (recapError) throw recapError;
@@ -864,7 +911,7 @@ export async function saveMeetingRecapDraft(
   const nextRevisionNumber = (latestRev?.revision_number ?? 0) + 1;
 
   // 3. Append-only revision insert
-  const { error: revError } = await supabase
+  const { data: newRev, error: revError } = await supabase
     .from("meeting_recap_revisions")
     .insert({
       organization_id: meeting.organization_id,
@@ -872,15 +919,33 @@ export async function saveMeetingRecapDraft(
       revision_number: nextRevisionNumber,
       created_by_membership_id: input.actorMembershipId ?? null,
       greeting: input.greeting,
-      agreements: agreements as unknown as Json,
-      actions: actions as unknown as Json,
+      what_we_agreed: whatWeAgreed as unknown as Json,
+      applywizz_will_do: applyWizzWillDo as unknown as Json,
+      candidate_should_do: candidateShouldDo as unknown as Json,
       next_step: input.nextStep,
       revision_reason: input.reason ?? "manual_edit",
-    });
+    })
+    .select("id")
+    .single();
 
   if (revError) throw revError;
 
-  return { recapId: recap.id, revisionNumber: nextRevisionNumber };
+  // Update current_revision_id on head recap
+  await supabase
+    .from("meeting_recaps")
+    .update({ current_revision_id: newRev.id })
+    .eq("id", recap.id);
+
+  return {
+    recapId: recap.id,
+    status: recap.status as "draft" | "ready_for_review",
+    revisionNumber: nextRevisionNumber,
+    greeting: input.greeting,
+    whatWeAgreed,
+    applyWizzWillDo,
+    candidateShouldDo,
+    nextStep: input.nextStep,
+  };
 }
 
 export interface ApproveMeetingRecapInput {
@@ -894,6 +959,20 @@ export interface ApproveMeetingRecapInput {
   whatWeAgreed?: string[];
   applyWizzWillDo?: string[];
   customerShouldDo?: string[];
+  candidateShouldDo?: string[];
+}
+
+export interface ApproveMeetingRecapResult {
+  recapId: string;
+  status: "approved";
+  approvedAt: string;
+  approvedByMembershipId: string;
+  revisionNumber: number;
+  greeting: string;
+  whatWeAgreed: string[];
+  applyWizzWillDo: string[];
+  candidateShouldDo: string[];
+  nextStep: string;
 }
 
 /**
@@ -902,50 +981,64 @@ export interface ApproveMeetingRecapInput {
  * "Signal captures the evidence, AI interprets it, the Account Manager approves it,
  * and only then does anything go to the customer."
  * Plan A contains NO external delivery.
+ * Proves actor is the responsible AM for the meeting.
  */
 export async function approveMeetingRecap(
   supabase: AppSupabaseClient,
   input: ApproveMeetingRecapInput,
-): Promise<{ recapId: string; status: "approved" }> {
+): Promise<ApproveMeetingRecapResult> {
   const { data: meeting, error: meetingError } = await supabase
     .from("meetings")
-    .select("id, organization_id")
+    .select("id, organization_id, owner_membership_id")
     .eq("id", input.meetingId)
     .single();
   if (meetingError) throw meetingError;
 
+  if (meeting.owner_membership_id !== input.actorMembershipId) {
+    throw new Error(
+      "Only the responsible Account Manager for this meeting can approve the recap.",
+    );
+  }
+
   let recapId: string;
+  let currentRevNum = 1;
 
   // If content is provided at approval time, record an approved snapshot revision
   if (input.greeting && input.nextStep) {
     const saved = await saveMeetingRecapDraft(supabase, {
       meetingId: input.meetingId,
       greeting: input.greeting,
-      agreements: input.agreements,
-      actions: input.actions,
-      whatWeAgreed: input.whatWeAgreed,
-      applyWizzWillDo: input.applyWizzWillDo,
-      customerShouldDo: input.customerShouldDo,
+      whatWeAgreed: input.whatWeAgreed ?? input.agreements ?? [],
+      applyWizzWillDo: input.applyWizzWillDo ?? [],
+      candidateShouldDo: input.candidateShouldDo ?? input.customerShouldDo ?? [],
       nextStep: input.nextStep,
       actorMembershipId: input.actorMembershipId,
       status: "ready_for_review",
       reason: "approved_snapshot",
     });
     recapId = saved.recapId;
+    currentRevNum = saved.revisionNumber;
   } else {
     const { data: existingRecap, error: recapError } = await supabase
       .from("meeting_recaps")
-      .select("id")
+      .select("id, current_revision_id")
       .eq("meeting_id", input.meetingId)
       .single();
     if (recapError) throw recapError;
     recapId = existingRecap.id;
+
+    const { data: rev } = await supabase
+      .from("meeting_recap_revisions")
+      .select("revision_number")
+      .eq("id", existingRecap.current_revision_id ?? "")
+      .maybeSingle();
+    currentRevNum = rev?.revision_number ?? 1;
   }
 
   const now = new Date().toISOString();
 
   // Transition head status to approved
-  const { data, error } = await supabase
+  const { data: updatedRecap, error: updateError } = await supabase
     .from("meeting_recaps")
     .update({
       status: "approved",
@@ -953,10 +1046,10 @@ export async function approveMeetingRecap(
       approved_at: now,
     })
     .eq("id", recapId)
-    .select("id")
+    .select("*")
     .single();
 
-  if (error) throw error;
+  if (updateError) throw updateError;
 
   await logAuditEvent(supabase, {
     organizationId: meeting.organization_id,
@@ -965,11 +1058,22 @@ export async function approveMeetingRecap(
     entityType: "meeting",
     entityId: input.meetingId,
     metadata: {
-      recapId: data.id,
+      recapId: updatedRecap.id,
       approvedByMembershipId: input.actorMembershipId,
     },
   });
 
-  return { recapId: data.id, status: "approved" };
+  return {
+    recapId: updatedRecap.id,
+    status: "approved",
+    approvedAt: now,
+    approvedByMembershipId: input.actorMembershipId,
+    revisionNumber: currentRevNum,
+    greeting: updatedRecap.greeting,
+    whatWeAgreed: (updatedRecap.what_we_agreed as string[]) ?? [],
+    applyWizzWillDo: (updatedRecap.applywizz_will_do as string[]) ?? [],
+    candidateShouldDo: (updatedRecap.candidate_should_do as string[]) ?? [],
+    nextStep: updatedRecap.next_step,
+  };
 }
 

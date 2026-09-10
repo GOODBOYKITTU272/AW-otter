@@ -23,6 +23,7 @@ import {
   RecordingNotReadyError,
   type RecordingStorageClient,
 } from "./meeting-recordings";
+import { evaluateAndPersistMeetingIntegrity } from "./meeting-integrity";
 
 export type AppSupabaseClient = SupabaseClient<Database>;
 
@@ -346,6 +347,18 @@ export async function processTranscriptionJob(
       source: "worker",
       payload: { segmentCount: segmentRows.length, detectedLanguage },
     });
+
+    // Best-effort automatic transcript integrity analysis upon transcript completion (Blocker 6)
+    // Raw evidence is already durable; evaluation failures must never revert completed transcript.
+    try {
+      await evaluateAndPersistMeetingIntegrity(
+        serviceRoleClient,
+        transcript.meeting_id,
+        transcript.organization_id,
+      );
+    } catch {
+      // Best-effort hook; reconciliation sweep will pick it up if missed.
+    }
   } catch (error) {
     const { code, message } = classifyError(error);
     const nextRetryCount = transcript.retry_count + 1;

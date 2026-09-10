@@ -25,19 +25,25 @@ export function CustomerSafeRecapSection({
 
   const isApproved = recap.status === "approved";
 
-  const handleSaveDraft = async () => {
+  const handleSaveDraft = async (targetStatus: "draft" | "ready_for_review" = "draft") => {
     setIsSaving(true);
     setFeedback(null);
     try {
+      const whatWeAgreed = recap.whatWeAgreed ?? recap.agreements ?? [];
+      const applyWizzWillDo = recap.applyWizzWillDo ?? recap.actions ?? [];
+      const candidateShouldDo =
+        recap.candidateShouldDo ?? recap.customerShouldDo ?? [];
+
       const res = await fetch(`/api/meetings/${meetingId}/recap/draft`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           greeting: recap.greeting,
-          whatWeAgreed: recap.whatWeAgreed ?? recap.agreements ?? [],
-          applyWizzWillDo: recap.applyWizzWillDo ?? recap.actions ?? [],
-          candidateShouldDo: recap.customerShouldDo ?? [],
+          whatWeAgreed,
+          applyWizzWillDo,
+          candidateShouldDo,
           nextStep: recap.nextStep,
+          status: targetStatus,
         }),
       });
 
@@ -46,15 +52,29 @@ export function CustomerSafeRecapSection({
         throw new Error(data.error || "Failed to save draft");
       }
 
-      const data = await res.json();
+      const resData = await res.json();
+      const serverRecap = resData.recap || resData;
       const updated: CustomerSafeRecap = {
         ...recap,
-        currentRevisionNumber: data.revisionNumber ?? (recap.currentRevisionNumber ?? 1) + 1,
+        greeting: serverRecap.greeting ?? recap.greeting,
+        whatWeAgreed: serverRecap.whatWeAgreed ?? recap.whatWeAgreed,
+        applyWizzWillDo: serverRecap.applyWizzWillDo ?? recap.applyWizzWillDo,
+        candidateShouldDo:
+          serverRecap.candidateShouldDo ?? recap.candidateShouldDo,
+        customerShouldDo:
+          serverRecap.candidateShouldDo ?? recap.customerShouldDo,
+        nextStep: serverRecap.nextStep ?? recap.nextStep,
+        status: serverRecap.status ?? targetStatus,
+        currentRevisionNumber:
+          serverRecap.revisionNumber ?? recap.currentRevisionNumber,
       };
       setRecap(updated);
       setFeedback({
         type: "success",
-        message: `Draft saved successfully (Revision #${data.revisionNumber ?? "latest"}).`,
+        message:
+          targetStatus === "ready_for_review"
+            ? `Marked as ready for review (Revision #${serverRecap.revisionNumber ?? "latest"}).`
+            : `Draft saved successfully (Revision #${serverRecap.revisionNumber ?? "latest"}).`,
       });
       onRecapUpdated?.(updated);
     } catch (err: unknown) {
@@ -71,14 +91,19 @@ export function CustomerSafeRecapSection({
     setIsApproving(true);
     setFeedback(null);
     try {
+      const whatWeAgreed = recap.whatWeAgreed ?? recap.agreements ?? [];
+      const applyWizzWillDo = recap.applyWizzWillDo ?? recap.actions ?? [];
+      const candidateShouldDo =
+        recap.candidateShouldDo ?? recap.customerShouldDo ?? [];
+
       const res = await fetch(`/api/meetings/${meetingId}/recap/approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           greeting: recap.greeting,
-          whatWeAgreed: recap.whatWeAgreed ?? recap.agreements ?? [],
-          applyWizzWillDo: recap.applyWizzWillDo ?? recap.actions ?? [],
-          candidateShouldDo: recap.customerShouldDo ?? [],
+          whatWeAgreed,
+          applyWizzWillDo,
+          candidateShouldDo,
           nextStep: recap.nextStep,
         }),
       });
@@ -88,10 +113,24 @@ export function CustomerSafeRecapSection({
         throw new Error(data.error || "Failed to approve recap");
       }
 
+      const resData = await res.json();
+      const serverRecap = resData.recap || resData;
       const updated: CustomerSafeRecap = {
         ...recap,
+        greeting: serverRecap.greeting ?? recap.greeting,
+        whatWeAgreed: serverRecap.whatWeAgreed ?? recap.whatWeAgreed,
+        applyWizzWillDo: serverRecap.applyWizzWillDo ?? recap.applyWizzWillDo,
+        candidateShouldDo:
+          serverRecap.candidateShouldDo ?? recap.candidateShouldDo,
+        customerShouldDo:
+          serverRecap.candidateShouldDo ?? recap.customerShouldDo,
+        nextStep: serverRecap.nextStep ?? recap.nextStep,
         status: "approved",
-        approvedAt: new Date().toISOString(),
+        approvedAt: serverRecap.approvedAt ?? new Date().toISOString(),
+        approvedByMembershipId:
+          serverRecap.approvedByMembershipId ?? recap.approvedByMembershipId,
+        currentRevisionNumber:
+          serverRecap.revisionNumber ?? recap.currentRevisionNumber,
       };
       setRecap(updated);
       setFeedback({
@@ -110,27 +149,52 @@ export function CustomerSafeRecapSection({
   };
 
   const updateItem = (
-    listKey: "whatWeAgreed" | "applyWizzWillDo" | "customerShouldDo",
+    listKey: "whatWeAgreed" | "applyWizzWillDo" | "candidateShouldDo",
     index: number,
     value: string,
   ) => {
-    const list = [...(recap[listKey] ?? [])];
+    const list = [
+      ...(listKey === "candidateShouldDo"
+        ? recap.candidateShouldDo ?? recap.customerShouldDo ?? []
+        : recap[listKey] ?? []),
+    ];
     list[index] = value;
-    setRecap({ ...recap, [listKey]: list });
+    if (listKey === "candidateShouldDo") {
+      setRecap({ ...recap, candidateShouldDo: list, customerShouldDo: list });
+    } else {
+      setRecap({ ...recap, [listKey]: list });
+    }
   };
 
   const removeItem = (
-    listKey: "whatWeAgreed" | "applyWizzWillDo" | "customerShouldDo",
+    listKey: "whatWeAgreed" | "applyWizzWillDo" | "candidateShouldDo",
     index: number,
   ) => {
-    const list = (recap[listKey] ?? []).filter((_, i) => i !== index);
-    setRecap({ ...recap, [listKey]: list });
+    const source =
+      listKey === "candidateShouldDo"
+        ? recap.candidateShouldDo ?? recap.customerShouldDo ?? []
+        : recap[listKey] ?? [];
+    const list = source.filter((_, i) => i !== index);
+    if (listKey === "candidateShouldDo") {
+      setRecap({ ...recap, candidateShouldDo: list, customerShouldDo: list });
+    } else {
+      setRecap({ ...recap, [listKey]: list });
+    }
   };
 
   const addItem = (
-    listKey: "whatWeAgreed" | "applyWizzWillDo" | "customerShouldDo",
+    listKey: "whatWeAgreed" | "applyWizzWillDo" | "candidateShouldDo",
   ) => {
-    setRecap({ ...recap, [listKey]: [...(recap[listKey] ?? []), ""] });
+    const source =
+      listKey === "candidateShouldDo"
+        ? recap.candidateShouldDo ?? recap.customerShouldDo ?? []
+        : recap[listKey] ?? [];
+    const list = [...source, ""];
+    if (listKey === "candidateShouldDo") {
+      setRecap({ ...recap, candidateShouldDo: list, customerShouldDo: list });
+    } else {
+      setRecap({ ...recap, [listKey]: list });
+    }
   };
 
   return (
@@ -147,7 +211,6 @@ export function CustomerSafeRecapSection({
           ) : (
             <StatusBadge tone="warning">Draft</StatusBadge>
           )}
-
           {recap.currentRevisionNumber != null && (
             <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-mono text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
               Rev #{recap.currentRevisionNumber}
@@ -160,12 +223,23 @@ export function CustomerSafeRecapSection({
             <>
               <button
                 type="button"
-                onClick={handleSaveDraft}
+                onClick={() => handleSaveDraft("draft")}
                 disabled={isSaving || isApproving}
                 className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
               >
                 {isSaving ? "Saving..." : "Save Draft"}
               </button>
+
+              {recap.status !== "ready_for_review" && (
+                <button
+                  type="button"
+                  onClick={() => handleSaveDraft("ready_for_review")}
+                  disabled={isSaving || isApproving}
+                  className="rounded-md border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300 dark:hover:bg-indigo-950/70"
+                >
+                  Mark Ready for Review
+                </button>
+              )}
 
               <button
                 type="button"
@@ -235,11 +309,11 @@ export function CustomerSafeRecapSection({
 
         <EditableList
           title="What Candidate Should Provide / Do"
-          items={recap.customerShouldDo ?? []}
+          items={recap.candidateShouldDo ?? recap.customerShouldDo ?? []}
           isReadOnly={isApproved}
-          onUpdate={(i, val) => updateItem("customerShouldDo", i, val)}
-          onRemove={(i) => removeItem("customerShouldDo", i)}
-          onAdd={() => addItem("customerShouldDo")}
+          onUpdate={(i, val) => updateItem("candidateShouldDo", i, val)}
+          onRemove={(i) => removeItem("candidateShouldDo", i)}
+          onAdd={() => addItem("candidateShouldDo")}
         />
 
         <div>

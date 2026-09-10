@@ -965,12 +965,14 @@ export type Database = {
           end_ms: number;
           flag_type: string;
           id: string;
+          meeting_id: string;
           message: string;
           organization_id: string;
           reason_code: string;
           report_id: string;
           severity: string;
           start_ms: number;
+          transcript_segment_id: string | null;
         };
         Insert: {
           created_at?: string;
@@ -978,12 +980,14 @@ export type Database = {
           end_ms: number;
           flag_type: string;
           id?: string;
+          meeting_id: string;
           message: string;
           organization_id: string;
           reason_code: string;
           report_id: string;
           severity: string;
           start_ms: number;
+          transcript_segment_id?: string | null;
         };
         Update: {
           created_at?: string;
@@ -991,14 +995,23 @@ export type Database = {
           end_ms?: number;
           flag_type?: string;
           id?: string;
+          meeting_id?: string;
           message?: string;
           organization_id?: string;
           reason_code?: string;
           report_id?: string;
           severity?: string;
           start_ms?: number;
+          transcript_segment_id?: string | null;
         };
         Relationships: [
+          {
+            foreignKeyName: "meeting_integrity_flags_meeting_id_fkey";
+            columns: ["meeting_id"];
+            isOneToOne: false;
+            referencedRelation: "meetings";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "meeting_integrity_flags_organization_id_fkey";
             columns: ["organization_id"];
@@ -1013,10 +1026,18 @@ export type Database = {
             referencedRelation: "meeting_integrity_reports";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "meeting_integrity_flags_transcript_segment_id_fkey";
+            columns: ["transcript_segment_id"];
+            isOneToOne: false;
+            referencedRelation: "transcript_segments";
+            referencedColumns: ["id"];
+          },
         ];
       };
       meeting_integrity_reports: {
         Row: {
+          confidence_score_avg: number | null;
           created_at: string;
           evaluated_at: string;
           id: string;
@@ -1025,9 +1046,11 @@ export type Database = {
           organization_id: string;
           overall_verdict: string;
           summary: string;
+          suspected_background_media: boolean;
           updated_at: string;
         };
         Insert: {
+          confidence_score_avg?: number | null;
           created_at?: string;
           evaluated_at?: string;
           id?: string;
@@ -1036,9 +1059,11 @@ export type Database = {
           organization_id: string;
           overall_verdict: string;
           summary: string;
+          suspected_background_media?: boolean;
           updated_at?: string;
         };
         Update: {
+          confidence_score_avg?: number | null;
           created_at?: string;
           evaluated_at?: string;
           id?: string;
@@ -1047,6 +1072,7 @@ export type Database = {
           organization_id?: string;
           overall_verdict?: string;
           summary?: string;
+          suspected_background_media?: boolean;
           updated_at?: string;
         };
         Relationships: [
@@ -1263,8 +1289,8 @@ export type Database = {
       };
       meeting_recap_revisions: {
         Row: {
-          actions: Json;
-          agreements: Json;
+          applywizz_will_do: Json;
+          candidate_should_do: Json;
           created_at: string;
           created_by_membership_id: string | null;
           greeting: string;
@@ -1274,23 +1300,25 @@ export type Database = {
           recap_id: string;
           revision_number: number;
           revision_reason: string | null;
+          what_we_agreed: Json;
         };
         Insert: {
-          actions?: Json;
-          agreements?: Json;
+          applywizz_will_do?: Json;
+          candidate_should_do?: Json;
           created_at?: string;
           created_by_membership_id?: string | null;
-          greeting: string;
+          greeting?: string;
           id?: string;
-          next_step: string;
+          next_step?: string;
           organization_id: string;
           recap_id: string;
           revision_number: number;
           revision_reason?: string | null;
+          what_we_agreed?: Json;
         };
         Update: {
-          actions?: Json;
-          agreements?: Json;
+          applywizz_will_do?: Json;
+          candidate_should_do?: Json;
           created_at?: string;
           created_by_membership_id?: string | null;
           greeting?: string;
@@ -1300,6 +1328,7 @@ export type Database = {
           recap_id?: string;
           revision_number?: number;
           revision_reason?: string | null;
+          what_we_agreed?: Json;
         };
         Relationships: [
           {
@@ -1327,34 +1356,55 @@ export type Database = {
       };
       meeting_recaps: {
         Row: {
+          applywizz_will_do: Json;
           approved_at: string | null;
           approved_by_membership_id: string | null;
+          candidate_should_do: Json;
           created_at: string;
+          current_revision_id: string | null;
+          customer_id: string | null;
+          greeting: string;
           id: string;
           meeting_id: string;
+          next_step: string;
           organization_id: string;
-          status: string;
+          status: Database["public"]["Enums"]["meeting_recap_status"];
           updated_at: string;
+          what_we_agreed: Json;
         };
         Insert: {
+          applywizz_will_do?: Json;
           approved_at?: string | null;
           approved_by_membership_id?: string | null;
+          candidate_should_do?: Json;
           created_at?: string;
+          current_revision_id?: string | null;
+          customer_id?: string | null;
+          greeting?: string;
           id?: string;
           meeting_id: string;
+          next_step?: string;
           organization_id: string;
-          status?: string;
+          status?: Database["public"]["Enums"]["meeting_recap_status"];
           updated_at?: string;
+          what_we_agreed?: Json;
         };
         Update: {
+          applywizz_will_do?: Json;
           approved_at?: string | null;
           approved_by_membership_id?: string | null;
+          candidate_should_do?: Json;
           created_at?: string;
+          current_revision_id?: string | null;
+          customer_id?: string | null;
+          greeting?: string;
           id?: string;
           meeting_id?: string;
+          next_step?: string;
           organization_id?: string;
-          status?: string;
+          status?: Database["public"]["Enums"]["meeting_recap_status"];
           updated_at?: string;
+          what_we_agreed?: Json;
         };
         Relationships: [
           {
@@ -1362,6 +1412,13 @@ export type Database = {
             columns: ["approved_by_membership_id"];
             isOneToOne: false;
             referencedRelation: "organization_memberships";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "meeting_recaps_customer_id_fkey";
+            columns: ["customer_id"];
+            isOneToOne: false;
+            referencedRelation: "customers";
             referencedColumns: ["id"];
           },
           {
@@ -2714,6 +2771,37 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      save_meeting_integrity_report_atomic: {
+        Args: {
+          p_confidence_score_avg: number;
+          p_flags: Json;
+          p_meeting_id: string;
+          p_metrics: Json;
+          p_organization_id: string;
+          p_overall_verdict: string;
+          p_summary: string;
+          p_suspected_background_media: boolean;
+        };
+        Returns: {
+          confidence_score_avg: number | null;
+          created_at: string;
+          evaluated_at: string;
+          id: string;
+          meeting_id: string;
+          metrics: Json;
+          organization_id: string;
+          overall_verdict: string;
+          summary: string;
+          suspected_background_media: boolean;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "meeting_integrity_reports";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
     };
     Enums: {
       ai_run_status:
@@ -2765,6 +2853,7 @@ export type Database = {
         "requested" | "approved" | "rejected" | "cancelled" | "expired";
       meeting_eligibility:
         "pending" | "record" | "exclude" | "pending_exception" | "unsupported";
+      meeting_recap_status: "draft" | "ready_for_review" | "approved";
       membership_status:
         "invited" | "setup_required" | "active" | "suspended" | "deactivated";
       role_key: "admin" | "senior_manager" | "manager" | "account_manager";
@@ -2990,6 +3079,7 @@ export const Constants = {
         "pending_exception",
         "unsupported",
       ],
+      meeting_recap_status: ["draft", "ready_for_review", "approved"],
       membership_status: [
         "invited",
         "setup_required",

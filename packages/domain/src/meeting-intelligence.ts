@@ -11,6 +11,7 @@ import {
   type MeetingIntelligenceProvider,
 } from "@applywizz/ai";
 import { logLifecycleEvent } from "./meeting-bots";
+import { evaluateAndPersistMeetingIntegrity } from "./meeting-integrity";
 
 export type AppSupabaseClient = SupabaseClient<Database>;
 
@@ -72,6 +73,26 @@ export async function enqueuePendingIntelligenceRuns(
       eventType: "meeting_intelligence.enqueued",
       source: "worker",
     });
+
+    // Ensure transcript integrity is evaluated and persisted for completed transcripts (Blocker 6)
+    try {
+      const { data: existingReport } = await serviceRoleClient
+        .from("meeting_integrity_reports")
+        .select("id")
+        .eq("meeting_id", transcript.meeting_id)
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+
+      if (!existingReport) {
+        await evaluateAndPersistMeetingIntegrity(
+          serviceRoleClient,
+          transcript.meeting_id,
+          organizationId,
+        );
+      }
+    } catch {
+      // Non-blocking catch: failure in integrity must not block intelligence run
+    }
   }
 
   return { enqueued };

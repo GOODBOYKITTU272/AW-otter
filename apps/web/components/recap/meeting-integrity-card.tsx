@@ -9,7 +9,7 @@ import { StatusBadge, type BadgeTone } from "../admin/status-badge";
 
 const VERDICT_LABEL: Record<IntegrityVerdict, string> = {
   good: "High Audio Integrity",
-  review_recommended: "Review Recommended",
+  needs_review: "Review Recommended",
   poor_audio: "Poor Audio Quality",
   suspected_background_media: "Background Media Detected",
   insufficient_speech: "Insufficient Speech",
@@ -18,7 +18,7 @@ const VERDICT_LABEL: Record<IntegrityVerdict, string> = {
 
 const VERDICT_TONE: Record<IntegrityVerdict, BadgeTone> = {
   good: "success",
-  review_recommended: "warning",
+  needs_review: "warning",
   poor_audio: "critical",
   suspected_background_media: "warning",
   insufficient_speech: "neutral",
@@ -26,12 +26,17 @@ const VERDICT_TONE: Record<IntegrityVerdict, BadgeTone> = {
 };
 
 const FLAG_TYPE_LABEL: Record<string, string> = {
-  audio_gap: "Extended Audio Gap",
-  background_media: "Background Media / Audio",
+  possible_background_media_or_stt_artifact: "Possible Artifact / Media",
+  transcript_speech_gap: "Speech Gap",
+  audio_gap: "Speech Gap",
+  background_media: "Possible Artifact / Media",
   low_confidence: "Low Model Confidence",
   rapid_hallucination: "Hallucination Loop",
+  rapid_repetition: "Repetition Loop",
   filler_loop: "Filler Repetition",
+  unsupported_foreign_speech: "Foreign Speech Artifact",
   foreign_hallucination: "Foreign Language Artifact",
+  suspected_hallucination: "Suspected Hallucination",
 };
 
 export function MeetingIntegrityCard({
@@ -48,7 +53,7 @@ export function MeetingIntegrityCard({
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200/80 pb-3 dark:border-zinc-800">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-            Evidence Integrity Analysis
+            Transcript Integrity & Review Warnings
           </span>
           <StatusBadge tone={VERDICT_TONE[integrity.verdict] ?? "neutral"}>
             {VERDICT_LABEL[integrity.verdict] ?? integrity.verdict}
@@ -56,16 +61,11 @@ export function MeetingIntegrityCard({
         </div>
         <div className="flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
           <span>
-            Usable speech:{" "}
-            <span className="font-medium text-zinc-700 dark:text-zinc-300">
-              {integrity.usableSpeechPercentage}%
-            </span>
-          </span>
-          <span>•</span>
-          <span>
             Confidence:{" "}
             <span className="font-medium text-zinc-700 dark:text-zinc-300">
-              {Math.round(integrity.confidenceScoreAvg * 100)}%
+              {integrity.confidenceScoreAvg != null
+                ? `${Math.round(integrity.confidenceScoreAvg * 100)}%`
+                : "Not available"}
             </span>
           </span>
         </div>
