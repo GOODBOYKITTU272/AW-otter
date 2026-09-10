@@ -144,7 +144,7 @@ function fakeVexaFetch(mediaBytes: ArrayBuffer): typeof fetch {
 describe("ensureOwnedRecording — fresh ingestion", () => {
   it("downloads from Vexa, uploads to Storage, inserts the row, and returns the bytes — when nothing is owned yet", async () => {
     const mediaBytes = new TextEncoder().encode("fake-audio-bytes").buffer;
-    const insertSpy = vi.fn((payload: unknown) => ({
+    const insertSpy = vi.fn((_payload: unknown) => ({
       data: {
         id: "rec-1",
         organization_id: "org-1",
@@ -213,7 +213,7 @@ describe("ensureOwnedRecording — fresh ingestion", () => {
 describe("ensureOwnedRecording — crash recovery (object exists, no DB row)", () => {
   it("reconciles without re-uploading or re-downloading when the existing object matches Vexa's reported size", async () => {
     const expectedSize = 474476;
-    const insertSpy = vi.fn((payload: unknown) => ({
+    const insertSpy = vi.fn((_payload: unknown) => ({
       data: {
         id: "rec-1",
         organization_id: "org-1",
