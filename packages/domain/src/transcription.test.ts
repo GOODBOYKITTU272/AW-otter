@@ -722,6 +722,35 @@ describe("processTranscriptionJob", () => {
     expect(storageDownloadSpy).toHaveBeenCalledWith("organizations/org-1/meetings/meeting-1/original.webm");
     expect(tables.meeting_transcripts.rows[0]?.processing_status).toBe("completed");
   });
+
+  it("never deletes the owned Storage object — only the local temp work directory", async () => {
+    const tables = makeTables();
+    tables.meeting_bot_jobs.rows.push({ ...baseJob });
+    const transcript = {
+      id: "t1",
+      organization_id: "org-1",
+      meeting_id: "meeting-1",
+      processing_status: "processing",
+      retry_count: 0,
+    };
+    tables.meeting_transcripts.rows.push(transcript);
+    const supabase = createFakeSupabase(tables);
+
+    // RecordingStorageClient has no `remove` method — this spy is attached
+    // purely to prove nothing calls it, not because the real interface exposes it.
+    const removeSpy = vi.fn(async () => ({ error: null }));
+
+    await processTranscriptionJob(supabase, transcript as never, {
+      vexaEnv: { baseUrl: "https://vexa.test", apiKey: "k" },
+      transcriptionProvider: fakeEnglishProvider(),
+      normalizationProvider: fakeNormalizationProvider(),
+      fetchImpl: fakeVexaFetch(),
+      storage: { ...fakeStorage(), remove: removeSpy } as never,
+    });
+
+    expect(removeSpy).not.toHaveBeenCalled();
+    expect(tables.meeting_transcripts.rows[0]?.processing_status).toBe("completed");
+  });
 });
 
 describe("processTranscriptionQueue", () => {
