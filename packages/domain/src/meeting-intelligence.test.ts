@@ -44,9 +44,14 @@ function matchesFilters(row: Row, filters: Record<string, unknown>): boolean {
 
 function createFakeSupabase(
   tables: Record<string, FakeTable>,
-  options: { failMaterialize?: boolean } = {},
+  options: { failMaterialize?: boolean; failIntegrity?: boolean } = {},
 ): AppSupabaseClient {
   function from(tableName: string) {
+    if (options.failIntegrity && tableName === "meeting_integrity_reports") {
+      throw new Error(
+        "Simulated RPC or DB connection failure in integrity backstop",
+      );
+    }
     const table = tables[tableName];
     const filters: Record<string, unknown> = {};
     let op: "select" | "insert" | "update" = "select";
@@ -306,6 +311,22 @@ describe("enqueuePendingIntelligenceRuns", () => {
     const second = await enqueuePendingIntelligenceRuns(supabase, "org1");
     expect(second.enqueued).toBe(0);
     expect(tables.ai_runs.rows).toHaveLength(1);
+  });
+
+  it("does not block intelligence enqueue if integrity evaluation or RPC throws", async () => {
+    const tables = baseTables();
+    tables.meeting_transcripts.rows.push({
+      id: "t1",
+      meeting_id: "m1",
+      organization_id: "org1",
+      processing_status: "completed",
+    });
+    const supabase = createFakeSupabase(tables, { failIntegrity: true });
+
+    const result = await enqueuePendingIntelligenceRuns(supabase, "org1");
+    expect(result.enqueued).toBe(1);
+    expect(tables.ai_runs.rows).toHaveLength(1);
+    expect(tables.ai_runs.rows[0]?.status).toBe("pending");
   });
 });
 

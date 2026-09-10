@@ -58,7 +58,13 @@ const TRUTH_STATUS_TONE: Record<string, BadgeTone> = {
   superseded: "neutral",
 };
 
-export function MeetingRecap({ recap }: { recap: MeetingRecapData }) {
+export function MeetingRecap({
+  recap,
+  canEdit = true,
+}: {
+  recap: MeetingRecapData;
+  canEdit?: boolean;
+}) {
   const [seekMs, setSeekMs] = useState<number | null>(null);
   const [currentPlaybackMs, setCurrentPlaybackMs] = useState<number>(0);
 
@@ -128,6 +134,7 @@ export function MeetingRecap({ recap }: { recap: MeetingRecapData }) {
 
       {/* Audio Player */}
       <MediaPlayer
+        meetingId={recap.id}
         recordingUrl={recap.recordingUrl}
         externalSeekMs={seekMs}
         onTimeUpdate={setCurrentPlaybackMs}
@@ -229,6 +236,7 @@ export function MeetingRecap({ recap }: { recap: MeetingRecapData }) {
         <CustomerSafeRecapSection
           meetingId={recap.id}
           recap={recap.customerSafeRecap}
+          canEdit={canEdit}
         />
       ) : null}
 

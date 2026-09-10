@@ -90,8 +90,15 @@ export async function enqueuePendingIntelligenceRuns(
           organizationId,
         );
       }
-    } catch {
+    } catch (err: unknown) {
       // Non-blocking catch: failure in integrity must not block intelligence run
+      await logLifecycleEvent(serviceRoleClient, {
+        meetingId: transcript.meeting_id,
+        organizationId,
+        eventType: "transcript.integrity_evaluation_failed",
+        source: "worker",
+        payload: { error: err instanceof Error ? err.message : "unknown" },
+      }).catch(() => {});
     }
   }
 

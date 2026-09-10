@@ -347,7 +347,7 @@ export async function evaluateAndPersistMeetingIntegrity(
 
   const { data: segments, error: segError } = await serviceRoleClient
     .from("transcript_segments")
-    .select("id, start_ms, end_ms, original_text, canonical_english_text, speaker_label")
+    .select("id, start_ms, end_ms, original_text, canonical_english_text, speaker_label, transcription_confidence")
     .eq("transcript_id", transcript.id)
     .order("sequence_index", { ascending: true });
   if (segError) throw segError;
@@ -360,6 +360,10 @@ export async function evaluateAndPersistMeetingIntegrity(
       endMs: s.end_ms,
       text: s.canonical_english_text ?? s.original_text,
       speakerLabel: s.speaker_label ?? undefined,
+      confidence:
+        s.transcription_confidence != null
+          ? Number(s.transcription_confidence)
+          : undefined,
     })),
   });
 

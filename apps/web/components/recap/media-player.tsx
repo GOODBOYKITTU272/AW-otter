@@ -3,21 +3,42 @@
 import { useRef, useState, useEffect } from "react";
 
 interface MediaPlayerProps {
+  meetingId?: string;
   recordingUrl?: string | null;
   onTimeUpdate?: (currentTimeMs: number) => void;
   externalSeekMs?: number | null;
 }
 
 export function MediaPlayer({
-  recordingUrl,
+  meetingId,
+  recordingUrl: initialRecordingUrl,
   onTimeUpdate,
   externalSeekMs,
 }: MediaPlayerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [fetchedUrl, setFetchedUrl] = useState<string | null>(null);
+  const recordingUrl = initialRecordingUrl || fetchedUrl;
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1);
+
+  useEffect(() => {
+    if (!initialRecordingUrl && meetingId) {
+      let cancelled = false;
+      fetch(`/api/meetings/${meetingId}/recording-url`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (!cancelled && data?.url) {
+            setFetchedUrl(data.url);
+          }
+        })
+        .catch(() => {});
+      return () => {
+        cancelled = true;
+      };
+    }
+  }, [initialRecordingUrl, meetingId]);
 
   useEffect(() => {
     if (externalSeekMs != null && audioRef.current) {

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   analyzeMeetingIntegrity,
+  evaluateAndPersistMeetingIntegrity,
   saveMeetingIntegrityReport,
 } from "./meeting-integrity";
 
@@ -169,6 +170,158 @@ describe("analyzeMeetingIntegrity", () => {
               transcript_segment_id: "s1",
             }),
           ]),
+        }),
+      );
+    });
+  });
+
+  describe("evaluateAndPersistMeetingIntegrity (Gate 3 Confidence Truth)", () => {
+    function createMockClient(segments: Array<{
+      id: string;
+      start_ms: number;
+      end_ms: number;
+      original_text: string;
+      canonical_english_text?: string | null;
+      speaker_label?: string | null;
+      transcription_confidence?: number | null;
+    }>) {
+      const mockRpc = vi.fn().mockResolvedValue({
+        data: { id: "report-eval-1" },
+        error: null,
+      });
+
+      const mockFrom = vi.fn((table: string) => {
+        if (table === "meeting_transcripts") {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            single: vi.fn().mockResolvedValue({
+              data: { id: "tr-1" },
+              error: null,
+            }),
+          };
+        }
+        if (table === "transcript_segments") {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockResolvedValue({
+              data: segments,
+              error: null,
+            }),
+          };
+        }
+        throw new Error(`Unexpected table ${table}`);
+      });
+
+      return {
+        client: { from: mockFrom, rpc: mockRpc } as unknown as Parameters<
+          typeof evaluateAndPersistMeetingIntegrity
+        >[0],
+        mockRpc,
+        mockFrom,
+      };
+    }
+
+    it("wires all known transcription_confidence values from database segments into analysis and RPC", async () => {
+      const { client, mockRpc, mockFrom } = createMockClient([
+        {
+          id: "seg-1",
+          start_ms: 0,
+          end_ms: 12000,
+          original_text: "Let us review your resume.",
+          transcription_confidence: 0.92,
+        },
+        {
+          id: "seg-2",
+          start_ms: 12000,
+          end_ms: 25000,
+          original_text: "Sure thing, here are my details.",
+          transcription_confidence: 0.84,
+        },
+      ]);
+
+      const analysis = await evaluateAndPersistMeetingIntegrity(
+        client,
+        "meeting-123",
+        "org-abc",
+      );
+
+      // Verify transcription_confidence was queried
+      expect(mockFrom).toHaveBeenCalledWith("transcript_segments");
+      expect(analysis.confidenceScoreAvg).toBe(0.88);
+
+      expect(mockRpc).toHaveBeenCalledWith(
+        "save_meeting_integrity_report_atomic",
+        expect.objectContaining({
+          p_meeting_id: "meeting-123",
+          p_confidence_score_avg: 0.88,
+        }),
+      );
+    });
+
+    it("wires mixed transcription_confidence values and ignores nulls in average", async () => {
+      const { client, mockRpc } = createMockClient([
+        {
+          id: "seg-1",
+          start_ms: 0,
+          end_ms: 12000,
+          original_text: "Let us review your resume.",
+          transcription_confidence: 0.8,
+        },
+        {
+          id: "seg-2",
+          start_ms: 12000,
+          end_ms: 25000,
+          original_text: "Sure thing, here are my details.",
+          transcription_confidence: null,
+        },
+      ]);
+
+      const analysis = await evaluateAndPersistMeetingIntegrity(
+        client,
+        "meeting-123",
+        "org-abc",
+      );
+
+      expect(analysis.confidenceScoreAvg).toBe(0.8);
+      expect(mockRpc).toHaveBeenCalledWith(
+        "save_meeting_integrity_report_atomic",
+        expect.objectContaining({
+          p_confidence_score_avg: 0.8,
+        }),
+      );
+    });
+
+    it("handles all null transcription_confidence values with null confidenceScoreAvg", async () => {
+      const { client, mockRpc } = createMockClient([
+        {
+          id: "seg-1",
+          start_ms: 0,
+          end_ms: 12000,
+          original_text: "Let us review your resume.",
+          transcription_confidence: null,
+        },
+        {
+          id: "seg-2",
+          start_ms: 12000,
+          end_ms: 25000,
+          original_text: "Sure thing, here are my details.",
+          transcription_confidence: null,
+        },
+      ]);
+
+      const analysis = await evaluateAndPersistMeetingIntegrity(
+        client,
+        "meeting-123",
+        "org-abc",
+      );
+
+      expect(analysis.confidenceScoreAvg).toBeNull();
+      expect(mockRpc).toHaveBeenCalledWith(
+        "save_meeting_integrity_report_atomic",
+        expect.objectContaining({
+          p_confidence_score_avg: null,
         }),
       );
     });

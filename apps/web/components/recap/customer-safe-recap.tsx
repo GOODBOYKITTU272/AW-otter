@@ -7,12 +7,14 @@ import { StatusBadge } from "../admin/status-badge";
 interface CustomerSafeRecapSectionProps {
   meetingId: string;
   recap: CustomerSafeRecap;
+  canEdit?: boolean;
   onRecapUpdated?: (recap: CustomerSafeRecap) => void;
 }
 
 export function CustomerSafeRecapSection({
   meetingId,
   recap: initialRecap,
+  canEdit = true,
   onRecapUpdated,
 }: CustomerSafeRecapSectionProps) {
   const [recap, setRecap] = useState<CustomerSafeRecap>(initialRecap);
@@ -24,6 +26,7 @@ export function CustomerSafeRecapSection({
   } | null>(null);
 
   const isApproved = recap.status === "approved";
+  const isReadOnly = isApproved || !canEdit;
 
   const handleSaveDraft = async (targetStatus: "draft" | "ready_for_review" = "draft") => {
     setIsSaving(true);
@@ -219,7 +222,11 @@ export function CustomerSafeRecapSection({
         </div>
 
         <div className="flex items-center gap-2">
-          {!isApproved ? (
+          {!canEdit ? (
+            <div className="text-xs text-zinc-500 italic dark:text-zinc-400">
+              Read-only: Only the responsible Account Manager can edit or approve this recap.
+            </div>
+          ) : !isApproved ? (
             <>
               <button
                 type="button"
@@ -275,7 +282,7 @@ export function CustomerSafeRecapSection({
           <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">
             Greeting / Intro
           </label>
-          {isApproved ? (
+          {isReadOnly ? (
             <p className="mt-1 text-zinc-800 dark:text-zinc-200">
               {recap.greeting}
             </p>
@@ -292,7 +299,7 @@ export function CustomerSafeRecapSection({
         <EditableList
           title="What We Agreed"
           items={recap.whatWeAgreed ?? recap.agreements ?? []}
-          isReadOnly={isApproved}
+          isReadOnly={isReadOnly}
           onUpdate={(i, val) => updateItem("whatWeAgreed", i, val)}
           onRemove={(i) => removeItem("whatWeAgreed", i)}
           onAdd={() => addItem("whatWeAgreed")}
@@ -301,7 +308,7 @@ export function CustomerSafeRecapSection({
         <EditableList
           title="What ApplyWizz Will Do"
           items={recap.applyWizzWillDo ?? recap.actions ?? []}
-          isReadOnly={isApproved}
+          isReadOnly={isReadOnly}
           onUpdate={(i, val) => updateItem("applyWizzWillDo", i, val)}
           onRemove={(i) => removeItem("applyWizzWillDo", i)}
           onAdd={() => addItem("applyWizzWillDo")}
@@ -310,7 +317,7 @@ export function CustomerSafeRecapSection({
         <EditableList
           title="What Candidate Should Provide / Do"
           items={recap.candidateShouldDo ?? recap.customerShouldDo ?? []}
-          isReadOnly={isApproved}
+          isReadOnly={isReadOnly}
           onUpdate={(i, val) => updateItem("candidateShouldDo", i, val)}
           onRemove={(i) => removeItem("candidateShouldDo", i)}
           onAdd={() => addItem("candidateShouldDo")}
@@ -320,7 +327,7 @@ export function CustomerSafeRecapSection({
           <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">
             Next Journey Step
           </label>
-          {isApproved ? (
+          {isReadOnly ? (
             <p className="mt-1 text-zinc-800 dark:text-zinc-200">
               {recap.nextStep}
             </p>

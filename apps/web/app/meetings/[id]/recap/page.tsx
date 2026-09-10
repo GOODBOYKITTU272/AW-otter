@@ -23,7 +23,12 @@ export default async function MeetingRecapPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireRole(["account_manager", "manager", "senior_manager", "admin"]);
+  const membership = await requireRole([
+    "account_manager",
+    "manager",
+    "senior_manager",
+    "admin",
+  ]);
   const supabase = await getSupabaseServerClient();
   const { id } = await params;
 
@@ -31,7 +36,17 @@ export default async function MeetingRecapPage({
   if (!state) notFound();
 
   if (state.status === "ready") {
-    return <MeetingRecap recap={state.recap} />;
+    const { data: meeting } = await supabase
+      .from("meetings")
+      .select("owner_membership_id")
+      .eq("id", id)
+      .maybeSingle();
+
+    const canEdit =
+      Boolean(meeting?.owner_membership_id) &&
+      meeting?.owner_membership_id === membership.membershipId;
+
+    return <MeetingRecap recap={state.recap} canEdit={canEdit} />;
   }
 
   const errorCode =

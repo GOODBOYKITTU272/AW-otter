@@ -146,6 +146,48 @@ describe("MeetingRecap", () => {
       expect(html).toContain(label);
     },
   );
+
+  it("renders editable buttons when canEdit is true", () => {
+    const recap = minimalRecap({
+      customerSafeRecap: {
+        status: "draft",
+        greeting: "Hello Candidate",
+        whatWeAgreed: ["Agreement 1"],
+        applyWizzWillDo: ["Action 1"],
+        customerShouldDo: ["Candidate 1"],
+        nextStep: "Follow up",
+      },
+    });
+
+    const html = renderToStaticMarkup(
+      React.createElement(MeetingRecap, { recap, canEdit: true }),
+    );
+
+    expect(html).toContain("Save Draft");
+    expect(html).toContain("Approve Recap");
+    expect(html).not.toContain("Read-only: Only the responsible Account Manager");
+  });
+
+  it("renders read-only note and hides review mutation buttons when canEdit is false", () => {
+    const recap = minimalRecap({
+      customerSafeRecap: {
+        status: "draft",
+        greeting: "Hello Candidate",
+        whatWeAgreed: ["Agreement 1"],
+        applyWizzWillDo: ["Action 1"],
+        customerShouldDo: ["Candidate 1"],
+        nextStep: "Follow up",
+      },
+    });
+
+    const html = renderToStaticMarkup(
+      React.createElement(MeetingRecap, { recap, canEdit: false }),
+    );
+
+    expect(html).not.toContain("Save Draft");
+    expect(html).not.toContain("Approve Recap");
+    expect(html).toContain("Read-only: Only the responsible Account Manager can edit or approve this recap.");
+  });
 });
 
 function minimalRecap(

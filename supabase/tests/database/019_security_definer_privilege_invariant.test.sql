@@ -120,7 +120,8 @@ select is_empty(
       'complete_transcription_job',
       'claim_next_meeting_intelligence_run',
       'complete_meeting_intelligence_run',
-      'materialize_customer_truth_deltas'
+      'materialize_customer_truth_deltas',
+      'save_meeting_integrity_report_atomic'
     )
     and not has_function_privilege('service_role', p.oid, 'execute')
   $$,
