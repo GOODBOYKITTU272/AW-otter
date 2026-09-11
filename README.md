@@ -6,7 +6,16 @@ Company-controlled meeting intelligence and organizational memory for ApplyWizz 
 
 ## Status
 
-**Milestone M0 — Repository & Development Foundation.** Only the app shell, tooling and CI exist. No auth, calendar, bot, AI, email or CRM behavior yet — see the Implementation Plan in the blueprint for build order.
+**Active Development — Milestones M0–M17 Complete, P3/P4 Enhancements Shipped.**  
+The product has advanced significantly beyond initial foundation work. Current features include:
+- ✅ Auth, calendar sync (Microsoft Graph), meeting bot orchestration (Vexa)
+- ✅ Transcription stack (Azure MAI primary, OpenRouter fallback, speaker identity, integrity checks)
+- ✅ Meeting intelligence (summaries, action items, customer truth proposals)
+- ✅ Echo grounded chat with trust/safety guardrails
+- ✅ Role-based UI (Admin, Manager, Account Manager)
+- ✅ Production-ready workers, security hardening, operational monitoring
+
+See `docs/product/` for milestone plans and `CODE_HEALTH_REVIEW.md` for current codebase status.
 
 ## Prerequisites
 
@@ -48,25 +57,25 @@ packages/
   database/             Supabase client + generated types
   auth/                 Auth/session/role resolution
   microsoft/            Microsoft Graph calendar integration
-  meeting-bots/         MeetingBotProvider abstraction (Vexa adapter first)
-  ai/                   AIProvider abstraction (OpenAI first)
-  email/                EmailProvider abstraction
-  crm/                  CRMProvider abstraction (ApplyWizz CRM adapter)
-  observability/        Logging, metrics, audit helpers
+  meeting-bots/         MeetingBotProvider abstraction (Vexa adapter)
+  transcription/        Transcription providers (Azure MAI, OpenRouter, benchmarking)
+  ai/                   AI providers (OpenRouter intelligence, Ask Signal, Echo trust)
+  crm/                  CRM integration (ApplyWizz customer details API)
+  scheduler/            ApplyWizz scheduler API integration
+  email/                EmailProvider abstraction (reserved for M17D — not yet implemented)
+  observability/        Logging, metrics, audit helpers (reserved — not yet implemented)
 workers/
-  orchestrator/         Durable queue workers for async pipeline stages
+  orchestrator/         Bot orchestration worker (meeting bot lifecycle)
+  transcription-worker/ Transcription processing worker (audio → text pipeline)
 supabase/
   migrations/           SQL migrations (source of truth schema)
-  functions/             Supabase edge functions, if any
-  tests/                 Database-level RLS/allow-deny tests
+  tests/                Database-level RLS/allow-deny tests (pgTAP)
 docs/
-  product/               Product blueprint (PRD/TRD/App Flow/UX/Schema/Plan)
-  architecture/          Architecture decision notes
-  runbooks/              Operational runbooks
-tests/
-  e2e/                   End-to-end tests
+  product/              Milestone plans and product specifications
+  transcription/        Transcription stack TRDs (P3A-P3F)
+  echo/                 Echo trust and grounding specs (P4A)
+  ops/                  Operational runbooks and production setup
+  security/             Security audit findings and remediation
 ```
 
-`packages/*` and `workers/orchestrator` are currently empty placeholders — they're populated milestone by milestone per the Implementation Plan (Person → Calendar → Policy → Bot → Transcript, before AI/email/CRM).
-
-ApplyWizz PostgreSQL (via Supabase) is the system of record. Microsoft, Vexa, OpenAI, email and CRM are external providers accessed through explicit adapter interfaces — never hard-coded into core domain types.
+ApplyWizz PostgreSQL (via Supabase) is the system of record. Microsoft, Vexa, Azure MAI, OpenRouter, and the ApplyWizz CRM/scheduler are external providers accessed through explicit adapter interfaces — never hard-coded into core domain types.

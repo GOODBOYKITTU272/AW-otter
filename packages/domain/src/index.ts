@@ -39,7 +39,7 @@ export const PERMISSION_KEYS = [
 ] as const;
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
 
-/** Where a role lands after sign-in. M1 destinations are placeholder pages. */
+/** Default landing page for each role after successful sign-in. */
 export const ROLE_HOME_ROUTE: Record<SystemRoleKey, string> = {
   admin: "/admin/overview",
   senior_manager: "/manager/overview",
