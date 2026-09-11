@@ -10,6 +10,7 @@ export default function AccessPendingPage() {
     setSigningOut(true);
     const supabase = getSupabaseBrowserClient();
     await supabase.auth.signOut();
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- Hard navigation required after sign out to clear session
     window.location.assign("/login");
   }
 

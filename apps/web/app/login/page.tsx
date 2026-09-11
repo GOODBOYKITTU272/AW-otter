@@ -37,6 +37,7 @@ export default function LoginPage() {
       .maybeSingle();
 
     if (!membership) {
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- Hard navigation required to commit cookies before SSR
       window.location.assign("/access-pending");
       return;
     }
