@@ -3,7 +3,9 @@ import {
   ensureOwnedRecording,
   getMeetingRecordingStoragePath,
   getOwnedMeetingRecording,
+  isProtectedEvidenceMeeting,
   MEETING_RECORDINGS_BUCKET,
+  PROTECTED_REAL_EVIDENCE_MEETING_IDS,
   RecordingAlreadyExistsError,
   RecordingStorageMismatchError,
   storeOwnedRecording,
@@ -435,9 +437,28 @@ describe("storeOwnedRecording — immutable recording regression guard", () => {
     ).rejects.toThrow(RecordingAlreadyExistsError);
 
     // 3. Verify original bytes and checksum remain UNTOUCHED
-    expect(storedRow.byte_size).toBe(firstBytes.byteLength);
-    expect(storedRow.checksum_sha256).toBe(originalChecksum);
+    expect(storedRow!.byte_size).toBe(firstBytes.byteLength);
+    expect(storedRow!.checksum_sha256).toBe(originalChecksum);
     expect(new Uint8Array(storedObject!.bytes)).toEqual(new Uint8Array(firstBytes));
     expect(uploadSpy).toHaveBeenCalledTimes(1); // Second upload was blocked before hitting storage
+  });
+
+  it("strictly protects real evidence meeting ID from test uploads", async () => {
+    const realMeetingId = "039c787e-b11f-418b-8d3e-4b9bc107407f";
+    expect(isProtectedEvidenceMeeting(realMeetingId)).toBe(true);
+    expect(PROTECTED_REAL_EVIDENCE_MEETING_IDS).toContain(realMeetingId);
+    expect(isProtectedEvidenceMeeting("98000000-0000-0000-0000-00000000000a")).toBe(false);
+
+    const supabase = {} as unknown as Parameters<typeof getOwnedMeetingRecording>[0];
+    const storage = {} as unknown as RecordingStorageClient;
+
+    await expect(
+      storeOwnedRecording(supabase, storage, {
+        organizationId: "00000000-0000-0000-0000-0000000000a1",
+        meetingId: realMeetingId,
+        format: "webm",
+        bytes: new ArrayBuffer(8),
+      }),
+    ).rejects.toThrow(RecordingAlreadyExistsError);
   });
 });

@@ -17,3 +17,10 @@ timestamps, retry counts, and the short coded `error_code`/`last_error`
 columns are enough. If a diagnosis seems to require reading customer
 content, stop and escalate instead (see each runbook's escalation
 condition).
+
+## Acceptance and Real Evidence Safety Invariant
+
+- **Real Meeting Evidence** (`039c787e-b11f-418b-8d3e-4b9bc107407f`):
+  Strictly read-only. Acceptance testing must only READ recording, transcript, integrity flags, and meeting metadata via normal authenticated session routes. Test scripts and CI routines must NEVER run mutations (upload, upsert, delete, update, link customer, create AI run, create recap, or mutate recording metadata) against real evidence.
+- **Dedicated Workflow Fixture** (`98000000-0000-0000-0000-00000000000a`):
+  All workflow and mutation testing (Save Draft, Approve Recap, Manager view, forged mutations) MUST target this dedicated fixture or an isolated disposable Supabase stack.
