@@ -82,14 +82,27 @@ export default async function ManagerMeetingsPage() {
   const customerById = new Map((customersResult.data ?? []).map((c) => [c.id, c.name]));
 
   return (
-    <main className="flex flex-1 flex-col gap-8 p-8">
-      <div className="flex items-center justify-between">
+    <main className="flex flex-1 flex-col">
+      <header className="border-b border-[#F5F5F5]/10 bg-[#1E1E1E] px-8 py-4">
+        <div className="flex items-center justify-between">
+          <Link href="/manager/overview" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+            <div className="h-8 w-8 rounded-lg bg-[#29FE29] flex items-center justify-center">
+              <span className="text-sm font-bold text-[#1E1E1E]">AW</span>
+            </div>
+            <span className="text-base font-bold tracking-tight text-white">
+              Apply Wizz Echo
+            </span>
+          </Link>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-[#F5F5F5]/90">
+              {membership.displayName} <span className="text-[#F5F5F5]/50">· Manager</span>
+            </span>
+            <SignOutButton />
+          </div>
+        </div>
+      </header>
+      <div className="flex flex-1 flex-col gap-8 p-8">
         <h1 className="text-xl font-semibold tracking-tight">Team Meetings & Review Gate</h1>
-        <SignOutButton />
-      </div>
-      <p className="-mt-6 text-sm text-zinc-500 dark:text-zinc-400">
-        Signed in as {membership.displayName}.
-      </p>
 
       {/* Upcoming Team Meetings */}
       <section className="flex flex-col gap-3">
@@ -182,13 +195,14 @@ export default async function ManagerMeetingsPage() {
         </div>
       </section>
 
-      <div className="flex gap-4 pt-2">
-        <Link href="/manager/team" className="w-fit text-sm underline">
-          Team portfolio
-        </Link>
-        <Link href="/actions" className="w-fit text-sm underline">
-          Actions
-        </Link>
+        <div className="flex gap-4 pt-2">
+          <Link href="/manager/team" className="w-fit text-sm underline">
+            Team portfolio
+          </Link>
+          <Link href="/actions" className="w-fit text-sm underline">
+            Actions
+          </Link>
+        </div>
       </div>
     </main>
   );
