@@ -1,0 +1,80 @@
+[
+  {
+    "id": "openslr-te-01",
+    "groundTruth": "ఒక రోజుకు ఇరవై నాలుగు హవర్లుంటాయి",
+    "transcript": "ఒక రోజుకి ఇరవై నాలుగు అవర్లు ఉంటాయి.",
+    "languageCode": "te-IN",
+    "latencyMs": 1349,
+    "wer": 0.6,
+    "cer": 0.1034,
+    "substitutions": 2,
+    "deletions": 0,
+    "insertions": 1,
+    "refWordCount": 5
+  },
+  {
+    "id": "openslr-te-02",
+    "groundTruth": "ఈ సమయంలో దాసరి నారాయణరావు కె.రాఘవేంద్రరావు కోడిరామి రెడ్డి అగ్రస్థానంలో ఉన్న దర్శకులు",
+    "transcript": "ఈ సమయంలో దాసరి నారాయణరావు, కే రాఘవేంద్రరావు, కోడిరామిరెడ్డి అగ్రస్థానంలో ఉన్న దర్శకులు.",
+    "languageCode": "te-IN",
+    "latencyMs": 1223,
+    "wer": 0.3,
+    "cer": 0.0133,
+    "substitutions": 3,
+    "deletions": 0,
+    "insertions": 0,
+    "refWordCount": 10
+  },
+  {
+    "id": "openslr-te-03",
+    "groundTruth": "ఆంధ్రప్రదేశ్ రాష్ట్ర మాజీ ముఖ్యమంత్రి నందమూరి తారక రామారావు రెండవ భార్య నందమూరి లక్ష్మీపార్వతి",
+    "transcript": "ఆంధ్రప్రదేశ్ రాష్ట్ర మాజీ ముఖ్యమంత్రి నందమూరి తారకరామారావు, రెండవ భార్య నందమూరి లక్ష్మీపార్వతి.",
+    "languageCode": "te-IN",
+    "latencyMs": 846,
+    "wer": 0.1818,
+    "cer": 0.0,
+    "substitutions": 1,
+    "deletions": 1,
+    "insertions": 0,
+    "refWordCount": 11
+  },
+  {
+    "id": "openslr-te-04",
+    "groundTruth": "ఈ ప్రమాదం జరిగిన కొన్ని నెలల తర్వాత దీన్ని గురించి కొన్ని మూల గ్రంథాలు కూడా రాయడం జరిగింది",
+    "transcript": "ఈ ప్రమాదం జరిగిన కొన్ని నెలల తర్వాత దీని గురించి కొన్ని మూల గ్రంథాలు కూడా రాయడం జరిగింది.",
+    "languageCode": "te-IN",
+    "latencyMs": 522,
+    "wer": 0.0714,
+    "cer": 0.026,
+    "substitutions": 1,
+    "deletions": 0,
+    "insertions": 0,
+    "refWordCount": 14
+  },
+  {
+    "id": "openslr-te-05",
+    "groundTruth": "వందేమాతరం శ్రీనివాస్ ప్రసిద్ది చెందిన తెలుగు సినిమా గాయకుడు గీత రచయిత మరియు సంగీత దర్శకుడు",
+    "transcript": "వందేమాతరం శ్రీనివాస్ ప్రసిద్ధి చెందిన తెలుగు సినిమా గాయకుడు, గీత రచయిత మరియు సంగీత దర్శకుడు.",
+    "languageCode": "te-IN",
+    "latencyMs": 474,
+    "wer": 0.0833,
+    "cer": 0.0127,
+    "substitutions": 1,
+    "deletions": 0,
+    "insertions": 0,
+    "refWordCount": 12
+  },
+  {
+    "id": "openslr-te-06",
+    "groundTruth": "ఈ నేపథ్యంలో వెయ్యి ఏడు వందలు నలభై తొమ్మిదిలో షాహూజీ మరణించాడు",
+    "transcript": "ఈ నేపథ్యంలో 1749లో షాహుజీ మరణించాడు.",
+    "languageCode": "te-IN",
+    "latencyMs": 497,
+    "wer": 0.6667,
+    "cer": 0.5094,
+    "substitutions": 2,
+    "deletions": 4,
+    "insertions": 0,
+    "refWordCount": 9
+  }
+]
