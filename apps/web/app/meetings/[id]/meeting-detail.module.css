@@ -1,0 +1,319 @@
+/*
+ * Design tokens scoped to this page only (per the approved spec, Section G) —
+ * not touched: app/globals.css or the Tailwind config. Rolling these out
+ * app-wide is a later, separately-approved step; this keeps blast radius to
+ * exactly the new Meeting Detail screen.
+ */
+.root {
+  --bg: #fafafb;
+  --surface: #ffffff;
+  --surface-sunken: #f4f5f7;
+  --border: #e4e7ec;
+  --border-strong: #d0d5dd;
+  --text: #16181d;
+  --text-secondary: #5b6472;
+  --text-tertiary: #8a94a6;
+  --accent: #2451d9;
+  --accent-tint: #edf1fd;
+  --success: #0f7b3e;
+  --success-tint: #e7f6ec;
+  --warning: #9a5b00;
+  --warning-tint: #fdf3dd;
+  --critical: #b42318;
+  --critical-tint: #fdebea;
+  --info: #175cd3;
+  --info-tint: #eff4ff;
+  --neutral-tint: #f2f4f7;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.55;
+  min-height: 100vh;
+}
+
+@media (prefers-color-scheme: dark) {
+  .root:not([data-theme="light"]) {
+    --bg: #0b0d12;
+    --surface: #12151c;
+    --surface-sunken: #0e1015;
+    --border: #262b36;
+    --border-strong: #333a48;
+    --text: #e7e9ee;
+    --text-secondary: #9aa1ae;
+    --text-tertiary: #6d7482;
+    --accent: #6c93f5;
+    --accent-tint: #172140;
+    --success: #4ade80;
+    --success-tint: #12271a;
+    --warning: #f0b94c;
+    --warning-tint: #2b2109;
+    --critical: #f27166;
+    --critical-tint: #2b1513;
+    --info: #7da6f5;
+    --info-tint: #14203d;
+    --neutral-tint: #1a1e27;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  }
+}
+
+.backLink {
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+.backLink:hover { text-decoration: underline; }
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 20px 28px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.title { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; }
+.meta {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 2.5px 9px 2.5px 7px;
+  border-radius: 100px;
+  white-space: nowrap;
+}
+.badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.badgeSuccess { background: var(--success-tint); color: var(--success); }
+.badgeWarning { background: var(--warning-tint); color: var(--warning); }
+.badgeCritical { background: var(--critical-tint); color: var(--critical); }
+.badgeInfo { background: var(--info-tint); color: var(--info); }
+.badgeNeutral { background: var(--neutral-tint); color: var(--text-secondary); }
+
+.tabBar {
+  display: flex;
+  gap: 4px;
+  padding: 0 28px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.tab {
+  appearance: none;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 11px 4px;
+  margin-right: 22px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tab:hover { color: var(--text); }
+.tabActive { color: var(--accent); border-bottom-color: var(--accent); }
+.tabCount {
+  font-size: 10.5px;
+  background: var(--neutral-tint);
+  color: var(--text-secondary);
+  border-radius: 100px;
+  padding: 1px 6px;
+  font-weight: 700;
+}
+.tabActive .tabCount { background: var(--accent-tint); color: var(--accent); }
+
+.timeline {
+  display: flex;
+  gap: 0;
+  padding: 18px 28px;
+  overflow-x: auto;
+  background: var(--surface-sunken);
+  border-bottom: 1px solid var(--border);
+}
+.tlStep {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 116px;
+  position: relative;
+}
+.tlStep:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 9px;
+  left: 58%;
+  width: 84%;
+  height: 1.5px;
+  background: var(--border-strong);
+}
+.tlDone:not(:last-child)::after { background: var(--success); }
+.tlDot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1.5px solid var(--border-strong);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+.tlDone .tlDot { background: var(--success); border-color: var(--success); color: #fff; }
+.tlActive .tlDot { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-tint); }
+.tlFailed .tlDot { background: var(--critical); border-color: var(--critical); color: #fff; }
+.tlLabel { font-size: 11px; font-weight: 600; margin-top: 7px; text-align: center; color: var(--text); }
+.tlSkipped .tlLabel, .tlPending .tlLabel { color: var(--text-tertiary); font-weight: 500; }
+.tlTime { font-size: 10.5px; color: var(--text-tertiary); margin-top: 1px; }
+
+.body {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+}
+.main {
+  padding: 22px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  border-right: 1px solid var(--border);
+  min-width: 0;
+}
+.side {
+  padding: 22px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+@media (max-width: 900px) {
+  .body { grid-template-columns: 1fr; }
+  .main { border-right: none; border-bottom: 1px solid var(--border); }
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: 15px 17px;
+}
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.cardTitle {
+  font-size: 12.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+}
+.cardBody { font-size: 13.3px; color: var(--text); line-height: 1.6; }
+.muted { color: var(--text-secondary); }
+
+.list { display: flex; flex-direction: column; }
+.listItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--border);
+}
+.listItem:last-child { border-bottom: none; }
+.listItemTitle { font-size: 13px; font-weight: 600; }
+.listItemMeta { font-size: 11.5px; color: var(--text-tertiary); margin-top: 2px; }
+
+.truthRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12.8px;
+  padding: 6px 0;
+}
+.truthOld { color: var(--text-tertiary); text-decoration: line-through; }
+.truthNew { color: var(--text); font-weight: 700; }
+.evidenceQuote {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-style: italic;
+  margin-top: 6px;
+  padding-left: 10px;
+  border-left: 2px solid var(--border-strong);
+}
+
+.transcriptLine {
+  display: flex;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--border);
+}
+.transcriptLine:last-child { border-bottom: none; }
+.avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent-tint);
+  color: var(--accent);
+  font-size: 10.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.who { font-size: 12.3px; font-weight: 700; }
+.when { font-size: 10.5px; color: var(--text-tertiary); font-weight: 500; margin-left: 6px; }
+.transcriptText { font-size: 12.8px; color: var(--text); margin-top: 2px; }
+
+.emptyState {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+.technicalDetails {
+  font-family: ui-monospace, "SF Mono", monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  word-break: break-all;
+}
+
+.adminPill {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  padding: 1px 7px;
+}
+
+.panelPad { padding: 22px 28px; }

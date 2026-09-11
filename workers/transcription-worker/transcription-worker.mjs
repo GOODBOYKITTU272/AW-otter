@@ -43,6 +43,7 @@ import {
   enqueuePendingTranscriptions,
   processTranscriptionQueue,
 } from "@applywizz/domain/transcription";
+import { MEETING_RECORDINGS_BUCKET } from "@applywizz/domain/meeting-recordings";
 import {
   OpenRouterNormalizationProvider,
   OpenRouterTranscriptionProvider,
@@ -73,6 +74,7 @@ const deps = {
   },
   transcriptionProvider: new OpenRouterTranscriptionProvider(openRouterApiKey),
   normalizationProvider: new OpenRouterNormalizationProvider(openRouterApiKey),
+  storage: supabase.storage.from(MEETING_RECORDINGS_BUCKET),
 };
 
 function touchHeartbeat() {

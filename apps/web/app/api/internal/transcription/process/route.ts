@@ -5,6 +5,10 @@ import {
   processTranscriptionQueue,
 } from "@applywizz/domain/transcription";
 import {
+  MEETING_RECORDINGS_BUCKET,
+  type RecordingStorageClient,
+} from "@applywizz/domain/meeting-recordings";
+import {
   OpenRouterNormalizationProvider,
   OpenRouterTranscriptionProvider,
 } from "@applywizz/transcription";
@@ -57,6 +61,31 @@ export async function POST(request: NextRequest) {
     getSupabaseServiceRoleKey(),
   );
 
+  // The real Supabase Storage client's info() types `size` as possibly
+  // undefined (some FileObjectV2 shapes omit it) even though
+  // RecordingStorageClient (Task 6, unchanged here) expects a definite
+  // number. Rather than widen that contract, normalize at this one
+  // real-SDK boundary: a missing size becomes an impossible sentinel (-1)
+  // that can never equal a real Vexa-reported file size, so
+  // ensureOwnedRecording's existing mismatch check still fails closed
+  // exactly as designed — it just never trusts an ambiguous "no size
+  // reported" as if it were a verified size.
+  const recordingsBucket = serviceRoleClient.storage.from(
+    MEETING_RECORDINGS_BUCKET,
+  );
+  const storage: RecordingStorageClient = {
+    upload: (path, body, opts) => recordingsBucket.upload(path, body, opts),
+    download: (path) => recordingsBucket.download(path),
+    info: async (path) => {
+      const { data, error } = await recordingsBucket.info(path);
+      if (error || !data) return { data: null, error };
+      return {
+        data: { size: data.size ?? -1, contentType: data.contentType },
+        error: null,
+      };
+    },
+  };
+
   const deps = {
     vexaEnv,
     transcriptionProvider: new OpenRouterTranscriptionProvider(
@@ -65,6 +94,7 @@ export async function POST(request: NextRequest) {
     normalizationProvider: new OpenRouterNormalizationProvider(
       openRouterEnv.OPENROUTER_API_KEY,
     ),
+    storage,
   };
 
   const { data: organizations, error } = await serviceRoleClient

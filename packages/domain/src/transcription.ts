@@ -5,8 +5,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   decodeProviderBotId,
-  downloadRecordingMedia,
-  getMeetingRecordingRef,
   type VexaEnv,
 } from "@applywizz/meeting-bots";
 import type {
@@ -20,6 +18,12 @@ import {
   transcodeToOpusOgg,
 } from "./audio-transcode";
 import { logLifecycleEvent } from "./meeting-bots";
+import {
+  ensureOwnedRecording,
+  RecordingNotReadyError,
+  type RecordingStorageClient,
+} from "./meeting-recordings";
+import { evaluateAndPersistMeetingIntegrity } from "./meeting-integrity";
 
 export type AppSupabaseClient = SupabaseClient<Database>;
 
@@ -97,6 +101,7 @@ export interface TranscriptionDeps {
   vexaEnv: VexaEnv;
   transcriptionProvider: TranscriptionProvider;
   normalizationProvider: EnglishNormalizationProvider;
+  storage: RecordingStorageClient;
   fetchImpl?: typeof fetch;
 }
 
@@ -145,12 +150,13 @@ function classifyError(error: unknown): { code: FailureCode; message: string } {
   return { code: "unknown", message: String(error) };
 }
 
-export class RecordingNotReadyError extends Error {
-  constructor() {
-    super("No completed Vexa recording is available for this meeting yet.");
-    this.name = "RecordingNotReadyError";
-  }
-}
+// Single source of truth lives in meeting-recordings.ts (Task 4) — that
+// module's own RecordingNotReadyError was deliberately kept byte-identical
+// to this one, so re-exporting it here (rather than keeping a second class
+// with the same name/message) is a no-op for every existing
+// `instanceof RecordingNotReadyError` check below (classifyError) and for
+// every external caller of this module that imports the error from here.
+export { RecordingNotReadyError };
 
 /**
  * The full real pipeline, proven for real during the M8 readiness
@@ -173,7 +179,7 @@ export async function processTranscriptionJob(
   try {
     const { data: botJob, error: botJobError } = await serviceRoleClient
       .from("meeting_bot_jobs")
-      .select("provider_bot_id")
+      .select("provider_bot_id, provider_metadata")
       .eq("meeting_id", transcript.meeting_id)
       .eq("organization_id", transcript.organization_id)
       .eq("status", "completed")
@@ -185,20 +191,37 @@ export async function processTranscriptionJob(
     if (!botJob?.provider_bot_id) throw new RecordingNotReadyError();
 
     const identity = decodeProviderBotId(botJob.provider_bot_id);
-    const recordingRef = await getMeetingRecordingRef(
-      deps.vexaEnv,
-      identity.platform,
-      identity.nativeMeetingId,
-      deps.fetchImpl,
-    );
-    if (!recordingRef) throw new RecordingNotReadyError();
 
-    const rawBytes = await downloadRecordingMedia(
-      deps.vexaEnv,
-      recordingRef.recordingId,
-      recordingRef.mediaFileId,
-      deps.fetchImpl,
-    );
+    // M17C: GET /recordings only honors a numeric `meeting_id` filter
+    // (Vexa's own id from the POST /bots response, stored verbatim in
+    // provider_metadata) — the platform/native_meeting_id pair above is
+    // NOT an honored filter on this endpoint (confirmed against the real
+    // hosted API: a bogus native_meeting_id still returned every
+    // recording). A job whose provider_metadata predates this or is
+    // malformed has nothing usable to look up yet.
+    const rawVexaMeetingId = (botJob.provider_metadata as { id?: unknown } | null)
+      ?.id;
+    const vexaMeetingId =
+      typeof rawVexaMeetingId === "number"
+        ? rawVexaMeetingId
+        : typeof rawVexaMeetingId === "string" && rawVexaMeetingId.trim() !== ""
+          ? Number(rawVexaMeetingId)
+          : NaN;
+    if (!Number.isFinite(vexaMeetingId)) throw new RecordingNotReadyError();
+
+    // Ownership handoff (P2): if this meeting's recording is already owned
+    // (a meeting_recordings row exists), ensureOwnedRecording downloads it
+    // straight from our own Storage bucket and never contacts Vexa at all.
+    // Only a first-time/never-ingested meeting reaches out to Vexa here —
+    // once owned, Vexa is no longer needed for transcription.
+    const { recordingRef: ownedRecordingRef, bytes: rawBytes } =
+      await ensureOwnedRecording(serviceRoleClient, deps.storage, {
+        organizationId: transcript.organization_id,
+        meetingId: transcript.meeting_id,
+        vexaMeetingId,
+        vexaEnv: deps.vexaEnv,
+        fetchImpl: deps.fetchImpl,
+      });
     assertTranscodableInputSize(rawBytes.byteLength);
 
     workDir = await mkdtemp(join(tmpdir(), "signal-transcode-"));
@@ -299,8 +322,9 @@ export async function processTranscriptionJob(
           (s) => s.canonical_english_text !== null,
         ),
         p_source_audio_reference: {
-          recordingId: recordingRef.recordingId,
-          mediaFileId: recordingRef.mediaFileId,
+          recordingId: ownedRecordingRef.id,
+          storageBucket: ownedRecordingRef.storageBucket,
+          storagePath: ownedRecordingRef.storagePath,
           platform: identity.platform,
           nativeMeetingId: identity.nativeMeetingId,
         } as Json,
@@ -323,6 +347,18 @@ export async function processTranscriptionJob(
       source: "worker",
       payload: { segmentCount: segmentRows.length, detectedLanguage },
     });
+
+    // Best-effort automatic transcript integrity analysis upon transcript completion (Blocker 6)
+    // Raw evidence is already durable; evaluation failures must never revert completed transcript.
+    try {
+      await evaluateAndPersistMeetingIntegrity(
+        serviceRoleClient,
+        transcript.meeting_id,
+        transcript.organization_id,
+      );
+    } catch {
+      // Best-effort hook; reconciliation sweep will pick it up if missed.
+    }
   } catch (error) {
     const { code, message } = classifyError(error);
     const nextRetryCount = transcript.retry_count + 1;

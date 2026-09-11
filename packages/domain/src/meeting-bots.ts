@@ -8,6 +8,23 @@ const BOT_NAME = "ApplyWizz Meeting Assistant";
 const TERMINAL_STATUSES = ["completed", "cancelled", "failed"] as const;
 const LIVE_FILTER = `(${TERMINAL_STATUSES.join(",")})`;
 
+// M17C follow-up: confirmed live that dispatching the instant a meeting
+// becomes eligible — no matter how far in the future it starts — sends
+// the bot into an empty Teams lobby with nobody able to admit it, and
+// Vexa eventually gives up with zero recording. This is the safe
+// default; the real per-org value lives on meeting_policy_sets
+// (bot_dispatch_lead_seconds), NOT NULL DEFAULT 90 at the DB level, so
+// this constant is only ever reached when a row is missing entirely
+// (e.g. an org that has never had its policy set touched).
+const DEFAULT_BOT_DISPATCH_LEAD_SECONDS = 90;
+
+// A meeting discovered/still-pending well after its own scheduled_end is
+// not "late" so much as over — dispatching a bot into a room that's
+// already finished is a real cost, not a useful safety margin. Small
+// fixed grace, not configurable: this covers clock skew and the 1-minute
+// poll cadence, not a product decision the way the lead time is.
+const LATE_DISCOVERY_GRACE_MS = 5 * 60 * 1000;
+
 export async function logLifecycleEvent(
   serviceRoleClient: AppSupabaseClient,
   input: {
@@ -236,7 +253,53 @@ export async function processPendingBotJobs(
   let scheduled = 0;
   let failed = 0;
 
-  for (const job of jobs ?? []) {
+  if (!jobs || jobs.length === 0) return { scheduled, failed };
+
+  // M17C dispatch timing gate. Two small, separate lookups rather than
+  // one embedded join — keeps the existing jobs query above completely
+  // untouched, and each pending job can belong to a different org with a
+  // different configured lead time, which a single per-row constant
+  // filter can't express anyway. The `limit` above already bounds how
+  // many jobs (and therefore how many meetings) this fetches per call —
+  // the real "is it actually due yet" decision happens per-job below,
+  // against the org's real configured lead time.
+  const meetingIds = Array.from(new Set(jobs.map((j) => j.meeting_id)));
+  const organizationIds = Array.from(
+    new Set(jobs.map((j) => j.organization_id)),
+  );
+
+  const { data: meetingTimings, error: timingsError } = await serviceRoleClient
+    .from("meetings")
+    .select("id, scheduled_start, scheduled_end")
+    .in("id", meetingIds);
+  if (timingsError) throw timingsError;
+  const timingByMeetingId = new Map(
+    (meetingTimings ?? []).map((m) => [m.id, m]),
+  );
+
+  const { data: policySets, error: policySetsError } = await serviceRoleClient
+    .from("meeting_policy_sets")
+    .select("organization_id, bot_dispatch_lead_seconds")
+    .in("organization_id", organizationIds);
+  if (policySetsError) throw policySetsError;
+  const leadSecondsByOrg = new Map(
+    (policySets ?? []).map((p) => [p.organization_id, p.bot_dispatch_lead_seconds]),
+  );
+
+  for (const job of jobs) {
+    // Defensive only — meeting_bot_jobs.meeting_id is a real FK, so a
+    // real job's meeting always exists. Fail closed (skip, don't
+    // dispatch) rather than guess if the lookup above somehow missed it.
+    const timing = timingByMeetingId.get(job.meeting_id);
+    if (!timing) continue;
+
+    const leadSeconds =
+      leadSecondsByOrg.get(job.organization_id) ??
+      DEFAULT_BOT_DISPATCH_LEAD_SECONDS;
+    const dispatchAtMs =
+      new Date(timing.scheduled_start).getTime() - leadSeconds * 1000;
+    if (Date.now() < dispatchAtMs) continue; // not due yet — row untouched, next tick re-checks
+
     // THE exclusive claim (Codex's M6 final review caught a real gap
     // here): this must flip status OUT of 'pending' atomically, not just
     // bump retry_count while leaving status='pending' — the old version
@@ -258,6 +321,26 @@ export async function processPendingBotJobs(
       .maybeSingle();
     if (claimError) throw claimError;
     if (!claimed) continue; // another caller claimed this row first
+
+    // Late-discovery bound: a meeting found (or still pending) well after
+    // it already ended has nothing left to record — dispatching into it
+    // is pure cost, not a useful catch-up. Guarded by status='scheduled'
+    // (what we just claimed it to), same reasoning as every other
+    // transition here.
+    if (Date.now() > new Date(timing.scheduled_end).getTime() + LATE_DISCOVERY_GRACE_MS) {
+      await serviceRoleClient
+        .from("meeting_bot_jobs")
+        .update({
+          status: "failed",
+          failed_at: new Date().toISOString(),
+          last_error: "Meeting ended before the bot could be dispatched.",
+        })
+        .eq("id", job.id)
+        .eq("organization_id", job.organization_id)
+        .eq("status", "scheduled");
+      failed += 1;
+      continue;
+    }
 
     const { data: meeting, error: meetingError } = await serviceRoleClient
       .from("meetings")
@@ -448,6 +531,7 @@ export async function syncBotStatuses(
   for (const job of jobs ?? []) {
     const result = await provider.getBotStatus(job.provider_bot_id as string);
     if (result.status === job.status) continue;
+    if (result.status === "pending") continue;
 
     // Codex's M6 final review caught a real race: processPendingBotJobs and
     // syncBotStatuses run in the SAME tick, so a bot that was just created

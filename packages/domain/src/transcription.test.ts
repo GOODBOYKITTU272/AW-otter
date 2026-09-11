@@ -82,7 +82,18 @@ function matchesFilters(row: Row, filters: Record<string, unknown>): boolean {
 
 function createFakeSupabase(
   tables: Record<string, FakeTable>,
+  // Optional fixed-row overrides, keyed by table name — lets a test
+  // pre-seed e.g. an already-owned meeting_recordings row without
+  // restructuring the shared FakeTable/matchesFilters harness above.
+  overrides?: Record<string, Row>,
 ): AppSupabaseClient {
+  if (overrides) {
+    for (const [tableName, row] of Object.entries(overrides)) {
+      const table = tables[tableName];
+      if (!table) continue;
+      table.rows.push({ id: table.genId(), created_at: new Date().toISOString(), ...row });
+    }
+  }
   function from(tableName: string) {
     const table = tables[tableName];
     const filters: Record<string, unknown> = {};
@@ -309,13 +320,25 @@ function makeTables() {
       "segment",
     ),
     meeting_lifecycle_events: new FakeTable([], "event"),
+    meeting_recordings: new FakeTable(
+      [["organization_id", "meeting_id"]],
+      "rec",
+    ),
+  };
+}
+
+function fakeStorage() {
+  return {
+    upload: vi.fn(async () => ({ error: null })),
+    download: vi.fn(),
+    info: vi.fn(async () => ({ data: null, error: { message: "not found" } })),
   };
 }
 
 function fakeVexaFetch(): typeof fetch {
   return (async (url: string | URL) => {
     const u = String(url);
-    if (u.includes("/transcripts/")) {
+    if (u.includes("/recordings?meeting_id=")) {
       return new Response(
         JSON.stringify({
           recordings: [
@@ -401,6 +424,7 @@ const baseJob = {
   meeting_id: "meeting-1",
   status: "completed",
   provider_bot_id: "teams/19%3Ameeting_abc%40thread.v2",
+  provider_metadata: { id: 28075 },
 };
 
 describe("enqueuePendingTranscriptions", () => {
@@ -448,6 +472,7 @@ describe("processTranscriptionJob", () => {
       transcriptionProvider: fakeEnglishProvider(),
       normalizationProvider: fakeNormalizationProvider(),
       fetchImpl: fakeVexaFetch(),
+      storage: fakeStorage(),
     });
 
     expect(tables.meeting_transcripts.rows[0]?.processing_status).toBe(
@@ -484,6 +509,7 @@ describe("processTranscriptionJob", () => {
       transcriptionProvider: fakeTeluguProvider(),
       normalizationProvider,
       fetchImpl: fakeVexaFetch(),
+      storage: fakeStorage(),
     });
 
     expect(normalizationProvider.normalize).toHaveBeenCalledWith(
@@ -520,6 +546,7 @@ describe("processTranscriptionJob", () => {
       transcriptionProvider: fakeTeluguProvider(),
       normalizationProvider: failingNormalizer,
       fetchImpl: fakeVexaFetch(),
+      storage: fakeStorage(),
     });
 
     // The transcript pipeline itself still completes — one bad
@@ -547,7 +574,7 @@ describe("processTranscriptionJob", () => {
     const supabase = createFakeSupabase(tables);
 
     const noRecordingFetch = (async (url: string | URL) => {
-      if (String(url).includes("/transcripts/")) {
+      if (String(url).includes("/recordings?meeting_id=")) {
         return new Response(JSON.stringify({ recordings: [] }), {
           status: 200,
         });
@@ -560,6 +587,7 @@ describe("processTranscriptionJob", () => {
       transcriptionProvider: fakeEnglishProvider(),
       normalizationProvider: fakeNormalizationProvider(),
       fetchImpl: noRecordingFetch,
+      storage: fakeStorage(),
     });
 
     expect(tables.meeting_transcripts.rows[0]?.processing_status).toBe(
@@ -570,6 +598,45 @@ describe("processTranscriptionJob", () => {
     );
     expect(tables.meeting_transcripts.rows[0]?.retry_count).toBe(1);
     expect(tables.transcript_segments.rows).toHaveLength(0);
+  });
+
+  it("marks the transcript retryable with error_code=recording_not_ready when the bot job's provider_metadata has no usable numeric id", async () => {
+    // M17C regression: GET /recordings only accepts Vexa's numeric
+    // meeting id (from provider_metadata.id) as an honored filter — a job
+    // row with no provider_metadata, or one missing/malformed `id`, has
+    // nothing valid to look up and must fail closed the same way a
+    // missing provider_bot_id already does, not throw an unhandled error
+    // or silently pass an invalid id to the API.
+    const tables = makeTables();
+    tables.meeting_bot_jobs.rows.push({ ...baseJob, provider_metadata: {} });
+    const transcript = {
+      id: "t1",
+      organization_id: "org-1",
+      meeting_id: "meeting-1",
+      processing_status: "processing",
+      retry_count: 0,
+    };
+    tables.meeting_transcripts.rows.push(transcript);
+    const supabase = createFakeSupabase(tables);
+
+    const shouldNotBeCalledFetch = (async (url: string | URL) => {
+      throw new Error(`should not reach Vexa at all: ${String(url)}`);
+    }) as unknown as typeof fetch;
+
+    await processTranscriptionJob(supabase, transcript as never, {
+      vexaEnv: { baseUrl: "https://vexa.test", apiKey: "k" },
+      transcriptionProvider: fakeEnglishProvider(),
+      normalizationProvider: fakeNormalizationProvider(),
+      fetchImpl: shouldNotBeCalledFetch,
+      storage: fakeStorage(),
+    });
+
+    expect(tables.meeting_transcripts.rows[0]?.processing_status).toBe(
+      "retryable",
+    );
+    expect(tables.meeting_transcripts.rows[0]?.error_code).toBe(
+      "recording_not_ready",
+    );
   });
 
   it("does not create duplicate segments when reprocessed after a partial prior attempt (retry idempotency)", async () => {
@@ -598,12 +665,91 @@ describe("processTranscriptionJob", () => {
       transcriptionProvider: fakeEnglishProvider(),
       normalizationProvider: fakeNormalizationProvider(),
       fetchImpl: fakeVexaFetch(),
+      storage: fakeStorage(),
     });
 
     expect(tables.transcript_segments.rows).toHaveLength(1);
     expect(tables.transcript_segments.rows[0]?.original_text).toBe(
       "We should shift toward Python.",
     );
+  });
+
+  it("does not call any Vexa endpoint when the recording is already owned — proves Vexa independence after ingestion", async () => {
+    const tables = makeTables();
+    tables.meeting_bot_jobs.rows.push({ ...baseJob });
+    const transcript = {
+      id: "t1",
+      organization_id: "org-1",
+      meeting_id: "meeting-1",
+      processing_status: "processing",
+      retry_count: 0,
+    };
+    tables.meeting_transcripts.rows.push(transcript);
+
+    // meeting_recordings already has a row — owned, per Task 6's shape.
+    const ownedRow = {
+      id: "rec-1",
+      organization_id: "org-1",
+      meeting_id: "meeting-1",
+      storage_bucket: "meeting-recordings",
+      storage_path: "organizations/org-1/meetings/meeting-1/original.webm",
+      content_type: "audio/webm",
+      byte_size: syntheticAudioBytes.byteLength,
+      duration_seconds: null,
+      checksum_sha256: "abc123",
+      captured_at: null,
+    };
+
+    const supabase = createFakeSupabase(tables, { meeting_recordings: ownedRow });
+
+    let vexaEndpointCalled = false;
+    const vexaCallDetectingFetch = (async (url: string | URL) => {
+      vexaEndpointCalled = true;
+      throw new Error(`Vexa was contacted but should not have been: ${String(url)}`);
+    }) as unknown as typeof fetch;
+
+    const storageDownloadSpy = vi.fn(async () => ({ data: new Blob([syntheticAudioBytes]), error: null }));
+
+    await processTranscriptionJob(supabase, transcript as never, {
+      vexaEnv: { baseUrl: "https://vexa.test", apiKey: "k" },
+      transcriptionProvider: fakeEnglishProvider(),
+      normalizationProvider: fakeNormalizationProvider(),
+      fetchImpl: vexaCallDetectingFetch,
+      storage: { upload: vi.fn(), download: storageDownloadSpy, info: vi.fn() },
+    });
+
+    expect(vexaEndpointCalled).toBe(false);
+    expect(storageDownloadSpy).toHaveBeenCalledWith("organizations/org-1/meetings/meeting-1/original.webm");
+    expect(tables.meeting_transcripts.rows[0]?.processing_status).toBe("completed");
+  });
+
+  it("never deletes the owned Storage object — only the local temp work directory", async () => {
+    const tables = makeTables();
+    tables.meeting_bot_jobs.rows.push({ ...baseJob });
+    const transcript = {
+      id: "t1",
+      organization_id: "org-1",
+      meeting_id: "meeting-1",
+      processing_status: "processing",
+      retry_count: 0,
+    };
+    tables.meeting_transcripts.rows.push(transcript);
+    const supabase = createFakeSupabase(tables);
+
+    // RecordingStorageClient has no `remove` method — this spy is attached
+    // purely to prove nothing calls it, not because the real interface exposes it.
+    const removeSpy = vi.fn(async () => ({ error: null }));
+
+    await processTranscriptionJob(supabase, transcript as never, {
+      vexaEnv: { baseUrl: "https://vexa.test", apiKey: "k" },
+      transcriptionProvider: fakeEnglishProvider(),
+      normalizationProvider: fakeNormalizationProvider(),
+      fetchImpl: fakeVexaFetch(),
+      storage: { ...fakeStorage(), remove: removeSpy } as never,
+    });
+
+    expect(removeSpy).not.toHaveBeenCalled();
+    expect(tables.meeting_transcripts.rows[0]?.processing_status).toBe("completed");
   });
 });
 
@@ -627,6 +773,7 @@ describe("processTranscriptionQueue", () => {
         transcriptionProvider: fakeEnglishProvider(),
         normalizationProvider: fakeNormalizationProvider(),
         fetchImpl: fakeVexaFetch(),
+        storage: fakeStorage(),
       },
       5,
     );
@@ -646,6 +793,7 @@ describe("processTranscriptionQueue", () => {
         transcriptionProvider: fakeEnglishProvider(),
         normalizationProvider: fakeNormalizationProvider(),
         fetchImpl: fakeVexaFetch(),
+        storage: fakeStorage(),
       },
       5,
     );

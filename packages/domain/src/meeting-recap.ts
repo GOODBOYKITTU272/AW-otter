@@ -1,9 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@applywizz/database/types";
+import type { Database, Json } from "@applywizz/database/types";
 import type {
   CallTypeSpecific,
   MeetingIntelligenceResult,
 } from "@applywizz/ai";
+import { logAuditEvent } from "./audit";
+import {
+  analyzeMeetingIntegrity,
+  type MeetingIntegrityAnalysis,
+  type MeetingIntegrityFlag,
+  type IntegrityVerdict,
+} from "./meeting-integrity";
 import {
   getEffectiveCustomerTruth,
   isSemanticallySameValue,
@@ -56,9 +63,28 @@ export interface CustomerTruthDeltaRecapItem {
   evidenceSegmentIds: string[];
 }
 
+export interface CustomerSafeRecap {
+  id?: string;
+  status?: "draft" | "ready_for_review" | "approved";
+  greeting: string;
+  agreements?: string[];
+  actions?: string[];
+  nextStep: string;
+  whatWeAgreed?: string[];
+  applyWizzWillDo?: string[];
+  customerShouldDo?: string[];
+  candidateShouldDo?: string[];
+  approvedAt?: string | null;
+  approvedByMembershipId?: string | null;
+  currentRevisionNumber?: number;
+  revisionReason?: string | null;
+}
+
 export interface MeetingRecapData {
   id: string;
+  organizationId?: string;
   customer: {
+    id?: string | null;
     name: string;
     lifecycleStage: string;
     ownerName: string;
@@ -66,6 +92,8 @@ export interface MeetingRecapData {
   meetingDate: string;
   nextJourneyStep: string;
   transcriptSegments: TranscriptSegmentData[];
+  recordingUrl?: string | null;
+  integrityReport?: MeetingIntegrityAnalysis | null;
   result: {
     summary: string;
     callRecords: CallRecordRecapItem[];
@@ -153,11 +181,21 @@ export async function getMeetingRecapData(
     if (aiRun?.status === "failed") {
       return { status: "intelligence_failed", errorCode: aiRun.error_code };
     }
-    return { status: "intelligence_not_ready" };
+    if (!aiRun && transcript.processing_status === "completed") {
+      // Allow raw evidence playback, transcript viewing, and integrity warnings
+      // even when an AI run has not been scheduled yet.
+    } else {
+      return { status: "intelligence_not_ready" };
+    }
   }
 
-  const validatedOutput =
-    aiRun.validated_output as unknown as MeetingIntelligenceResult;
+  const validatedOutput: MeetingIntelligenceResult =
+    (aiRun?.validated_output as unknown as MeetingIntelligenceResult) ?? {
+      summary: "",
+      callRecords: [],
+      callTypeSpecific: null,
+      customerTruthDeltas: [],
+    };
 
   const { data: segmentRows, error: segmentsError } = await supabase
     .from("transcript_segments")
@@ -253,9 +291,149 @@ export async function getMeetingRecapData(
 
   const meetingDate = meeting.actual_start ?? meeting.scheduled_start;
 
+  // 1. Customer-safe recap (persisted in meeting_recaps or derived)
+  let customerSafeRecap: CustomerSafeRecap | null = null;
+  const { data: savedRecapRow } = await supabase
+    .from("meeting_recaps")
+    .select(
+      "id, status, approved_at, approved_by_membership_id, what_we_agreed, applywizz_will_do, candidate_should_do",
+    )
+    .eq("meeting_id", meetingId)
+    .maybeSingle();
+
+  if (savedRecapRow) {
+    const { data: latestRev } = await supabase
+      .from("meeting_recap_revisions")
+      .select("*")
+      .eq("recap_id", savedRecapRow.id)
+      .order("revision_number", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (latestRev) {
+      const whatWeAgreed =
+        (latestRev.what_we_agreed as string[]) ??
+        (savedRecapRow.what_we_agreed as string[]) ??
+        [];
+      const applyWizzWillDo =
+        (latestRev.applywizz_will_do as string[]) ??
+        (savedRecapRow.applywizz_will_do as string[]) ??
+        [];
+      const candidateShouldDo =
+        (latestRev.candidate_should_do as string[]) ??
+        (savedRecapRow.candidate_should_do as string[]) ??
+        [];
+
+      customerSafeRecap = {
+        id: savedRecapRow.id,
+        status: savedRecapRow.status as CustomerSafeRecap["status"],
+        greeting: latestRev.greeting,
+        whatWeAgreed,
+        applyWizzWillDo,
+        candidateShouldDo,
+        customerShouldDo: candidateShouldDo,
+        nextStep: latestRev.next_step,
+        approvedAt: savedRecapRow.approved_at,
+        approvedByMembershipId: savedRecapRow.approved_by_membership_id,
+        currentRevisionNumber: latestRev.revision_number,
+        revisionReason: latestRev.revision_reason,
+      };
+    }
+  }
+
+  if (!customerSafeRecap && customer) {
+    customerSafeRecap = deriveCustomerSafeRecap({
+      customerName: customer.name,
+      callType: meeting.call_type,
+      meetingDate,
+      callRecords,
+      nextJourneyStep: formatJourneyStep(journey),
+    });
+  }
+
+  // 2. Meeting integrity report
+  let integrityReport: MeetingIntegrityAnalysis | null = null;
+  const { data: savedIntegrityRow } = await supabase
+    .from("meeting_integrity_reports")
+    .select("id, overall_verdict, summary, confidence_score_avg, suspected_background_media, metrics")
+    .eq("meeting_id", meetingId)
+    .maybeSingle();
+
+  if (savedIntegrityRow) {
+    const { data: flagRows } = await supabase
+      .from("meeting_integrity_flags")
+      .select("*")
+      .eq("report_id", savedIntegrityRow.id)
+      .order("start_ms", { ascending: true });
+
+    const metrics = (savedIntegrityRow.metrics as Record<string, unknown>) ?? {};
+    integrityReport = {
+      verdict: savedIntegrityRow.overall_verdict as IntegrityVerdict,
+      summary: savedIntegrityRow.summary,
+      confidenceScoreAvg:
+        typeof savedIntegrityRow.confidence_score_avg === "number"
+          ? savedIntegrityRow.confidence_score_avg
+          : null,
+      suspectedBackgroundMedia: Boolean(savedIntegrityRow.suspected_background_media),
+      flags: (flagRows ?? []).map((f) => ({
+        id: f.id,
+        meetingId: f.meeting_id,
+        transcriptSegmentId: f.transcript_segment_id,
+        flagType: f.flag_type as MeetingIntegrityFlag["flagType"],
+        severity: f.severity as MeetingIntegrityFlag["severity"],
+        startMs: f.start_ms,
+        endMs: f.end_ms,
+        reasonCode: f.reason_code,
+        message: f.message,
+        detectorVersion: f.detector_version,
+      })),
+      metrics: {
+        confidenceScoreAvg:
+          typeof savedIntegrityRow.confidence_score_avg === "number"
+            ? savedIntegrityRow.confidence_score_avg
+            : null,
+        suspectedBackgroundMedia: Boolean(savedIntegrityRow.suspected_background_media),
+        totalSpeechMs: Number(metrics.totalSpeechMs ?? 0),
+        totalDurationSeconds: metrics.totalDurationSeconds as number | undefined,
+        flagCount: flagRows?.length ?? 0,
+      },
+    };
+  } else if (transcriptSegments.length > 0) {
+    integrityReport = analyzeMeetingIntegrity({
+      meetingId,
+      segments: transcriptSegments.map((s) => ({
+        id: s.id,
+        startMs: s.startMs,
+        endMs: s.endMs,
+        text: s.canonicalEnglishText,
+      })),
+    });
+  }
+
+  // 3. Audio recording URL
+  let recordingUrl: string | null = null;
+  const { data: recRow } = await supabase
+    .from("meeting_recordings")
+    .select("storage_bucket, storage_path")
+    .eq("meeting_id", meetingId)
+    .maybeSingle();
+
+  if (recRow && supabase.storage?.from) {
+    try {
+      const { data: signed } = await supabase.storage
+        .from(recRow.storage_bucket)
+        .createSignedUrl(recRow.storage_path, 3600);
+      recordingUrl = signed?.signedUrl ?? null;
+    } catch {
+      // storage signed url is best effort
+    }
+  }
+
   const recap: MeetingRecapData = {
     id: meeting.id,
+    organizationId: meeting.organization_id,
     customer: {
+      id: meeting.customer_id,
       name: customer?.name ?? "Unlinked meeting",
       lifecycleStage: customer?.lifecycle_stage ?? "Lifecycle stage unknown",
       ownerName: ownerMembership?.display_name ?? "Unassigned",
@@ -263,21 +441,15 @@ export async function getMeetingRecapData(
     meetingDate,
     nextJourneyStep: formatJourneyStep(journey),
     transcriptSegments,
+    recordingUrl,
+    integrityReport,
     result: {
-      summary: aiRun.summary ?? validatedOutput.summary,
+      summary: aiRun?.summary ?? validatedOutput.summary ?? "",
       callRecords,
       customerTruthDeltas,
       callTypeSpecific: validatedOutput.callTypeSpecific,
     },
-    customerSafeRecap: customer
-      ? deriveCustomerSafeRecap({
-          customerName: customer.name,
-          callType: meeting.call_type,
-          meetingDate,
-          callRecords,
-          nextJourneyStep: formatJourneyStep(journey),
-        })
-      : null,
+    customerSafeRecap,
   };
 
   return { status: "ready", recap };
@@ -462,14 +634,6 @@ function formatJourneyStep(journey: JourneyContext): string {
   return "No next call scheduled yet.";
 }
 
-export interface CustomerSafeRecap {
-  greeting: string;
-  whatWeAgreed: string[];
-  applyWizzWillDo: string[];
-  customerShouldDo: string[];
-  nextStep: string;
-}
-
 /**
  * §9: deterministic, template-based — no second AI call, no new pipeline.
  * Reads ONLY description/recordType/ownerType off the records passed in
@@ -496,23 +660,31 @@ export function deriveCustomerSafeRecap(input: {
     day: "numeric",
   });
 
+  const whatWeAgreed = input.callRecords
+    .filter((r) => r.recordType === "commitment")
+    .map((r) => r.description);
+  const applyWizzWillDo = input.callRecords
+    .filter(
+      (r) => r.recordType === "action_item" && r.ownerType === "applywizz",
+    )
+    .map((r) => r.description);
+  const customerShouldDo = input.callRecords
+    .filter(
+      (r) => r.recordType === "action_item" && r.ownerType === "customer",
+    )
+    .map((r) => r.description);
+
   return {
+    status: "draft",
     greeting: callTypeLabel
       ? `Thanks for the ${callTypeLabel.toLowerCase()} call on ${when}, ${input.customerName}.`
       : `Thanks for the call on ${when}, ${input.customerName}.`,
-    whatWeAgreed: input.callRecords
-      .filter((r) => r.recordType === "commitment")
-      .map((r) => r.description),
-    applyWizzWillDo: input.callRecords
-      .filter(
-        (r) => r.recordType === "action_item" && r.ownerType === "applywizz",
-      )
-      .map((r) => r.description),
-    customerShouldDo: input.callRecords
-      .filter(
-        (r) => r.recordType === "action_item" && r.ownerType === "customer",
-      )
-      .map((r) => r.description),
+    agreements: whatWeAgreed,
+    actions: [...applyWizzWillDo, ...customerShouldDo],
+    whatWeAgreed,
+    applyWizzWillDo,
+    customerShouldDo,
+    candidateShouldDo: customerShouldDo,
     nextStep: input.nextJourneyStep,
   };
 }
@@ -656,3 +828,262 @@ export async function listRecentMeetingSummaries(
     openActionCount: actionCountByMeeting.get(m.id) ?? 0,
   }));
 }
+
+export interface SaveMeetingRecapInput {
+  meetingId: string;
+  greeting: string;
+  agreements?: string[];
+  actions?: string[];
+  nextStep: string;
+  whatWeAgreed?: string[];
+  applyWizzWillDo?: string[];
+  customerShouldDo?: string[];
+  candidateShouldDo?: string[];
+  actorMembershipId?: string | null;
+  status?: "draft" | "ready_for_review";
+  reason?: string;
+}
+
+export interface SaveMeetingRecapResult {
+  recapId: string;
+  status: "draft" | "ready_for_review";
+  revisionNumber: number;
+  greeting: string;
+  whatWeAgreed: string[];
+  applyWizzWillDo: string[];
+  candidateShouldDo: string[];
+  nextStep: string;
+}
+
+/**
+ * Saves or updates an in-progress candidate-safe recap draft in meeting_recaps
+ * and appends a new snapshot revision into meeting_recap_revisions.
+ * Preserves the 3 distinct semantic lists (whatWeAgreed, applyWizzWillDo, candidateShouldDo).
+ * Strictly checks that actor is the responsible AM for the meeting.
+ */
+export async function saveMeetingRecapDraft(
+  supabase: AppSupabaseClient,
+  input: SaveMeetingRecapInput,
+): Promise<SaveMeetingRecapResult> {
+  const { data: meeting, error: meetingError } = await supabase
+    .from("meetings")
+    .select("id, organization_id, owner_membership_id")
+    .eq("id", input.meetingId)
+    .single();
+  if (meetingError) throw meetingError;
+
+  if (
+    input.actorMembershipId &&
+    meeting.owner_membership_id !== input.actorMembershipId
+  ) {
+    throw new Error(
+      "Only the responsible Account Manager for this meeting can modify or draft the recap.",
+    );
+  }
+
+  const whatWeAgreed = input.whatWeAgreed ?? input.agreements ?? [];
+  const applyWizzWillDo = input.applyWizzWillDo ?? [];
+  const candidateShouldDo =
+    input.candidateShouldDo ?? input.customerShouldDo ?? [];
+
+  const targetStatus = input.status ?? "draft";
+
+  // 1. Upsert head recap row
+  const { data: recap, error: recapError } = await supabase
+    .from("meeting_recaps")
+    .upsert(
+      {
+        meeting_id: input.meetingId,
+        organization_id: meeting.organization_id,
+        status: targetStatus,
+        greeting: input.greeting,
+        what_we_agreed: whatWeAgreed as unknown as Json,
+        applywizz_will_do: applyWizzWillDo as unknown as Json,
+        candidate_should_do: candidateShouldDo as unknown as Json,
+        next_step: input.nextStep,
+      },
+      { onConflict: "organization_id, meeting_id" },
+    )
+    .select("id, status")
+    .single();
+
+  if (recapError) throw recapError;
+
+  // 2. Determine next revision number
+  const { data: latestRev } = await supabase
+    .from("meeting_recap_revisions")
+    .select("revision_number")
+    .eq("recap_id", recap.id)
+    .order("revision_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const nextRevisionNumber = (latestRev?.revision_number ?? 0) + 1;
+
+  // 3. Append-only revision insert
+  const { data: newRev, error: revError } = await supabase
+    .from("meeting_recap_revisions")
+    .insert({
+      organization_id: meeting.organization_id,
+      recap_id: recap.id,
+      revision_number: nextRevisionNumber,
+      created_by_membership_id: input.actorMembershipId ?? null,
+      greeting: input.greeting,
+      what_we_agreed: whatWeAgreed as unknown as Json,
+      applywizz_will_do: applyWizzWillDo as unknown as Json,
+      candidate_should_do: candidateShouldDo as unknown as Json,
+      next_step: input.nextStep,
+      revision_reason: input.reason ?? "manual_edit",
+    })
+    .select("id")
+    .single();
+
+  if (revError) throw revError;
+
+  // Update current_revision_id on head recap
+  await supabase
+    .from("meeting_recaps")
+    .update({ current_revision_id: newRev.id })
+    .eq("id", recap.id);
+
+  return {
+    recapId: recap.id,
+    status: recap.status as "draft" | "ready_for_review",
+    revisionNumber: nextRevisionNumber,
+    greeting: input.greeting,
+    whatWeAgreed,
+    applyWizzWillDo,
+    candidateShouldDo,
+    nextStep: input.nextStep,
+  };
+}
+
+export interface ApproveMeetingRecapInput {
+  meetingId: string;
+  actorUserId: string;
+  actorMembershipId: string;
+  greeting?: string;
+  agreements?: string[];
+  actions?: string[];
+  nextStep?: string;
+  whatWeAgreed?: string[];
+  applyWizzWillDo?: string[];
+  customerShouldDo?: string[];
+  candidateShouldDo?: string[];
+}
+
+export interface ApproveMeetingRecapResult {
+  recapId: string;
+  status: "approved";
+  approvedAt: string;
+  approvedByMembershipId: string;
+  revisionNumber: number;
+  greeting: string;
+  whatWeAgreed: string[];
+  applyWizzWillDo: string[];
+  candidateShouldDo: string[];
+  nextStep: string;
+}
+
+/**
+ * AM Review Gate: Promotes a draft candidate recap to 'approved'.
+ * Enforces the core product principle:
+ * "Signal captures the evidence, AI interprets it, the Account Manager approves it,
+ * and only then does anything go to the customer."
+ * Plan A contains NO external delivery.
+ * Proves actor is the responsible AM for the meeting.
+ */
+export async function approveMeetingRecap(
+  supabase: AppSupabaseClient,
+  input: ApproveMeetingRecapInput,
+): Promise<ApproveMeetingRecapResult> {
+  const { data: meeting, error: meetingError } = await supabase
+    .from("meetings")
+    .select("id, organization_id, owner_membership_id")
+    .eq("id", input.meetingId)
+    .single();
+  if (meetingError) throw meetingError;
+
+  if (meeting.owner_membership_id !== input.actorMembershipId) {
+    throw new Error(
+      "Only the responsible Account Manager for this meeting can approve the recap.",
+    );
+  }
+
+  let recapId: string;
+  let currentRevNum = 1;
+
+  // If content is provided at approval time, record an approved snapshot revision
+  if (input.greeting && input.nextStep) {
+    const saved = await saveMeetingRecapDraft(supabase, {
+      meetingId: input.meetingId,
+      greeting: input.greeting,
+      whatWeAgreed: input.whatWeAgreed ?? input.agreements ?? [],
+      applyWizzWillDo: input.applyWizzWillDo ?? [],
+      candidateShouldDo: input.candidateShouldDo ?? input.customerShouldDo ?? [],
+      nextStep: input.nextStep,
+      actorMembershipId: input.actorMembershipId,
+      status: "ready_for_review",
+      reason: "approved_snapshot",
+    });
+    recapId = saved.recapId;
+    currentRevNum = saved.revisionNumber;
+  } else {
+    const { data: existingRecap, error: recapError } = await supabase
+      .from("meeting_recaps")
+      .select("id, current_revision_id")
+      .eq("meeting_id", input.meetingId)
+      .single();
+    if (recapError) throw recapError;
+    recapId = existingRecap.id;
+
+    const { data: rev } = await supabase
+      .from("meeting_recap_revisions")
+      .select("revision_number")
+      .eq("id", existingRecap.current_revision_id ?? "")
+      .maybeSingle();
+    currentRevNum = rev?.revision_number ?? 1;
+  }
+
+  const now = new Date().toISOString();
+
+  // Transition head status to approved
+  const { data: updatedRecap, error: updateError } = await supabase
+    .from("meeting_recaps")
+    .update({
+      status: "approved",
+      approved_by_membership_id: input.actorMembershipId,
+      approved_at: now,
+    })
+    .eq("id", recapId)
+    .select("*")
+    .single();
+
+  if (updateError) throw updateError;
+
+  await logAuditEvent(supabase, {
+    organizationId: meeting.organization_id,
+    actorId: input.actorUserId,
+    action: "meeting_recap.approved",
+    entityType: "meeting",
+    entityId: input.meetingId,
+    metadata: {
+      recapId: updatedRecap.id,
+      approvedByMembershipId: input.actorMembershipId,
+    },
+  });
+
+  return {
+    recapId: updatedRecap.id,
+    status: "approved",
+    approvedAt: now,
+    approvedByMembershipId: input.actorMembershipId,
+    revisionNumber: currentRevNum,
+    greeting: updatedRecap.greeting,
+    whatWeAgreed: (updatedRecap.what_we_agreed as string[]) ?? [],
+    applyWizzWillDo: (updatedRecap.applywizz_will_do as string[]) ?? [],
+    candidateShouldDo: (updatedRecap.candidate_should_do as string[]) ?? [],
+    nextStep: updatedRecap.next_step,
+  };
+}
+

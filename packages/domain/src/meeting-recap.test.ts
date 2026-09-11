@@ -4,6 +4,8 @@ import {
   getJourneyContext,
   getMeetingRecapData,
   listRecentMeetingSummaries,
+  saveMeetingRecapDraft,
+  approveMeetingRecap,
   type AppSupabaseClient,
 } from "./meeting-recap";
 
@@ -46,9 +48,80 @@ function fakeSupabase(tables: Record<string, Row[]>) {
         limitN = n;
         return builder;
       },
+      async single() {
+        const result = apply();
+        return { data: result[0] ?? null, error: null };
+      },
       async maybeSingle() {
         const result = apply();
         return { data: result[0] ?? null, error: null };
+      },
+      insert(row: Row) {
+        const id = (row.id as string) ?? `gen-${Date.now()}`;
+        const newRow = { id, ...row };
+        tables[table] = tables[table] ?? [];
+        tables[table].push(newRow);
+        return {
+          select() {
+            return {
+              single: async () => ({ data: newRow, error: null }),
+            };
+          },
+          then(resolve: (v: unknown) => unknown) {
+            return Promise.resolve({ data: newRow, error: null }).then(resolve);
+          },
+        };
+      },
+      upsert(row: Row) {
+        tables[table] = tables[table] ?? [];
+        const idx = tables[table].findIndex(
+          (r) => r.meeting_id === row.meeting_id,
+        );
+        const existingId = idx >= 0 ? (tables[table][idx]?.id as string) : undefined;
+        const id = (row.id as string) ?? existingId ?? `recap-${Date.now()}`;
+        const newRow = { id, ...row };
+        if (idx >= 0) {
+          tables[table][idx] = { ...tables[table][idx], ...newRow };
+        } else {
+          tables[table].push(newRow);
+        }
+        return {
+          select() {
+            return {
+              single: async () => ({
+                data: (idx >= 0 ? tables[table]?.[idx] : newRow) ?? newRow,
+                error: null,
+              }),
+            };
+          },
+        };
+      },
+      update(row: Row) {
+        tables[table] = tables[table] ?? [];
+        const updatedRows: Row[] = [];
+        const updateBuilder = {
+          eq(col: string, val: unknown) {
+            for (let i = 0; i < tables[table]!.length; i++) {
+              if (tables[table]![i]![col] === val) {
+                tables[table]![i] = { ...tables[table]![i], ...row };
+                updatedRows.push(tables[table]![i]!);
+              }
+            }
+            return updateBuilder;
+          },
+          select() {
+            return {
+              single: async () => ({
+                data: updatedRows[0] ?? null,
+                error: null,
+              }),
+            };
+          },
+          then(resolve: (v: unknown) => unknown) {
+            return Promise.resolve({ data: updatedRows, error: null }).then(resolve);
+          },
+        };
+        return updateBuilder;
       },
       then(
         onFulfilled: (v: {
@@ -71,9 +144,14 @@ function fakeSupabase(tables: Record<string, Row[]>) {
       if (orderCol) {
         const col = orderCol;
         result = [...result].sort((a, b) => {
-          const av = String(a[col] ?? "");
-          const bv = String(b[col] ?? "");
-          return ascending ? av.localeCompare(bv) : bv.localeCompare(av);
+          const av = a[col];
+          const bv = b[col];
+          if (typeof av === "number" && typeof bv === "number") {
+            return ascending ? av - bv : bv - av;
+          }
+          const as = String(av ?? "");
+          const bs = String(bv ?? "");
+          return ascending ? as.localeCompare(bs) : bs.localeCompare(as);
         });
       }
       if (limitN) result = result.slice(0, limitN);
@@ -518,4 +596,373 @@ describe("getMeetingRecapData", () => {
       errorCode: "provider_timeout",
     });
   });
+
+  it("allows evidence viewing when transcript is completed without an AI run", async () => {
+    const supabase = fakeSupabase({
+      meetings: [
+        {
+          id: "meeting-evidence-only",
+          organization_id: "org-1",
+          title: "Real Call Without AI Run",
+          customer_id: null,
+          call_type: null,
+          scheduled_start: "2026-09-10T14:25:00Z",
+          actual_start: "2026-09-10T14:25:00Z",
+          owner_membership_id: "mem-am-1",
+        },
+      ],
+      meeting_transcripts: [
+        {
+          id: "transcript-evidence",
+          meeting_id: "meeting-evidence-only",
+          processing_status: "completed",
+          error_code: null,
+        },
+      ],
+      ai_runs: [], // No AI run exists!
+      transcript_segments: [
+        {
+          id: "seg-1",
+          transcript_id: "transcript-evidence",
+          sequence_index: 0,
+          start_ms: 1000,
+          end_ms: 5000,
+          speaker_label: "Speaker 1",
+          original_text: "Hello, can you hear me?",
+          canonical_english_text: "Hello, can you hear me?",
+        },
+      ],
+      call_records: [],
+      meeting_recordings: [
+        {
+          meeting_id: "meeting-evidence-only",
+          storage_bucket: "meeting-recordings",
+          storage_path: "organizations/org-1/meetings/meeting-evidence-only/original.webm",
+        },
+      ],
+    });
+
+    const state = await getMeetingRecapData(supabase, "meeting-evidence-only");
+    expect(state?.status).toBe("ready");
+    if (state?.status === "ready") {
+      expect(state.recap.transcriptSegments).toHaveLength(1);
+      expect(state.recap.transcriptSegments[0]!.originalText).toBe("Hello, can you hear me?");
+      expect(state.recap.customer.id).toBeNull();
+      expect(state.recap.result.summary).toBe("");
+    }
+  });
+
+  it("saves a draft meeting recap into meeting_recaps and appends revision", async () => {
+    const supabase = fakeSupabase({
+      meetings: [
+        {
+          id: "meeting-1",
+          organization_id: "org-1",
+          owner_membership_id: "mem-am-1",
+          customer_id: "cust-1",
+        },
+      ],
+      meeting_recaps: [],
+      meeting_recap_revisions: [],
+    });
+
+    const res1 = await saveMeetingRecapDraft(supabase, {
+      meetingId: "meeting-1",
+      actorMembershipId: "mem-am-1",
+      greeting: "Hi Candidate,",
+      whatWeAgreed: ["Resume reviewed"],
+      applyWizzWillDo: ["Apply to 50 jobs"],
+      candidateShouldDo: ["Update LinkedIn profile"],
+      nextStep: "Check back tomorrow",
+    });
+
+    expect(res1.recapId).toBeDefined();
+    expect(res1.revisionNumber).toBe(1);
+    expect(res1.whatWeAgreed).toEqual(["Resume reviewed"]);
+    expect(res1.applyWizzWillDo).toEqual(["Apply to 50 jobs"]);
+    expect(res1.candidateShouldDo).toEqual(["Update LinkedIn profile"]);
+
+    const res2 = await saveMeetingRecapDraft(supabase, {
+      meetingId: "meeting-1",
+      actorMembershipId: "mem-am-1",
+      greeting: "Hi Candidate, updated,",
+      whatWeAgreed: ["Resume reviewed and approved"],
+      applyWizzWillDo: ["Apply to 50 jobs"],
+      candidateShouldDo: ["Update LinkedIn profile"],
+      nextStep: "Check back Monday",
+    });
+
+    expect(res2.recapId).toBe(res1.recapId);
+    expect(res2.revisionNumber).toBe(2);
+  });
+
+  it("strictly enforces that only the responsible AM can edit or approve recap (Blocker 2)", async () => {
+    const supabase = fakeSupabase({
+      meetings: [
+        {
+          id: "meeting-1",
+          organization_id: "org-1",
+          owner_membership_id: "responsible-am-id",
+          customer_id: "cust-1",
+        },
+      ],
+      meeting_recaps: [
+        {
+          id: "recap-1",
+          organization_id: "org-1",
+          meeting_id: "meeting-1",
+          status: "draft",
+          greeting: "Draft greeting",
+          what_we_agreed: [],
+          applywizz_will_do: [],
+          candidate_should_do: [],
+          next_step: "Next",
+        },
+      ],
+      meeting_recap_revisions: [],
+      audit_events: [],
+    });
+
+    // Unrelated AM / Manager / Admin cannot save draft
+    await expect(
+      saveMeetingRecapDraft(supabase, {
+        meetingId: "meeting-1",
+        actorMembershipId: "unrelated-am-or-manager-id",
+        greeting: "Hijack",
+        nextStep: "Next",
+      }),
+    ).rejects.toThrow("Only the responsible Account Manager for this meeting can modify or draft the recap.");
+
+    // Unrelated AM / Manager / Admin cannot approve
+    await expect(
+      approveMeetingRecap(supabase, {
+        meetingId: "meeting-1",
+        actorUserId: "user-2",
+        actorMembershipId: "unrelated-am-or-manager-id",
+      }),
+    ).rejects.toThrow("Only the responsible Account Manager for this meeting can approve the recap.");
+
+    // Responsible AM is permitted
+    const approved = await approveMeetingRecap(supabase, {
+      meetingId: "meeting-1",
+      actorUserId: "user-am",
+      actorMembershipId: "responsible-am-id",
+    });
+    expect(approved.status).toBe("approved");
+  });
+
+  it("preserves exact 3 semantic lists across full round-trip (Blocker 8)", async () => {
+    const supabase = fakeSupabase({
+      meetings: [
+        {
+          id: "meeting-roundtrip",
+          organization_id: "org-1",
+          owner_membership_id: "am-owner-1",
+          customer_id: "cust-1",
+          call_type: "discovery",
+          scheduled_start: "2026-09-10T12:00:00Z",
+        },
+      ],
+      customers: [
+        {
+          id: "cust-1",
+          name: "Rohit Sharma",
+          lifecycle_stage: "onboarding",
+          owner_membership_id: "am-owner-1",
+        },
+      ],
+      organization_memberships: [
+        {
+          id: "am-owner-1",
+          display_name: "Kiran AM",
+        },
+      ],
+      meeting_recaps: [],
+      meeting_recap_revisions: [],
+      audit_events: [],
+      ai_runs: [
+        {
+          meeting_id: "meeting-roundtrip",
+          status: "completed",
+          summary: "Good intro call",
+          completed_at: "2026-09-10T13:00:00Z",
+          validated_output: {
+            summary: "Good intro call",
+            callRecords: [
+              {
+                recordType: "commitment",
+                description: "Agreed to target senior distributed roles",
+                ownerType: "customer",
+              },
+              {
+                recordType: "action_item",
+                description: "ApplyWizz will revise resume bullets",
+                ownerType: "applywizz",
+              },
+              {
+                recordType: "action_item",
+                description: "Candidate will provide transcript of previous semester",
+                ownerType: "customer",
+              },
+            ],
+            customerTruthDeltas: [],
+          },
+        },
+      ],
+      call_records: [
+        {
+          id: "cr-1",
+          meeting_id: "meeting-roundtrip",
+          organization_id: "org-1",
+          record_type: "commitment",
+          description: "Agreed to target senior distributed roles",
+          owner_type: "customer",
+          status: "detected",
+          created_at: "2026-09-10T12:30:00Z",
+        },
+        {
+          id: "cr-2",
+          meeting_id: "meeting-roundtrip",
+          organization_id: "org-1",
+          record_type: "action_item",
+          description: "ApplyWizz will revise resume bullets",
+          owner_type: "applywizz",
+          status: "detected",
+          created_at: "2026-09-10T12:31:00Z",
+        },
+        {
+          id: "cr-3",
+          meeting_id: "meeting-roundtrip",
+          organization_id: "org-1",
+          record_type: "action_item",
+          description: "Candidate will provide transcript of previous semester",
+          owner_type: "customer",
+          status: "detected",
+          created_at: "2026-09-10T12:32:00Z",
+        },
+      ],
+      customer_truth_facts: [],
+      meeting_transcripts: [
+        {
+          id: "tr-1",
+          meeting_id: "meeting-roundtrip",
+          organization_id: "org-1",
+          processing_status: "completed",
+        },
+      ],
+      transcript_segments: [
+        {
+          id: "seg-1",
+          transcript_id: "tr-1",
+          sequence_index: 1,
+          start_ms: 0,
+          end_ms: 30000,
+          original_text: "Let's review the plan.",
+          canonical_english_text: "Let's review the plan.",
+        },
+      ],
+    });
+
+    // 1. Initial derivation
+    const initialData = await getMeetingRecapData(supabase, "meeting-roundtrip");
+    expect(initialData?.status).toBe("ready");
+    if (!initialData || initialData.status !== "ready" || !initialData.recap.customerSafeRecap) {
+      throw new Error("expected ready state");
+    }
+
+    expect(initialData.recap.customerSafeRecap.whatWeAgreed).toEqual([
+      "Agreed to target senior distributed roles",
+    ]);
+    expect(initialData.recap.customerSafeRecap.applyWizzWillDo).toEqual([
+      "ApplyWizz will revise resume bullets",
+    ]);
+    expect(initialData.recap.customerSafeRecap.candidateShouldDo).toEqual([
+      "Candidate will provide transcript of previous semester",
+    ]);
+
+    // 2. Save Draft
+    const draftRes = await saveMeetingRecapDraft(supabase, {
+      meetingId: "meeting-roundtrip",
+      actorMembershipId: "am-owner-1",
+      greeting: "Hi Rohit,",
+      whatWeAgreed: initialData.recap.customerSafeRecap.whatWeAgreed,
+      applyWizzWillDo: initialData.recap.customerSafeRecap.applyWizzWillDo,
+      candidateShouldDo: initialData.recap.customerSafeRecap.candidateShouldDo,
+      nextStep: "Follow-up on Friday",
+    });
+    expect(draftRes.revisionNumber).toBe(1);
+
+    // 3. Reload from DB
+    const reloaded1 = await getMeetingRecapData(supabase, "meeting-roundtrip");
+    if (!reloaded1 || reloaded1.status !== "ready" || !reloaded1.recap.customerSafeRecap) {
+      throw new Error("expected ready state 1");
+    }
+    expect(reloaded1.recap.customerSafeRecap.whatWeAgreed).toEqual([
+      "Agreed to target senior distributed roles",
+    ]);
+    expect(reloaded1.recap.customerSafeRecap.applyWizzWillDo).toEqual([
+      "ApplyWizz will revise resume bullets",
+    ]);
+    expect(reloaded1.recap.customerSafeRecap.candidateShouldDo).toEqual([
+      "Candidate will provide transcript of previous semester",
+    ]);
+
+    // 4. Edit all three lists
+    const updatedWhatWeAgreed = [
+      "Agreed to target senior distributed roles",
+      "Agreed to open relocation to Austin/Seattle",
+    ];
+    const updatedApplyWizzWillDo = [
+      "ApplyWizz will revise resume bullets",
+      "ApplyWizz will curate 15 company referrals",
+    ];
+    const updatedCandidateShouldDo = [
+      "Candidate will provide transcript of previous semester",
+      "Candidate will take mock interview assessment",
+    ];
+
+    // 5. Save Draft again
+    const draftRes2 = await saveMeetingRecapDraft(supabase, {
+      meetingId: "meeting-roundtrip",
+      actorMembershipId: "am-owner-1",
+      greeting: "Hi Rohit Sharma,",
+      whatWeAgreed: updatedWhatWeAgreed,
+      applyWizzWillDo: updatedApplyWizzWillDo,
+      candidateShouldDo: updatedCandidateShouldDo,
+      nextStep: "Check in on Monday 10am",
+      status: "ready_for_review",
+    });
+    expect(draftRes2.revisionNumber).toBe(2);
+    expect(draftRes2.status).toBe("ready_for_review");
+
+    // 6. Reload from DB after edit
+    const reloaded2 = await getMeetingRecapData(supabase, "meeting-roundtrip");
+    if (!reloaded2 || reloaded2.status !== "ready" || !reloaded2.recap.customerSafeRecap) {
+      throw new Error("expected ready state 2");
+    }
+    expect(reloaded2.recap.customerSafeRecap.status).toBe("ready_for_review");
+    expect(reloaded2.recap.customerSafeRecap.whatWeAgreed).toEqual(updatedWhatWeAgreed);
+    expect(reloaded2.recap.customerSafeRecap.applyWizzWillDo).toEqual(updatedApplyWizzWillDo);
+    expect(reloaded2.recap.customerSafeRecap.candidateShouldDo).toEqual(updatedCandidateShouldDo);
+
+    // 7. Approve recap
+    const approveRes = await approveMeetingRecap(supabase, {
+      meetingId: "meeting-roundtrip",
+      actorUserId: "user-am-owner",
+      actorMembershipId: "am-owner-1",
+    });
+    expect(approveRes.status).toBe("approved");
+
+    // 8. Reload after approval: all 3 lists remain completely distinct and status is approved
+    const reloaded3 = await getMeetingRecapData(supabase, "meeting-roundtrip");
+    if (!reloaded3 || reloaded3.status !== "ready" || !reloaded3.recap.customerSafeRecap) {
+      throw new Error("expected ready state 3");
+    }
+    expect(reloaded3.recap.customerSafeRecap.status).toBe("approved");
+    expect(reloaded3.recap.customerSafeRecap.whatWeAgreed).toEqual(updatedWhatWeAgreed);
+    expect(reloaded3.recap.customerSafeRecap.applyWizzWillDo).toEqual(updatedApplyWizzWillDo);
+    expect(reloaded3.recap.customerSafeRecap.candidateShouldDo).toEqual(updatedCandidateShouldDo);
+    expect(reloaded3.recap.customerSafeRecap.nextStep).toBe("Check in on Monday 10am");
+  });
 });
+

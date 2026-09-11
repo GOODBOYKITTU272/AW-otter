@@ -29,6 +29,14 @@ export async function PATCH(request: Request) {
     ) {
       return NextResponse.json({ error: "cutoffMinutesBeforeStart must be a non-negative integer." }, { status: 400 });
     }
+    if (
+      body.botDispatchLeadSeconds !== undefined &&
+      (typeof body.botDispatchLeadSeconds !== "number" ||
+        !Number.isInteger(body.botDispatchLeadSeconds) ||
+        body.botDispatchLeadSeconds < 0)
+    ) {
+      return NextResponse.json({ error: "botDispatchLeadSeconds must be a non-negative integer." }, { status: 400 });
+    }
 
     const update: PolicySetUpdate = {};
     if (body.defaultDecision !== undefined) {
@@ -36,6 +44,9 @@ export async function PATCH(request: Request) {
     }
     if (body.cutoffMinutesBeforeStart !== undefined) {
       update.cutoff_minutes_before_start = body.cutoffMinutesBeforeStart;
+    }
+    if (body.botDispatchLeadSeconds !== undefined) {
+      update.bot_dispatch_lead_seconds = body.botDispatchLeadSeconds;
     }
 
     const { error } = await supabase.from("meeting_policy_sets").update(update).eq("id", body.policySetId);

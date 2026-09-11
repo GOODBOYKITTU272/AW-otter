@@ -255,6 +255,16 @@ over PostgREST if the grant allows it. Full detail per function:
 - search_path: safe
 - Regression: `012_customer_truth_actions.test.sql`
 
+### `save_meeting_integrity_report_atomic(uuid,uuid,text,text,numeric,boolean,jsonb,jsonb)`
+
+- Intended caller: internal transcription / integrity worker / pipeline (service_role only)
+- Grants: `anon=false, authenticated=false, service_role=true` ✅ **correct**
+- Explicit caller auth: service-role boundary enforced at grant level (`revoke all ... from public, anon, authenticated; grant execute ... to service_role;`)
+- Org boundary: enforced via `p_organization_id` matching meeting org and consistency triggers on `meeting_integrity_flags`
+- search_path: safe (`search_path=public`)
+- PostgREST exposure: blocked by grant
+- Regression: `019_security_definer_privilege_invariant.test.sql`, `024_meeting_recaps_and_integrity.test.sql`
+
 ## Summary
 
 | Category                                                   | Count | Findings                                                                                                                                                             |

@@ -7,8 +7,18 @@ export const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
  * Telugu/Telugu-English quality: measurably poor on synthetic TTS speech —
  * NOT yet validated against real human speech (M8 shipping gate, not an
  * implementation blocker).
+ *
+ * Switched to the -turbo variant for the next real controlled test
+ * (feasibility spike, 2026-09-10): same OpenRouter endpoint/request
+ * shape, same verbose_json response contract — this is a pure model-string
+ * swap through the existing constructor parameter, not a provider change.
+ * `language` is still never forced (see transcription.ts's real call site
+ * — no `options.language` passed), so this remains auto-detect, same as
+ * before; the actual open question is whether -turbo's own auto-detection
+ * handles English↔Telugu code-switching within one clip any better than
+ * v3 did, which needs a real call to answer, not a guess.
  */
-export const DEFAULT_TRANSCRIPTION_MODEL = "openai/whisper-large-v3";
+export const DEFAULT_TRANSCRIPTION_MODEL = "openai/whisper-large-v3-turbo";
 
 /**
  * Not yet live-verified (model choice for the canonical-English

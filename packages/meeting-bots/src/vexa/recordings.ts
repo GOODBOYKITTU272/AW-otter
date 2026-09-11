@@ -20,16 +20,28 @@ const MAX_DOWNLOAD_BYTES = 200 * 1024 * 1024; // 200MB
  * self-hosted deployment: recording happens by default
  * (`recording_enabled: true`) independently of `transcribe_enabled` (M6
  * set that to false) — real audio already exists for every completed M6
- * bot session, no change to bot creation needed. GET
- * /transcripts/{platform}/{native_meeting_id} was confirmed to embed the
- * meeting's `recordings[]` directly — a single call, no separate
- * bots-list -> internal-numeric-id -> recordings-by-id lookup needed.
+ * bot session, no change to bot creation needed.
+ *
+ * M17C correction (2026-09-09), confirmed against the REAL hosted
+ * Pay-as-you-go deployment: GET /transcripts/{platform}/{native_meeting_id}
+ * (the M8 self-hosted-verified endpoint) returns 403 "Insufficient scope
+ * for this endpoint" on hosted — this key/account cannot use it. GET
+ * /recordings?meeting_id={numeric Vexa meeting id} returns 200 with the
+ * identical `recordings[]` shape and IS accessible with the same key —
+ * confirmed with a real recording (real audio downloaded successfully via
+ * downloadRecordingMedia using the ids this returned). `native_meeting_id`
+ * is NOT an honored filter on this endpoint (confirmed: a bogus value
+ * still returned every recording) — only the numeric `meeting_id` is
+ * server-side filtered (confirmed: a bogus numeric id returned zero
+ * results). This is why the numeric id, not the platform/native_meeting_id
+ * pair, is now the required parameter here.
  */
 interface RawMediaFile {
   id?: number;
   type?: string;
   format?: string;
   is_final?: boolean;
+  file_size_bytes?: number;
 }
 
 interface RawRecording {
@@ -38,7 +50,7 @@ interface RawRecording {
   media_files?: RawMediaFile[];
 }
 
-interface RawTranscriptResponse {
+interface RawRecordingsResponse {
   recordings?: RawRecording[];
 }
 
@@ -46,6 +58,15 @@ export interface RecordingRef {
   recordingId: number;
   mediaFileId: number;
   format: string;
+  /**
+   * Vexa's own reported byte size for the audio media file (`file_size_bytes`
+   * on the raw media file entry), `null` when Vexa didn't report one. This is
+   * the strongest independent evidence packages/domain's crash-recovery
+   * reconciliation (Task 5) has for validating a pre-existing Storage object
+   * without re-downloading it — it must NEVER be invented/defaulted to a
+   * number when the provider didn't actually report one.
+   */
+  fileSizeBytes: number | null;
 }
 
 async function vexaGet<T>(
@@ -77,16 +98,20 @@ async function vexaGet<T>(
  * `type: "audio"` is present alongside a null `type: "video"` for a
  * bot-recorded audio-only session). Returns null — never guesses/fabricates
  * a reference — if no completed audio recording exists yet.
+ *
+ * `vexaMeetingId` is Vexa's own numeric meeting/bot id (the `id` field on
+ * the POST /bots response, e.g. `raw.id` in client.ts's
+ * RawVexaCreateResponse) — NOT the platform/native_meeting_id pair, which
+ * this endpoint's `native_meeting_id` filter does not actually honor.
  */
 export async function getMeetingRecordingRef(
   env: VexaEnv,
-  platform: string,
-  nativeMeetingId: string,
+  vexaMeetingId: number,
   fetchImpl: typeof fetch = fetch,
 ): Promise<RecordingRef | null> {
-  const raw = await vexaGet<RawTranscriptResponse>(
+  const raw = await vexaGet<RawRecordingsResponse>(
     env,
-    `/transcripts/${platform}/${encodeURIComponent(nativeMeetingId)}`,
+    `/recordings?meeting_id=${vexaMeetingId}`,
     fetchImpl,
   );
 
@@ -109,6 +134,8 @@ export async function getMeetingRecordingRef(
     recordingId: recording.id,
     mediaFileId: audioFile.id,
     format: audioFile.format ?? "webm",
+    fileSizeBytes:
+      typeof audioFile.file_size_bytes === "number" ? audioFile.file_size_bytes : null,
   };
 }
 
