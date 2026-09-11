@@ -125,10 +125,10 @@ export default async function AdminOverviewPage() {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-[#F5F5F5]/90">
-                Azure Speech (Primary)
+                Azure Speech (Primary Transcriber)
               </span>
               <StatusBadge tone={isAzureConfigured ? "neutral" : "warning"}>
-                {isAzureConfigured ? "Configured" : "Not configured"}
+                {isAzureConfigured ? "Configured (Not verified)" : "Not configured / Unknown"}
               </StatusBadge>
             </div>
           </div>
@@ -139,15 +139,15 @@ export default async function AdminOverviewPage() {
                 OpenRouter Whisper Fallback
               </span>
               <StatusBadge tone={isOpenRouterConfigured ? "neutral" : "warning"}>
-                {isOpenRouterConfigured ? "Configured" : "Not configured"}
+                {isOpenRouterConfigured ? "Configured (Not verified)" : "Not configured / Unknown"}
               </StatusBadge>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-[#F5F5F5]/90">
-                PostgreSQL &amp; Storage
+                PostgreSQL &amp; Storage Vault
               </span>
               <StatusBadge tone={isDatabaseReachable ? "success" : "critical"}>
-                {isDatabaseReachable ? "Operational" : "Degraded"}
+                {isDatabaseReachable ? "Operational (Database responding)" : "Degraded / Unreachable"}
               </StatusBadge>
             </div>
           </div>
