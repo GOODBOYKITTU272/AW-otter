@@ -19,11 +19,14 @@ sudo apt-get update -qq
 # ffmpeg: packages/domain/src/audio-transcode.ts shells out to the real
 #   ffmpeg/ffprobe binaries (see CI). docker.io + fuse-overlayfs + uidmap:
 #   run the local Supabase stack in the nested VM.
+# The Dpkg::Options force-conf* flags auto-resolve the /etc/fuse.conf conffile
+# prompt fuse3 raises (keeping the existing file); without them apt aborts
+# with a non-interactive "EOF on stdin at conffile prompt" error.
 sudo apt-get install -y -qq --no-install-recommends \
+  -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" \
   docker.io fuse-overlayfs uidmap ffmpeg curl ca-certificates
-# fuse3 ships an interactive conffile prompt that aborts non-interactive apt;
-# accept the maintainer version so the fuse packages finish configuring.
-sudo dpkg --configure -a --force-confnew || true
+# Safety net in case a package was left half-configured.
+sudo dpkg --configure -a || true
 
 echo "==> Installing Supabase CLI ${SUPABASE_CLI_VERSION}"
 if [ "$(supabase --version 2>/dev/null || true)" != "${SUPABASE_CLI_VERSION}" ]; then
