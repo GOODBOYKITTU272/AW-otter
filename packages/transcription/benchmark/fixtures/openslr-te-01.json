@@ -1,0 +1,34 @@
+{
+  "metadata": {
+    "id": "openslr-te-01",
+    "audioFilename": "m8-audio/benchmark/openslr_te_01.wav",
+    "durationSeconds": 14.51,
+    "category": "conversational_te",
+    "primaryLanguage": "te",
+    "speakers": [
+      {
+        "id": "tef_05691",
+        "role": "dataset_speaker",
+        "nameHint": "Telugu Speaker 05691"
+      }
+    ],
+    "audioCharacteristics": {
+      "snrCategory": "not_measured",
+      "backgroundNoise": false,
+      "crosstalkPresent": false
+    }
+  },
+  "groundTruthSegments": [
+    {
+      "id": "openslr-te-01-seg-1",
+      "startMs": 0,
+      "endMs": 14510,
+      "speakerRole": "dataset_speaker",
+      "speakerId": "tef_05691",
+      "language": "te",
+      "text": "ఒక రోజుకు ఇరవై నాలుగు హవర్లుంటాయి",
+      "isCodeSwitched": false,
+      "notes": "OpenSLR SLR66 official dataset orthographic transcript (human annotated dataset reference)"
+    }
+  ]
+}

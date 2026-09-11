@@ -1,0 +1,55 @@
+{
+  "datasetName": "OpenSLR SLR66 Human Ground Truth Subset",
+  "provenance": "Google Crowdsourced High-Quality Telugu Multi-Speaker Speech Dataset (CC-BY-SA 4.0)",
+  "verifiedBy": "Human Telugu native annotators (OpenSLR SLR66 official orthographic transcripts)",
+  "cases": [
+    {
+      "id": "openslr-te-01",
+      "audioPath": "m8-audio/benchmark/openslr_te_01.wav",
+      "durationSeconds": 14.51,
+      "language": "te",
+      "speakerRole": "dataset_speaker",
+      "groundTruth": "ఒక రోజుకు ఇరవై నాలుగు హవర్లుంటాయి"
+    },
+    {
+      "id": "openslr-te-02",
+      "audioPath": "m8-audio/benchmark/openslr_te_02.wav",
+      "durationSeconds": 11.70,
+      "language": "te",
+      "speakerRole": "dataset_speaker",
+      "groundTruth": "ఈ సమయంలో దాసరి నారాయణరావు కె.రాఘవేంద్రరావు కోడిరామి రెడ్డి అగ్రస్థానంలో ఉన్న దర్శకులు"
+    },
+    {
+      "id": "openslr-te-03",
+      "audioPath": "m8-audio/benchmark/openslr_te_03.wav",
+      "durationSeconds": 11.01,
+      "language": "te",
+      "speakerRole": "dataset_speaker",
+      "groundTruth": "ఆంధ్రప్రదేశ్ రాష్ట్ర మాజీ ముఖ్యమంత్రి నందమూరి తారక రామారావు రెండవ భార్య నందమూరి లక్ష్మీపార్వతి"
+    },
+    {
+      "id": "openslr-te-04",
+      "audioPath": "m8-audio/benchmark/openslr_te_04.wav",
+      "durationSeconds": 10.76,
+      "language": "te",
+      "speakerRole": "dataset_speaker",
+      "groundTruth": "ఈ ప్రమాదం జరిగిన కొన్ని నెలల తర్వాత దీన్ని గురించి కొన్ని మూల గ్రంథాలు కూడా రాయడం జరిగింది"
+    },
+    {
+      "id": "openslr-te-05",
+      "audioPath": "m8-audio/benchmark/openslr_te_05.wav",
+      "durationSeconds": 12.81,
+      "language": "te",
+      "speakerRole": "dataset_speaker",
+      "groundTruth": "వందేమాతరం శ్రీనివాస్ ప్రసిద్ది చెందిన తెలుగు సినిమా గాయకుడు గీత రచయిత మరియు సంగీత దర్శకుడు"
+    },
+    {
+      "id": "openslr-te-06",
+      "audioPath": "m8-audio/benchmark/openslr_te_06.wav",
+      "durationSeconds": 12.55,
+      "language": "te",
+      "speakerRole": "dataset_speaker",
+      "groundTruth": "ఈ నేపథ్యంలో వెయ్యి ఏడు వందలు నలభై తొమ్మిదిలో షాహూజీ మరణించాడు"
+    }
+  ]
+}

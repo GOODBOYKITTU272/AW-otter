@@ -1,0 +1,34 @@
+{
+  "metadata": {
+    "id": "openslr-te-06",
+    "audioFilename": "m8-audio/benchmark/openslr_te_06.wav",
+    "durationSeconds": 12.55,
+    "category": "conversational_te",
+    "primaryLanguage": "te",
+    "speakers": [
+      {
+        "id": "tem_00682",
+        "role": "dataset_speaker",
+        "nameHint": "Telugu Speaker 00682"
+      }
+    ],
+    "audioCharacteristics": {
+      "snrCategory": "not_measured",
+      "backgroundNoise": false,
+      "crosstalkPresent": false
+    }
+  },
+  "groundTruthSegments": [
+    {
+      "id": "openslr-te-06-seg-1",
+      "startMs": 0,
+      "endMs": 12550,
+      "speakerRole": "dataset_speaker",
+      "speakerId": "tem_00682",
+      "language": "te",
+      "text": "ఈ నేపథ్యంలో వెయ్యి ఏడు వందలు నలభై తొమ్మిదిలో షాహూజీ మరణించాడు",
+      "isCodeSwitched": false,
+      "notes": "OpenSLR SLR66 official dataset orthographic transcript (human annotated dataset reference)"
+    }
+  ]
+}
