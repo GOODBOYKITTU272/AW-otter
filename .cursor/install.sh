@@ -20,7 +20,7 @@ sudo apt-get update -qq
 #   ffmpeg/ffprobe binaries (see CI). docker.io + fuse-overlayfs + uidmap:
 #   run the local Supabase stack in the nested VM.
 sudo apt-get install -y -qq --no-install-recommends \
-  docker.io fuse-overlayfs uidmap ffmpeg
+  docker.io fuse-overlayfs uidmap ffmpeg curl ca-certificates
 # fuse3 ships an interactive conffile prompt that aborts non-interactive apt;
 # accept the maintainer version so the fuse packages finish configuring.
 sudo dpkg --configure -a --force-confnew || true
