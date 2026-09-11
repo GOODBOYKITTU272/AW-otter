@@ -325,5 +325,44 @@ describe("analyzeMeetingIntegrity", () => {
         }),
       );
     });
+
+    it("detects in-segment rapid hallucination loops and marks severe breakdown", () => {
+      const segments = [
+        {
+          id: "seg-loop-1",
+          startMs: 0,
+          endMs: 15000,
+          text: "I think that I think that I think that I think that I think that",
+          confidence: 0.85,
+        },
+      ];
+
+      const analysis = analyzeMeetingIntegrity({
+        segments,
+      });
+
+      expect(analysis.flags.some((f) => f.flagType === "rapid_hallucination")).toBe(true);
+      expect(analysis.flags.some((f) => f.reasonCode === "in_segment_repetition_loop")).toBe(true);
+      expect(analysis.verdict).toBe("transcription_unreliable");
+    });
+
+    it("detects broadcast/YouTube artifact patterns in transcript", () => {
+      const segments = [
+        {
+          id: "seg-yt-1",
+          startMs: 0,
+          endMs: 12000,
+          text: "Hello everyone, please hit the bell icon and subscribe to our channel.",
+          confidence: 0.9,
+        },
+      ];
+
+      const analysis = analyzeMeetingIntegrity({
+        segments,
+      });
+
+      expect(analysis.flags.some((f) => f.flagType === "filler_loop")).toBe(true);
+      expect(analysis.verdict).toBe("needs_review");
+    });
   });
 });
