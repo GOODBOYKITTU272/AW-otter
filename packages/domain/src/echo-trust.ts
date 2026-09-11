@@ -357,6 +357,138 @@ export interface EchoQueryInput {
   preloadedEvidence?: EchoEvidenceItem[];
 }
 
+export interface GroundedFactProposal {
+  fieldKey: string;
+  proposedValue: unknown;
+  sourceMeetingId: string;
+  evidenceSegmentIds: string[];
+  sourceSpeaker: string | null;
+  status: "proposed";
+  groundingStatus: "supported" | "partially_supported";
+  isTentative: boolean;
+  rationale: string;
+}
+
+/**
+ * Extracts proposed Customer Truth updates strictly from verified candidate statements in evidence.
+ * Invariants:
+ * 1. UNKNOWN or AM speaker statements NEVER become candidate truth facts.
+ * 2. Flagged audio (needsReview) or injection attempts NEVER generate proposals.
+ * 3. Uncertainty is preserved: tentative language ("might relocate", "considering") remains tentative, never "confirmed" or "willing to relocate".
+ * 4. Refusals ("cannot relocate", "won't relocate") NEVER produce affirmative proposals.
+ * 5. Destinations and values are derived strictly from spoken evidence (e.g. California -> California only; Texas -> Texas only).
+ */
+export function extractGroundedFactProposalsFromEvidence(
+  evidence: Array<{
+    id: string;
+    meetingId?: string | null;
+    text: string;
+    speakerRole?: string | null;
+    speakerName?: string | null;
+    needsReview?: boolean;
+    injectionAttemptDetected?: boolean;
+  }>,
+  fallbackMeetingId?: string | null,
+): GroundedFactProposal[] {
+  const proposals: GroundedFactProposal[] = [];
+
+  for (const item of evidence) {
+    // 1. UNKNOWN speaker evidence must not become a candidate fact
+    if (!item.speakerRole || item.speakerRole === "UNKNOWN" || item.speakerRole === "AM") {
+      continue;
+    }
+
+    // 2. Audio needing review or containing prompt injection cannot produce proposals
+    if (item.needsReview || item.injectionAttemptDetected) {
+      continue;
+    }
+
+    const meetingId = item.meetingId ?? fallbackMeetingId;
+    if (!meetingId) continue;
+
+    const text = item.text;
+
+    // 3. Relocation preference extraction
+    if (/\brelocat/i.test(text)) {
+      // "cannot relocate" must not become an affirmative relocation preference
+      const isRefusal =
+        /\b(?:cannot|can't|won't|will not|not able to|not open to|no relocation|refuse to)\s+relocat/i.test(
+          text,
+        );
+      if (isRefusal) {
+        continue;
+      }
+
+      // "might relocate" must not become "willing to relocate" (preserve uncertainty)
+      const isTentative =
+        /\b(?:might|maybe|considering|could|depending|conditional|possibly|potenti?ally)\b/i.test(
+          text,
+        );
+
+      // Extract destination mentioned in the text
+      let location: string | null = null;
+      const stopWords = new Set([
+        "depending", "if", "for", "conditionally", "only", "provided",
+        "unless", "the", "a", "an", "work", "hybrid", "remote", "opportunity",
+      ]);
+
+      const match = text.match(
+        /\b(?:relocate to|move to|open to(?: relocate to)?|in)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/,
+      );
+      if (match && match[1]) {
+        const words = match[1]
+          .split(/\s+/)
+          .filter((w) => !stopWords.has(w.toLowerCase()));
+        if (words.length > 0) {
+          location = words.join(" ");
+        }
+      }
+
+      if (!location) {
+        if (/\bCalifornia\b/i.test(text)) {
+          location = "California";
+        } else if (/\bTexas\b/i.test(text)) {
+          location = "Texas";
+        } else if (/\bNew York\b/i.test(text)) {
+          location = "New York";
+        } else if (/\bAustin\b/i.test(text)) {
+          location = "Austin";
+        } else if (/\bSeattle\b/i.test(text)) {
+          location = "Seattle";
+        }
+      }
+
+      // Location must match what was actually spoken
+      let proposedValue: string;
+      if (location) {
+        proposedValue = isTentative
+          ? `Open to ${location} (Conditional)`
+          : `Willing to relocate to ${location}`;
+      } else {
+        proposedValue = isTentative
+          ? "Considering relocation (Conditional)"
+          : "Willing to relocate";
+      }
+
+      proposals.push({
+        fieldKey: "relocation_pref",
+        proposedValue,
+        sourceMeetingId: meetingId,
+        evidenceSegmentIds: [item.id],
+        sourceSpeaker: item.speakerName ?? item.speakerRole,
+        status: "proposed",
+        groundingStatus: isTentative ? "partially_supported" : "supported",
+        isTentative,
+        rationale: isTentative
+          ? "Tentative statement from candidate — requires human confirmation."
+          : "Direct candidate statement — requires human confirmation.",
+      });
+    }
+  }
+
+  return proposals;
+}
+
 /**
  * Central Echo Query & Trust Orchestrator
  * Applies:
@@ -496,22 +628,20 @@ export async function executeEchoQuery(
   const grounding = evaluateEvidenceGrounding(synthesizedClaim, citedEvidence);
 
   // 8. Fact proposal detection
-  // If the query asks to propose a fact or mark preferences, create a structured proposal (status='proposed')
-  const proposedFacts: EchoFactProposal[] = [];
-  if (/relocat/i.test(query)) {
-    const relocationEvidence = scopedEvidence.filter((e) => /relocat/i.test(e.text));
-    if (relocationEvidence.length > 0 && input.meetingId) {
-      proposedFacts.push({
-        fieldKey: "relocation_pref",
-        proposedValue: "Open to Texas conditionally",
-        sourceMeetingId: input.meetingId,
-        evidenceSegmentIds: relocationEvidence.map((e) => e.id),
-        sourceSpeaker: relocationEvidence[0]?.speakerName ?? relocationEvidence[0]?.speakerRole ?? null,
-        status: "proposed",
-        groundingStatus: grounding.groundingStatus,
-      });
-    }
-  }
+  // Proposals are derived ONLY from authorized candidate evidence, never from arbitrary query text
+  const proposals = extractGroundedFactProposalsFromEvidence(
+    scopedEvidence,
+    input.meetingId,
+  );
+  const proposedFacts: EchoFactProposal[] = proposals.map((p) => ({
+    fieldKey: p.fieldKey,
+    proposedValue: p.proposedValue,
+    sourceMeetingId: p.sourceMeetingId,
+    evidenceSegmentIds: p.evidenceSegmentIds,
+    sourceSpeaker: p.sourceSpeaker,
+    status: "proposed",
+    groundingStatus: p.groundingStatus,
+  }));
 
   // 9. Synthesize answer
   let answer: string;

@@ -51,4 +51,26 @@ describe("AskSignalPanel Trust States & Cards", () => {
     expect(html).toContain("View in transcript");
     expect(html).toContain('/meetings/meet-789?tab=transcript#segment-seg-456');
   });
+
+  it("failed proposal persistence produces a safe UI without clickable Confirm button", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(SuggestedUpdateCard, {
+        proposal: {
+          // id is undefined because database persistence failed
+          id: undefined,
+          fieldKey: "locations",
+          proposedValue: ["Seattle, WA"],
+          status: "proposed",
+          rationale: "Unsaved suggestion",
+        },
+      }),
+    );
+
+    // Confirm button must NOT be present
+    expect(html).not.toContain("Confirm Update");
+    // Safe read-only note must be rendered
+    expect(html).toContain("Read-only proposal (not persisted to review queue)");
+    // AM can still dismiss the card
+    expect(html).toContain("Dismiss");
+  });
 });

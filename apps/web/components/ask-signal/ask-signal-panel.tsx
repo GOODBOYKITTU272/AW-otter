@@ -179,14 +179,20 @@ export function SuggestedUpdateCard({
       ) : null}
 
       <div className="mt-1 flex flex-wrap items-center gap-2 pt-1.5 border-t border-amber-200/60 dark:border-amber-900/40">
-        <button
-          type="button"
-          onClick={handleConfirm}
-          disabled={actionState !== "idle" || !proposal.id}
-          className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-        >
-          {actionState === "confirming" ? "Confirming…" : "Confirm Update"}
-        </button>
+        {proposal.id ? (
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={actionState !== "idle"}
+            className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+          >
+            {actionState === "confirming" ? "Confirming…" : "Confirm Update"}
+          </button>
+        ) : (
+          <span className="text-[11px] text-zinc-500 italic dark:text-zinc-400">
+            Read-only proposal (not persisted to review queue)
+          </span>
+        )}
 
         <button
           type="button"

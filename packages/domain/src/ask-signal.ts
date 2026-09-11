@@ -14,6 +14,7 @@ import {
   parseTemporaryQueryScope,
   detectPromptInjectionInEvidence,
   evaluateEvidenceGrounding,
+  extractGroundedFactProposalsFromEvidence,
 } from "./echo-trust";
 import { logAuditEvent } from "./audit";
 
@@ -383,66 +384,76 @@ export async function answerCustomerQuestion(
   );
 
   // Step 7: Proposal-Only Write Boundary
+  // Proposals are derived ONLY from verified candidate evidence, never from arbitrary question text
   const proposedFacts: NonNullable<AskSignalResult["proposedFacts"]> = [];
-  if (/relocat/i.test(question)) {
-    const relocationEvidence = evidence.filter((e) => /relocat/i.test(e.text));
-    if (relocationEvidence.length > 0) {
-      const sourceMeetingId = relocationEvidence[0]?.meetingId ?? null;
-      let factId: string | undefined = undefined;
+  const candidates = extractGroundedFactProposalsFromEvidence(evidence);
 
-      try {
-        const { data: cust } = await supabase
-          .from("customers")
-          .select("organization_id")
-          .eq("id", customerId)
+  for (const candidate of candidates) {
+    let factId: string | undefined = undefined;
+
+    try {
+      const { data: cust } = await supabase
+        .from("customers")
+        .select("organization_id")
+        .eq("id", customerId)
+        .maybeSingle();
+
+      if (cust?.organization_id && candidate.sourceMeetingId) {
+        // Idempotency: check if an identical proposed fact already exists for this customer & field
+        const { data: existingProposed } = await supabase
+          .from("customer_truth_facts")
+          .select("id")
+          .eq("customer_id", customerId)
+          .eq("field_key", candidate.fieldKey)
+          .eq("status", "proposed")
           .maybeSingle();
 
-        if (cust?.organization_id && sourceMeetingId) {
-          const { data: existingProposed } = await supabase
+        if (existingProposed?.id) {
+          factId = existingProposed.id;
+        } else {
+          // Persist strictly as 'proposed' via RLS policy
+          const { data: insertedFact, error: insertError } = await supabase
             .from("customer_truth_facts")
+            .insert({
+              organization_id: cust.organization_id,
+              customer_id: customerId,
+              field_key: candidate.fieldKey,
+              value: candidate.proposedValue as import("@applywizz/database/types").Json,
+              status: "proposed",
+              source_type: "meeting",
+              source_meeting_id: candidate.sourceMeetingId,
+              evidence_segment_ids: candidate.evidenceSegmentIds,
+              source_speaker: candidate.sourceSpeaker,
+              detected_at: new Date().toISOString(),
+            })
             .select("id")
-            .eq("customer_id", customerId)
-            .eq("field_key", "relocation_pref")
-            .eq("status", "proposed")
             .maybeSingle();
 
-          if (existingProposed?.id) {
-            factId = existingProposed.id;
-          } else {
-            const { data: insertedFact } = await supabase
-              .from("customer_truth_facts")
-              .insert({
-                organization_id: cust.organization_id,
-                customer_id: customerId,
-                field_key: "relocation_pref",
-                value: "Open to Texas (Conditional)",
-                status: "proposed",
-                source_type: "meeting",
-                source_meeting_id: sourceMeetingId,
-                evidence_segment_ids: relocationEvidence.map((e) => e.id),
-              })
-              .select("id")
-              .maybeSingle();
-
-            factId = insertedFact?.id;
+          if (!insertError && insertedFact?.id) {
+            factId = insertedFact.id;
           }
         }
-      } catch {
-        // Safe fallback to in-memory proposal
       }
-
-      proposedFacts.push({
-        id: factId,
-        fieldKey: "relocation_pref",
-        proposedValue: "Open to Texas (Conditional)",
-        status: "proposed",
-        evidenceSegmentId: relocationEvidence[0]?.id,
-        sourceMeetingId: sourceMeetingId ?? undefined,
-        speakerName: relocationEvidence[0]?.speakerName ?? undefined,
-        speakerRole: relocationEvidence[0]?.speakerRole ?? undefined,
-        timestampMs: relocationEvidence[0]?.startMs ?? undefined,
-      });
+    } catch {
+      // Safe error containment
     }
+
+    const evidenceItem = evidence.find(
+      (e) => e.id === candidate.evidenceSegmentIds[0],
+    );
+
+    proposedFacts.push({
+      id: factId,
+      fieldKey: candidate.fieldKey,
+      proposedValue: candidate.proposedValue,
+      status: "proposed",
+      evidenceSegmentId: candidate.evidenceSegmentIds[0],
+      sourceMeetingId: candidate.sourceMeetingId,
+      speakerName: evidenceItem?.speakerName ?? candidate.sourceSpeaker ?? undefined,
+      speakerRole: evidenceItem?.speakerRole ?? undefined,
+      timestampMs: evidenceItem?.startMs ?? undefined,
+      rationale: candidate.rationale,
+    });
   }
 
   // Step 8: Audit Log

@@ -11,7 +11,7 @@ interface Row {
   [key: string]: unknown;
 }
 
-function fakeLiveSupabase(tables: Record<string, Row[]>) {
+export function fakeLiveSupabase(tables: Record<string, Row[]>) {
   const auditEvents: Array<{ action: string; metadata: Record<string, unknown> }> = [];
 
   function from(table: string) {
@@ -63,6 +63,7 @@ function fakeLiveSupabase(tables: Record<string, Row[]>) {
           return {
             select: () => ({
               single: async () => ({ data: created, error: null }),
+              maybeSingle: async () => ({ data: created, error: null }),
             }),
           };
         }

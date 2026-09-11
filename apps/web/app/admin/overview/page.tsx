@@ -1,6 +1,7 @@
 import { UpcomingMeetings } from "@/components/upcoming-meetings";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getAzureMaiEnv } from "@/env/server";
 
 export default async function AdminOverviewPage() {
   const supabase = await getSupabaseServerClient();
@@ -53,6 +54,12 @@ export default async function AdminOverviewPage() {
     .maybeSingle();
 
   const isM365Connected = m365Conn?.status === "active";
+
+  // 5. Honest Speech & Storage state (never hardcode 'Healthy')
+  const azureEnv = getAzureMaiEnv();
+  const isAzureConfigured = azureEnv.isConfigured;
+  const isOpenRouterConfigured = Boolean(process.env.OPENROUTER_API_KEY);
+  const isDatabaseReachable = Boolean(meetingsToday !== null);
 
   return (
     <main className="flex flex-1 flex-col gap-6 p-8 max-w-6xl">
@@ -119,15 +126,17 @@ export default async function AdminOverviewPage() {
               <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                 Microsoft 365 Tenant Sync
               </span>
-              <StatusBadge tone={isM365Connected ? "success" : "warning"}>
-                {isM365Connected ? "Connected" : "Pending setup"}
+              <StatusBadge tone={isM365Connected ? "success" : m365Conn?.status ? "warning" : "neutral"}>
+                {isM365Connected ? "Connected" : m365Conn?.status ? `Status: ${m365Conn.status}` : "Not connected"}
               </StatusBadge>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                 Azure Speech (Primary Transcriber)
               </span>
-              <StatusBadge tone="success">Healthy</StatusBadge>
+              <StatusBadge tone={isAzureConfigured ? "neutral" : "warning"}>
+                {isAzureConfigured ? "Configured (Not verified)" : "Not configured / Unknown"}
+              </StatusBadge>
             </div>
           </div>
 
@@ -136,13 +145,17 @@ export default async function AdminOverviewPage() {
               <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                 OpenRouter Whisper Fallback
               </span>
-              <StatusBadge tone="success">Ready (Automated fallback)</StatusBadge>
+              <StatusBadge tone={isOpenRouterConfigured ? "neutral" : "warning"}>
+                {isOpenRouterConfigured ? "Configured (Not verified)" : "Not configured / Unknown"}
+              </StatusBadge>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                 PostgreSQL &amp; Storage Vault
               </span>
-              <StatusBadge tone="success">Healthy</StatusBadge>
+              <StatusBadge tone={isDatabaseReachable ? "success" : "critical"}>
+                {isDatabaseReachable ? "Operational (Database responding)" : "Degraded / Unreachable"}
+              </StatusBadge>
             </div>
           </div>
         </div>

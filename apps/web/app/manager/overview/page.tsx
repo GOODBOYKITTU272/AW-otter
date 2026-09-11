@@ -88,32 +88,70 @@ export default async function ManagerOverviewPage() {
         <SignOutButton />
       </div>
 
-      {/* Team Pulse Summary Card */}
+      {/* Pulse Summary Cards: Executive Rollup for Senior Manager, Operational Pulse for Manager */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-          <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-            {teamMeetingsTodayCount}
-          </p>
-          <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mt-1 uppercase tracking-wider">
-            Team Meetings Today
-          </p>
-        </div>
-        <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-          <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-            {totalPendingTruth}
-          </p>
-          <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mt-1 uppercase tracking-wider">
-            Reviews Needed
-          </p>
-        </div>
-        <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-          <p className="text-2xl font-bold text-red-600 dark:text-red-400">
-            {totalOpenActions}
-          </p>
-          <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mt-1 uppercase tracking-wider">
-            Open Commitments
-          </p>
-        </div>
+        {isSenior ? (
+          <>
+            <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+              <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+                {portfolio.length}
+              </p>
+              <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mt-1 uppercase tracking-wider">
+                Total Portfolio Accounts
+              </p>
+            </div>
+            <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                {ownerIds.length}
+              </p>
+              <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mt-1 uppercase tracking-wider">
+                Reporting AMs
+              </p>
+            </div>
+            <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                {portfolio.length > 0
+                  ? Math.round(
+                      (portfolio.filter((c) => c.attention.level === "normal").length /
+                        portfolio.length) *
+                        100,
+                    )
+                  : 100}
+                %
+              </p>
+              <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mt-1 uppercase tracking-wider">
+                Portfolio Health Index
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+              <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+                {teamMeetingsTodayCount}
+              </p>
+              <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mt-1 uppercase tracking-wider">
+                Team Meetings Today
+              </p>
+            </div>
+            <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+              <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                {totalPendingTruth}
+              </p>
+              <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mt-1 uppercase tracking-wider">
+                Reviews Needed
+              </p>
+            </div>
+            <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+              <p className="text-2xl font-bold text-red-600 dark:text-red-400">
+                {totalOpenActions}
+              </p>
+              <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mt-1 uppercase tracking-wider">
+                Open Commitments
+              </p>
+            </div>
+          </>
+        )}
       </section>
 
       {/* Needs Attention by Reporting AM */}
