@@ -24,6 +24,24 @@ describe("createTranscriptionProvider", () => {
     ).toThrow(/Refusing silent OpenRouter fallback/);
   });
 
+  it("selects sarvam when primaryProvider is sarvam and API key exists", () => {
+    const provider = createTranscriptionProvider({
+      primaryProvider: "sarvam",
+      sarvam: { apiKey: "sarvam-key" },
+      openRouter: { apiKey: "or-key" },
+    });
+    expect(provider.name).toBe("sarvam");
+  });
+
+  it("refuses silent OpenRouter fallthrough when sarvam is selected without credentials", () => {
+    expect(() =>
+      createTranscriptionProvider({
+        primaryProvider: "sarvam",
+        openRouter: { apiKey: "or-key" },
+      }),
+    ).toThrow(/Refusing silent OpenRouter fallback/);
+  });
+
   it("uses openrouter when primaryProvider is openrouter", () => {
     const provider = createTranscriptionProvider({
       primaryProvider: "openrouter",
@@ -37,5 +55,13 @@ describe("createTranscriptionProvider", () => {
       openRouter: { apiKey: "or-key" },
     });
     expect(provider.name).toBe("openrouter");
+  });
+
+  it("rejects unknown primaryProvider names", () => {
+    expect(() =>
+      createTranscriptionProvider({
+        primaryProvider: "unknown-vendor" as "openrouter",
+      }),
+    ).toThrow(/Unknown TRANSCRIPTION_PRIMARY_PROVIDER/);
   });
 });

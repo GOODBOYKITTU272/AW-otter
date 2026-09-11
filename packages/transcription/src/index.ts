@@ -4,18 +4,30 @@ export * from "./errors";
 export * from "./openrouter-transcription";
 export * from "./openrouter-normalization";
 export * from "./azure-mai-transcription";
+export * from "./sarvam-transcription";
 
 import { AzureMaiTranscriptionProvider } from "./azure-mai-transcription";
 import { OpenRouterTranscriptionProvider } from "./openrouter-transcription";
+import { SarvamTranscriptionProvider } from "./sarvam-transcription";
 import type { TranscriptionProvider } from "./types";
 
+export type TranscriptionPrimaryProviderName =
+  | "azure-mai"
+  | "sarvam"
+  | "openrouter";
+
 export interface TranscriptionFactoryConfig {
-  primaryProvider?: "azure-mai" | "openrouter";
+  primaryProvider?: TranscriptionPrimaryProviderName;
   azureMai?: {
     endpoint?: string;
     apiKey?: string;
     region?: string;
     model?: string;
+  };
+  sarvam?: {
+    apiKey?: string;
+    model?: string;
+    mode?: string;
   };
   openRouter?: {
     apiKey?: string;
@@ -26,13 +38,12 @@ export interface TranscriptionFactoryConfig {
 /**
  * Builds the primary TranscriptionProvider for a runtime.
  *
- * When `primaryProvider` is explicitly `"azure-mai"`, Azure credentials are
- * required — we refuse to silently fall through to OpenRouter/Whisper. That
- * prevents production from advertising Azure primary while accidentally
- * serving Whisper because AZURE_MAI_* was missing.
+ * Explicit `primaryProvider` values require their credentials — we refuse
+ * silent fallthrough to another provider. Fallback chaining is owned by
+ * the domain layer (Phase 3), not this factory.
  *
- * The code-level default remains conservative (`openrouter`) at call sites;
- * production must set TRANSCRIPTION_PRIMARY_PROVIDER=azure-mai explicitly.
+ * Call-site defaults may remain conservative (`openrouter`); production
+ * selects `azure-mai` explicitly.
  */
 export function createTranscriptionProvider(
   config: TranscriptionFactoryConfig,
@@ -51,6 +62,37 @@ export function createTranscriptionProvider(
     );
   }
 
+  if (config.primaryProvider === "sarvam") {
+    if (!config.sarvam?.apiKey) {
+      throw new Error(
+        'TRANSCRIPTION_PRIMARY_PROVIDER is "sarvam" but SARVAM_API_KEY is missing. Refusing silent OpenRouter fallback.',
+      );
+    }
+    return new SarvamTranscriptionProvider(
+      config.sarvam.apiKey,
+      config.sarvam.model,
+      config.sarvam.mode,
+    );
+  }
+
+  if (config.primaryProvider === "openrouter") {
+    if (!config.openRouter?.apiKey) {
+      throw new Error(
+        'TRANSCRIPTION_PRIMARY_PROVIDER is "openrouter" but OPENROUTER_API_KEY is missing.',
+      );
+    }
+    return new OpenRouterTranscriptionProvider(
+      config.openRouter.apiKey,
+      config.openRouter.model,
+    );
+  }
+
+  if (config.primaryProvider !== undefined) {
+    throw new Error(
+      `Unknown TRANSCRIPTION_PRIMARY_PROVIDER "${String(config.primaryProvider)}". Expected azure-mai | sarvam | openrouter.`,
+    );
+  }
+
   if (config.openRouter?.apiKey) {
     return new OpenRouterTranscriptionProvider(
       config.openRouter.apiKey,
@@ -64,6 +106,14 @@ export function createTranscriptionProvider(
       config.azureMai.apiKey,
       config.azureMai.region,
       config.azureMai.model,
+    );
+  }
+
+  if (config.sarvam?.apiKey) {
+    return new SarvamTranscriptionProvider(
+      config.sarvam.apiKey,
+      config.sarvam.model,
+      config.sarvam.mode,
     );
   }
 

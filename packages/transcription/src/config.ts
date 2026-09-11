@@ -35,3 +35,11 @@ export const DEFAULT_NORMALIZATION_TIMEOUT_MS = 30_000;
 export const DEFAULT_AZURE_MAI_MODEL = "MAI-Transcribe-2";
 export const DEFAULT_AZURE_MAI_API_VERSION = "2025-10-15";
 export const DEFAULT_AZURE_MAI_TIMEOUT_MS = 180_000;
+
+export const SARVAM_BASE_URL = "https://api.sarvam.ai";
+/** P3A-proven Indic specialist model for production provider path. */
+export const DEFAULT_SARVAM_MODEL = "saaras:v4";
+export const DEFAULT_SARVAM_MODE = "transcribe";
+/** Batch jobs can run minutes for long meetings — generous headroom. */
+export const DEFAULT_SARVAM_TIMEOUT_MS = 600_000;
+export const DEFAULT_SARVAM_POLL_INTERVAL_MS = 5_000;
