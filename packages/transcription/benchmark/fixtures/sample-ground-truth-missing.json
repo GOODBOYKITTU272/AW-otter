@@ -1,0 +1,60 @@
+{
+  "metadata": {
+    "id": "te-en-switch-001",
+    "audioFilename": "te-en-switch-001.ogg",
+    "durationSeconds": 45,
+    "category": "code_switch_en_te",
+    "primaryLanguage": "en-te",
+    "speakers": [
+      { "id": "spk_0", "role": "am", "nameHint": "Account Manager" },
+      { "id": "spk_1", "role": "candidate", "nameHint": "Karthik" }
+    ],
+    "audioCharacteristics": {
+      "snrCategory": "high",
+      "backgroundNoise": false,
+      "crosstalkPresent": false
+    }
+  },
+  "groundTruthSegments": [
+    {
+      "id": "seg_001",
+      "startMs": 0,
+      "endMs": 4200,
+      "speakerRole": "am",
+      "speakerId": "spk_0",
+      "language": "en",
+      "text": "Hey Karthik, did you get a chance to review the position in Dallas?",
+      "isCodeSwitched": false
+    },
+    {
+      "id": "seg_002",
+      "startMs": 4500,
+      "endMs": 11800,
+      "speakerRole": "candidate",
+      "speakerId": "spk_1",
+      "language": "en-te",
+      "text": "Yeah, nenu chusanu kani relocation kastam avtundi, Dallas lo living cost ekkuva.",
+      "isCodeSwitched": true
+    },
+    {
+      "id": "seg_003",
+      "startMs": 12100,
+      "endMs": 18500,
+      "speakerRole": "am",
+      "speakerId": "spk_0",
+      "language": "en",
+      "text": "Understood. Would you consider hybrid if they offer a relocation assistance package?",
+      "isCodeSwitched": false
+    },
+    {
+      "id": "seg_004",
+      "startMs": 19000,
+      "endMs": 25400,
+      "speakerRole": "candidate",
+      "speakerId": "spk_1",
+      "language": "te",
+      "text": "Avunu, compensation hundred and ten k paina unte definite ga consider chestanu.",
+      "isCodeSwitched": true
+    }
+  ]
+}

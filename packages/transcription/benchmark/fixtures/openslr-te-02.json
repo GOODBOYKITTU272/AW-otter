@@ -1,0 +1,30 @@
+{
+  "metadata": {
+    "id": "openslr-te-02",
+    "audioFilename": "m8-audio/benchmark/openslr_te_02.wav",
+    "durationSeconds": 11.70,
+    "category": "conversational_te",
+    "primaryLanguage": "te",
+    "speakers": [
+      { "id": "tef_06928", "role": "candidate", "nameHint": "Telugu Speaker 06928" }
+    ],
+    "audioCharacteristics": {
+      "snrCategory": "high",
+      "backgroundNoise": false,
+      "crosstalkPresent": false
+    }
+  },
+  "groundTruthSegments": [
+    {
+      "id": "openslr-te-02-seg-1",
+      "startMs": 0,
+      "endMs": 11700,
+      "speakerRole": "candidate",
+      "speakerId": "tef_06928",
+      "language": "te",
+      "text": "ఈ సమయంలో దాసరి నారాయణరావు కె.రాఘవేంద్రరావు కోడిరామి రెడ్డి అగ్రస్థానంలో ఉన్న దర్శకులు",
+      "isCodeSwitched": false,
+      "notes": "Human verified from OpenSLR SLR66 official orthographic transcript"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "metadata": {
+    "id": "openslr-te-05",
+    "audioFilename": "m8-audio/benchmark/openslr_te_05.wav",
+    "durationSeconds": 12.81,
+    "category": "conversational_te",
+    "primaryLanguage": "te",
+    "speakers": [
+      { "id": "tem_06917", "role": "candidate", "nameHint": "Telugu Speaker 06917" }
+    ],
+    "audioCharacteristics": {
+      "snrCategory": "high",
+      "backgroundNoise": false,
+      "crosstalkPresent": false
+    }
+  },
+  "groundTruthSegments": [
+    {
+      "id": "openslr-te-05-seg-1",
+      "startMs": 0,
+      "endMs": 12810,
+      "speakerRole": "candidate",
+      "speakerId": "tem_06917",
+      "language": "te",
+      "text": "వందేమాతరం శ్రీనివాస్ ప్రసిద్ది చెందిన తెలుగు సినిమా గాయకుడు గీత రచయిత మరియు సంగీత దర్శకుడు",
+      "isCodeSwitched": false,
+      "notes": "Human verified from OpenSLR SLR66 official orthographic transcript"
+    }
+  ]
+}

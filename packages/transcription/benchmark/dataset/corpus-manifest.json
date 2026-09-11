@@ -1,0 +1,55 @@
+{
+  "version": "1.0.0",
+  "name": "ApplyWizz Signal P3A Ground-Truth Benchmark",
+  "targetSize": 40,
+  "categories": [
+    {
+      "id": "clean_indian_en",
+      "name": "Clean Indian English",
+      "targetSamples": 5,
+      "description": "Standard Indian English with tech & recruitment vocabulary in quiet environments"
+    },
+    {
+      "id": "noisy_indian_en",
+      "name": "Noisy / Fast Indian English",
+      "targetSamples": 5,
+      "description": "Rapid speech, laptop mics, ambient echo, keyboard typing"
+    },
+    {
+      "id": "conversational_hi",
+      "name": "Conversational Hindi",
+      "targetSamples": 5,
+      "description": "Natural spoken Hindi without script forcing"
+    },
+    {
+      "id": "conversational_te",
+      "name": "Conversational Telugu",
+      "targetSamples": 5,
+      "description": "Standard Telugu dialects (Telangana & Andhra)"
+    },
+    {
+      "id": "code_switch_en_hi",
+      "name": "English-Hindi Code Switching",
+      "targetSamples": 6,
+      "description": "Intra-sentential switching between English and Hindi"
+    },
+    {
+      "id": "code_switch_en_te",
+      "name": "English-Telugu Code Switching",
+      "targetSamples": 6,
+      "description": "Intra-sentential switching between English and Telugu"
+    },
+    {
+      "id": "multi_speaker_overlap",
+      "name": "Multi-Speaker Crosstalk",
+      "targetSamples": 4,
+      "description": "Fast turn exchanges, overlapping dialogue between AM and Candidate"
+    },
+    {
+      "id": "background_distractor",
+      "name": "Background Distractors",
+      "targetSamples": 4,
+      "description": "Background music, YouTube audio, long silence intervals"
+    }
+  ]
+}
