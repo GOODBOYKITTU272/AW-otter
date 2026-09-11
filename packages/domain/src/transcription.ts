@@ -32,6 +32,7 @@ import {
   type RecordingStorageClient,
 } from "./meeting-recordings";
 import { evaluateAndPersistMeetingIntegrity } from "./meeting-integrity";
+import { inferAndPersistSpeakerInterpretations } from "./speaker-identity";
 
 export type AppSupabaseClient = SupabaseClient<Database>;
 
@@ -450,6 +451,17 @@ export async function processTranscriptionJob(
       );
     } catch {
       // Best-effort hook; reconciliation sweep will pick it up if missed.
+    }
+
+    // Best-effort automatic speaker identity & role interpretation upon transcript completion (P3D)
+    try {
+      await inferAndPersistSpeakerInterpretations(
+        serviceRoleClient,
+        transcript.meeting_id,
+        transcript.organization_id,
+      );
+    } catch {
+      // Best-effort hook; raw transcript segments remain durable.
     }
   } catch (error) {
     const classified = classifyError(error);

@@ -97,6 +97,22 @@ export default async function MeetingDetailPage({
     .order("occurred_at", { ascending: false });
   if (eventsError) throw eventsError;
 
+  const { data: speakerInterpretations } = await supabase
+    .from("meeting_speaker_interpretations")
+    .select("raw_speaker_tag, business_role, interpreted_name, confirmed_by_human")
+    .eq("meeting_id", id);
+
+  const speakerMap = new Map(
+    (speakerInterpretations ?? []).map((si) => [
+      si.raw_speaker_tag,
+      {
+        name: si.interpreted_name,
+        role: si.business_role,
+        confirmed: si.confirmed_by_human,
+      },
+    ]),
+  );
+
   const recapState = await getMeetingRecapData(supabase, id);
 
   const intelligenceStatus =
@@ -195,6 +211,7 @@ export default async function MeetingDetailPage({
                 truthDeltas={truthDeltas}
                 segmentById={segmentById}
                 previewSegments={(segmentRows ?? []).slice(0, 2)}
+                speakerMap={speakerMap}
                 meeting={meeting}
                 botJob={botJob}
                 isAdmin={isAdmin}
@@ -208,6 +225,7 @@ export default async function MeetingDetailPage({
               <TranscriptTab
                 segments={segmentRows ?? []}
                 transcript={transcript}
+                speakerMap={speakerMap}
               />
             ),
           },
@@ -246,6 +264,7 @@ function OverviewTab({
   truthDeltas,
   segmentById,
   previewSegments,
+  speakerMap,
   meeting,
   botJob,
   isAdmin,
@@ -257,6 +276,7 @@ function OverviewTab({
   truthDeltas: MeetingRecapData["result"]["customerTruthDeltas"];
   segmentById: Map<string, TranscriptSegmentData>;
   previewSegments: { id: string; speaker_label: string; original_text: string; end_ms: number }[];
+  speakerMap?: Map<string, { name: string | null; role: string; confirmed: boolean }>;
   meeting: { organizer_name: string | null; organizer_email: string | null; scheduled_start: string; scheduled_end: string; provider: string };
   botJob: { status: string; last_error: string | null; provider: string; provider_bot_id: string | null; provider_metadata: unknown } | null;
   isAdmin: boolean;
@@ -367,7 +387,13 @@ function OverviewTab({
           {previewSegments.length > 0 ? (
             <>
               {previewSegments.map((s) => (
-                <TranscriptLine key={s.id} speaker={s.speaker_label} text={s.original_text} endMs={s.end_ms} />
+                <TranscriptLine
+                  key={s.id}
+                  speaker={s.speaker_label}
+                  interpretation={speakerMap?.get(s.speaker_label)}
+                  text={s.original_text}
+                  endMs={s.end_ms}
+                />
               ))}
               <div style={{ marginTop: 8, fontSize: 12, color: "var(--accent)" }}>View full transcript in the Transcript tab &rarr;</div>
             </>
@@ -421,9 +447,11 @@ function OverviewTab({
 function TranscriptTab({
   segments,
   transcript,
+  speakerMap,
 }: {
   segments: { id: string; start_ms: number; end_ms: number; speaker_label: string; original_text: string; canonical_english_text: string | null; needs_review: boolean }[];
   transcript: { processing_status: string; detected_language: string | null } | null;
+  speakerMap?: Map<string, { name: string | null; role: string; confirmed: boolean }>;
 }) {
   if (!transcript) {
     return <div className={styles.emptyState}>No transcript for this meeting yet.</div>;
@@ -451,6 +479,7 @@ function TranscriptTab({
           <TranscriptLine
             key={first.id}
             speaker={group.speaker}
+            interpretation={speakerMap?.get(group.speaker)}
             text={group.segments.map((s) => s.original_text).join(" ")}
             endMs={last.end_ms}
           />
@@ -612,13 +641,39 @@ function TimelineDot({ step }: { step: TimelineStep }) {
   );
 }
 
-function TranscriptLine({ speaker, text, endMs }: { speaker: string; text: string; endMs: number }) {
-  const displayName = speaker === "speaker_unknown" ? "Unknown speaker" : speaker;
+function TranscriptLine({
+  speaker,
+  interpretation,
+  text,
+  endMs,
+}: {
+  speaker: string;
+  interpretation?: { name: string | null; role: string; confirmed: boolean };
+  text: string;
+  endMs: number;
+}) {
+  const rawTag = speaker === "speaker_unknown" ? "Unknown speaker" : speaker;
+  const roleDisplay =
+    interpretation?.role && interpretation.role !== "UNKNOWN"
+      ? ` (${interpretation.role})`
+      : "";
+  const displayName = interpretation?.name
+    ? `${interpretation.name}${roleDisplay}`
+    : rawTag;
+
   return (
     <div className={styles.transcriptLine}>
       <div className={styles.avatar}>{displayName.charAt(0).toUpperCase()}</div>
       <div>
-        <span className={styles.who}>{displayName}<span className={styles.when}>{formatTimestamp(endMs)}</span></span>
+        <span className={styles.who}>
+          {displayName}
+          {interpretation?.name && (
+            <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: 6, fontWeight: "normal" }}>
+              [{rawTag}]
+            </span>
+          )}
+          <span className={styles.when}>{formatTimestamp(endMs)}</span>
+        </span>
         <div className={styles.transcriptText}>{text}</div>
       </div>
     </div>
