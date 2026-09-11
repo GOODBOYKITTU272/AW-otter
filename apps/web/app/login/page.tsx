@@ -5,20 +5,11 @@ import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { Eye, EyeOff } from "lucide-react";
 
-const ROLE_LABELS = {
-  admin: "Admin",
-  manager: "Manager",
-  am: "AM (Employee)",
-} as const;
-
-type RoleType = keyof typeof ROLE_LABELS;
-
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<RoleType>("am");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -92,31 +83,6 @@ export default function LoginPage() {
 
         <div className="rounded-2xl border border-white/10 bg-[#1E1E1E]/80 backdrop-blur-sm p-8 shadow-2xl">
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-white">
-                Login type
-              </label>
-              <div className="grid grid-cols-3 gap-2 p-1 rounded-lg bg-[#0B1D33]/50">
-                {(["am", "manager", "admin"] as const).map((role) => (
-                  <button
-                    key={role}
-                    type="button"
-                    onClick={() => setSelectedRole(role)}
-                    className={`rounded-md px-3 py-2 text-sm font-medium transition-all ${
-                      selectedRole === role
-                        ? "bg-[#2C76FF] text-white shadow-lg shadow-[#2C76FF]/20"
-                        : "text-[#F5F5F5]/70 hover:text-white hover:bg-white/5"
-                    }`}
-                  >
-                    {ROLE_LABELS[role]}
-                  </button>
-                ))}
-              </div>
-              <p className="text-xs text-[#F5F5F5]/50 mt-1">
-                Select your role for quick navigation after sign-in
-              </p>
-            </div>
-
             <div className="flex flex-col gap-2">
               <label className="text-sm font-medium text-white">
                 Work email
