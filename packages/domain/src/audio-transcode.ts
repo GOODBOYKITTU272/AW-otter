@@ -5,6 +5,15 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
+/**
+ * Prefer absolute path to ffmpeg to avoid ENOENT errors when PATH is not
+ * properly configured. Falls back to "ffmpeg" if the standard path doesn't exist.
+ * The Dockerfile (workers/transcription-worker/Dockerfile) ensures ffmpeg is
+ * installed via apt-get, which places it at /usr/bin/ffmpeg on Debian/Ubuntu.
+ */
+const FFMPEG_PATH = "/usr/bin/ffmpeg";
+const FFPROBE_PATH = "/usr/bin/ffprobe";
+
 export class TranscodeError extends Error {}
 
 export class TranscodeTimeoutError extends TranscodeError {
@@ -76,7 +85,7 @@ export async function transcodeToOpusOgg(
 ): Promise<void> {
   try {
     await execFileAsync(
-      "ffmpeg",
+      FFMPEG_PATH,
       [
         "-y",
         "-i",
@@ -126,7 +135,7 @@ export async function probeAudioFile(
 ): Promise<AudioProbeResult> {
   try {
     const { stdout } = await execFileAsync(
-      "ffprobe",
+      FFPROBE_PATH,
       [
         "-v",
         "error",
@@ -166,7 +175,7 @@ export async function transcodeToPcmWav(
 ): Promise<void> {
   try {
     await execFileAsync(
-      "ffmpeg",
+      FFMPEG_PATH,
       [
         "-y",
         "-i",

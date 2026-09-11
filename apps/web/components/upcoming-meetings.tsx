@@ -46,13 +46,13 @@ const BOT_STATUS_TONE: Record<string, BadgeTone> = {
 // mockup shows exactly this line, no Invite Bot button, no provider
 // settings, ever.
 const BOT_STATUS_LABEL: Record<string, string> = {
-  pending: "Preparing ApplyWizz Meeting Assistant",
-  scheduled: "ApplyWizz Meeting Assistant scheduled",
-  joining: "ApplyWizz Meeting Assistant joining",
-  joined: "ApplyWizz Meeting Assistant in the meeting",
-  completed: "ApplyWizz Meeting Assistant completed",
-  cancelled: "ApplyWizz Meeting Assistant not attending",
-  failed: "ApplyWizz Meeting Assistant could not join",
+  pending: "Preparing AW Echo",
+  scheduled: "AW Echo scheduled",
+  joining: "AW Echo joining",
+  joined: "AW Echo in the meeting",
+  completed: "AW Echo completed",
+  cancelled: "AW Echo not attending",
+  failed: "AW Echo could not join",
 };
 
 /**

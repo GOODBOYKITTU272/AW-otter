@@ -254,7 +254,7 @@ describe("syncMeetingBotIntent", () => {
     const created = await provider.createBot({
       meetingUrl: "https://teams.example/x",
       idempotencyKey: "m1:1",
-      botName: "ApplyWizz Meeting Assistant",
+      botName: "AW Echo · John",
     });
     const cancelSpy = vi.spyOn(provider, "cancelBot");
     const supabase = createFakeSupabase({

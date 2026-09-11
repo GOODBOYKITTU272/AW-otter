@@ -7,12 +7,12 @@ describe("FakeMeetingBotProvider", () => {
     const first = await provider.createBot({
       meetingUrl: "https://teams.example/x",
       idempotencyKey: "k1",
-      botName: "ApplyWizz Meeting Assistant",
+      botName: "AW Echo · Test",
     });
     const second = await provider.createBot({
       meetingUrl: "https://teams.example/x",
       idempotencyKey: "k1",
-      botName: "ApplyWizz Meeting Assistant",
+      botName: "AW Echo · Test",
     });
     expect(second.providerBotId).toBe(first.providerBotId);
   });
@@ -22,12 +22,12 @@ describe("FakeMeetingBotProvider", () => {
     const first = await provider.createBot({
       meetingUrl: "https://teams.example/x",
       idempotencyKey: "k1",
-      botName: "ApplyWizz Meeting Assistant",
+      botName: "AW Echo · Test",
     });
     const second = await provider.createBot({
       meetingUrl: "https://teams.example/y",
       idempotencyKey: "k2",
-      botName: "ApplyWizz Meeting Assistant",
+      botName: "AW Echo · Test",
     });
     expect(second.providerBotId).not.toBe(first.providerBotId);
   });
@@ -37,7 +37,7 @@ describe("FakeMeetingBotProvider", () => {
     const { providerBotId } = await provider.createBot({
       meetingUrl: "https://teams.example/x",
       idempotencyKey: "k1",
-      botName: "ApplyWizz Meeting Assistant",
+      botName: "AW Echo · Test",
     });
     provider.advanceTo(providerBotId, "joined", {
       joinedAt: "2026-01-01T00:00:00Z",
@@ -55,7 +55,7 @@ describe("FakeMeetingBotProvider", () => {
     const { providerBotId } = await provider.createBot({
       meetingUrl: "https://teams.example/x",
       idempotencyKey: "k1",
-      botName: "ApplyWizz Meeting Assistant",
+      botName: "AW Echo · Test",
     });
     await provider.cancelBot({ providerBotId });
     const status = await provider.getBotStatus(providerBotId);

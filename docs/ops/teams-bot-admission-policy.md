@@ -8,7 +8,7 @@ Every real Vexa bot join tonight (multiple controlled Teams meetings) required a
 
 ## The two real scenarios
 
-**Meetings hosted by ApplyWizz's own Microsoft tenant.** ApplyWizz's tenant admin can configure Teams meeting policy (lobby bypass settings, allowed/blocked apps, guest/external access rules) to admit the ApplyWizz Meeting Assistant more smoothly **for meetings ApplyWizz itself hosts** — wherever Microsoft's own policy surface actually permits that for an anonymous/guest-style participant. This is a tenant-admin configuration action outside this codebase, not something to build.
+**Meetings hosted by ApplyWizz's own Microsoft tenant.** ApplyWizz's tenant admin can configure Teams meeting policy (lobby bypass settings, allowed/blocked apps, guest/external access rules) to admit the AW Echo bot more smoothly **for meetings ApplyWizz itself hosts** — wherever Microsoft's own policy surface actually permits that for an anonymous/guest-style participant. This is a tenant-admin configuration action outside this codebase, not something to build.
 
 **Meetings hosted by a client or university's own tenant.** ApplyWizz has no administrative control over a client's Teams/Microsoft 365 tenant. For any meeting the client organizes (their tenant, their lobby policy), assume the bot will land in the lobby and require the organizer (the client, or whichever ApplyWizz AM is a co-organizer) to manually admit it — exactly like every real test tonight. **Do not assume ApplyWizz's own tenant policy has any effect on a meeting hosted elsewhere** — Teams lobby/admission policy is enforced by whichever tenant owns the meeting, not the tenant the bot's link happens to point through.
 

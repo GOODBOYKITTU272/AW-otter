@@ -35,7 +35,7 @@ describe("VexaMeetingBotProvider", () => {
     await provider.createBot({
       meetingUrl: teamsUrl,
       idempotencyKey: "idem-1",
-      botName: "ApplyWizz Meeting Assistant",
+      botName: "AW Echo · Test",
     });
 
     const [url, init] = fetchImpl.mock.calls[0] ?? [];
@@ -58,7 +58,7 @@ describe("VexaMeetingBotProvider", () => {
     const result = await provider.createBot({
       meetingUrl: teamsUrl,
       idempotencyKey: "idem-1",
-      botName: "ApplyWizz Meeting Assistant",
+      botName: "AW Echo · Test",
     });
 
     const [url, init] = fetchImpl.mock.calls[0] ?? [];
@@ -70,7 +70,7 @@ describe("VexaMeetingBotProvider", () => {
     expect(JSON.parse(String(init?.body))).toEqual({
       platform: "teams",
       meeting_url: teamsUrl,
-      bot_name: "ApplyWizz Meeting Assistant",
+      bot_name: "AW Echo · Test",
       transcribe_enabled: false,
     });
     expect(result).toEqual({
@@ -92,7 +92,7 @@ describe("VexaMeetingBotProvider", () => {
       provider.createBot({
         meetingUrl: teamsUrl,
         idempotencyKey: "idem-1",
-        botName: "ApplyWizz Meeting Assistant",
+        botName: "AW Echo · Test",
       }),
     ).rejects.toThrow(/native_meeting_id/);
   });
@@ -109,7 +109,7 @@ describe("VexaMeetingBotProvider", () => {
       provider.createBot({
         meetingUrl: teamsUrl,
         idempotencyKey: "idem-1",
-        botName: "ApplyWizz Meeting Assistant",
+        botName: "AW Echo · Test",
       }),
     ).rejects.toBeInstanceOf(VexaAuthError);
   });
@@ -125,7 +125,7 @@ describe("VexaMeetingBotProvider", () => {
     const call = provider.createBot({
       meetingUrl: teamsUrl,
       idempotencyKey: "idem-1",
-      botName: "ApplyWizz Meeting Assistant",
+      botName: "AW Echo · Test",
     });
     await expect(call).rejects.toBeInstanceOf(VexaRateLimitError);
     await expect(call).rejects.toMatchObject({ retryAfterSeconds: 45 });
@@ -169,7 +169,7 @@ describe("VexaMeetingBotProvider", () => {
     const result = await provider.createBot({
       meetingUrl: teamsUrl,
       idempotencyKey: "idem-req",
-      botName: "ApplyWizz Meeting Assistant",
+      botName: "AW Echo · Test",
     });
     expect(result.status).toBe("scheduled");
     expect(result.providerBotId).toBe(providerBotId);

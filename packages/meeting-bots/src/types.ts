@@ -21,7 +21,7 @@ export interface CreateBotInput {
   meetingUrl: string;
   /** Client-supplied dedup token: a retried createBot call for the same key must never create a second bot. */
   idempotencyKey: string;
-  /** Display name the bot shows as inside the meeting — "ApplyWizz Meeting Assistant". */
+  /** Display name the bot shows as inside the meeting — "AW Echo · {FirstName}" or "AW Echo" if no owner. */
   botName: string;
 }
 
