@@ -47,6 +47,7 @@ import { MEETING_RECORDINGS_BUCKET } from "@applywizz/domain/meeting-recordings"
 import {
   OpenRouterNormalizationProvider,
   OpenRouterTranscriptionProvider,
+  createTranscriptionProvider,
 } from "@applywizz/transcription";
 
 const TICK_INTERVAL_MS = Number(
@@ -67,12 +68,31 @@ const supabase = createClient(
 );
 
 const openRouterApiKey = requiredEnv("OPENROUTER_API_KEY");
+const primaryProvider = process.env.TRANSCRIPTION_PRIMARY_PROVIDER || "openrouter";
+const azureEndpoint = process.env.AZURE_MAI_ENDPOINT;
+const azureKey = process.env.AZURE_MAI_KEY;
+const azureRegion = process.env.AZURE_MAI_REGION;
+
+const transcriptionProvider = createTranscriptionProvider({
+  primaryProvider,
+  azureMai: (azureEndpoint && azureKey)
+    ? {
+        endpoint: azureEndpoint,
+        apiKey: azureKey,
+        region: azureRegion,
+      }
+    : undefined,
+  openRouter: {
+    apiKey: openRouterApiKey,
+  },
+});
+
 const deps = {
   vexaEnv: {
     baseUrl: requiredEnv("VEXA_BASE_URL"),
     apiKey: requiredEnv("VEXA_API_KEY"),
   },
-  transcriptionProvider: new OpenRouterTranscriptionProvider(openRouterApiKey),
+  transcriptionProvider,
   normalizationProvider: new OpenRouterNormalizationProvider(openRouterApiKey),
   storage: supabase.storage.from(MEETING_RECORDINGS_BUCKET),
 };

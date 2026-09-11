@@ -12,6 +12,9 @@ import {
   assertTranscodableInputSize,
   probeAudioFile,
   transcodeToOpusOgg,
+  transcodeToPcmWav,
+  computeBytesSha256,
+  computeFileSha256,
 } from "./audio-transcode";
 
 const execFileAsync = promisify(execFile);
@@ -111,9 +114,33 @@ describe("probeAudioFile", () => {
     const output = join(dir, "output.ogg");
     await generateSilentWebm(input, 2);
     await transcodeToOpusOgg(input, output);
-
     const probe = await probeAudioFile(output);
     expect(probe.hasAudioStream).toBe(true);
     expect(probe.durationSeconds).not.toBeNull();
+  });
+});
+
+describe("transcodeToPcmWav", () => {
+  it("transcodes input audio to 16kHz mono PCM WAV with valid duration and stream", async () => {
+    const input = join(dir, "input.webm");
+    const output = join(dir, "output.wav");
+    await generateSilentWebm(input, 2);
+    await transcodeToPcmWav(input, output);
+
+    const probe = await probeAudioFile(output);
+    expect(probe.hasAudioStream).toBe(true);
+    expect(probe.durationSeconds).toBeGreaterThan(1.5);
+  });
+});
+
+describe("computeBytesSha256 and computeFileSha256", () => {
+  it("calculates expected deterministic SHA-256 hex string", async () => {
+    const filePath = join(dir, "sample.txt");
+    await writeFile(filePath, "applywizz-signal-test");
+    const hashFromFile = await computeFileSha256(filePath);
+    const hashFromBytes = computeBytesSha256(Buffer.from("applywizz-signal-test"));
+
+    expect(hashFromFile).toBe(hashFromBytes);
+    expect(hashFromFile).toHaveLength(64);
   });
 });

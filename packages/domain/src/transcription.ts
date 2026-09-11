@@ -14,8 +14,11 @@ import type {
 import {
   TranscodeError,
   assertTranscodableInputSize,
+  computeBytesSha256,
+  computeFileSha256,
   probeAudioFile,
   transcodeToOpusOgg,
+  transcodeToPcmWav,
 } from "./audio-transcode";
 import { logLifecycleEvent } from "./meeting-bots";
 import {
@@ -233,10 +236,16 @@ export async function processTranscriptionJob(
     // verified for real against the actual Vexa recording during the
     // readiness investigation.
     const rawPath = join(workDir, "raw.input");
-    const cleanPath = join(workDir, "clean.ogg");
+    const isAzure = deps.transcriptionProvider.name === "azure-mai";
+    const cleanPath = join(workDir, isAzure ? "derived.wav" : "clean.ogg");
     await writeFile(rawPath, new Uint8Array(rawBytes));
 
-    await transcodeToOpusOgg(rawPath, cleanPath);
+    if (isAzure) {
+      await transcodeToPcmWav(rawPath, cleanPath);
+    } else {
+      await transcodeToOpusOgg(rawPath, cleanPath);
+    }
+
     const probe = await probeAudioFile(cleanPath);
     if (
       !probe.hasAudioStream ||
@@ -250,6 +259,10 @@ export async function processTranscriptionJob(
         }
       })();
     }
+
+    const originalSha256 = computeBytesSha256(new Uint8Array(rawBytes));
+    const derivedSha256 = await computeFileSha256(cleanPath);
+    const preprocessingVersion = isAzure ? "v1-pcm16k-wav" : "v1-opus16k-ogg";
 
     const result = await deps.transcriptionProvider.transcribe(cleanPath);
     const detectedLanguage = result.detectedLanguage;
@@ -286,13 +299,22 @@ export async function processTranscriptionJob(
         original_text: segment.text,
         original_language: detectedLanguage,
         canonical_english_text: canonicalEnglishText,
-        speaker_label: "speaker_unknown",
+        speaker_label: segment.speakerTag ?? "speaker_unknown",
         speaker_source: "unavailable",
         transcription_confidence: segment.confidence,
         translation_confidence: translationConfidence,
         needs_review: needsReview,
       });
     }
+
+    // Explicitly record provider name on meeting_transcripts row
+    await serviceRoleClient
+      .from("meeting_transcripts")
+      .update({
+        provider: deps.transcriptionProvider.name,
+      })
+      .eq("id", transcript.id)
+      .eq("organization_id", transcript.organization_id);
 
     // Codex post-implementation review (2 BLOCKING findings, fixed): this
     // used to be three separate delete/insert/update PostgREST calls —
@@ -327,8 +349,17 @@ export async function processTranscriptionJob(
           storagePath: ownedRecordingRef.storagePath,
           platform: identity.platform,
           nativeMeetingId: identity.nativeMeetingId,
+          originalSha256,
+          derivedSha256,
+          preprocessingVersion,
         } as Json,
-        p_provider_metadata: result.providerMetadata as Json,
+        p_provider_metadata: {
+          ...result.providerMetadata,
+          provider: deps.transcriptionProvider.name,
+          originalSha256,
+          derivedSha256,
+          preprocessingVersion,
+        } as Json,
         p_usage_seconds: result.usage.seconds,
         p_usage_cost: result.usage.cost,
         p_segments: segmentRows as unknown as Json,

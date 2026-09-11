@@ -10,11 +10,13 @@ import {
 } from "@applywizz/domain/meeting-recordings";
 import {
   OpenRouterNormalizationProvider,
-  OpenRouterTranscriptionProvider,
+  createTranscriptionProvider,
 } from "@applywizz/transcription";
 import {
+  getAzureMaiEnv,
   getOpenRouterEnv,
   getSupabaseServiceRoleKey,
+  getTranscriptionConfigEnv,
   getVexaEnv,
   toVexaEnv,
 } from "@/env/server";
@@ -86,11 +88,26 @@ export async function POST(request: NextRequest) {
     },
   };
 
+  const azureMaiEnv = getAzureMaiEnv();
+  const transcriptionConfig = getTranscriptionConfigEnv();
+
+  const transcriptionProvider = createTranscriptionProvider({
+    primaryProvider: transcriptionConfig.TRANSCRIPTION_PRIMARY_PROVIDER,
+    azureMai: azureMaiEnv.isConfigured
+      ? {
+          endpoint: azureMaiEnv.AZURE_MAI_ENDPOINT,
+          apiKey: azureMaiEnv.AZURE_MAI_KEY,
+          region: azureMaiEnv.AZURE_MAI_REGION,
+        }
+      : undefined,
+    openRouter: {
+      apiKey: openRouterEnv.OPENROUTER_API_KEY,
+    },
+  });
+
   const deps = {
     vexaEnv,
-    transcriptionProvider: new OpenRouterTranscriptionProvider(
-      openRouterEnv.OPENROUTER_API_KEY,
-    ),
+    transcriptionProvider,
     normalizationProvider: new OpenRouterNormalizationProvider(
       openRouterEnv.OPENROUTER_API_KEY,
     ),

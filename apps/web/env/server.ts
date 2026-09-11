@@ -195,3 +195,24 @@ export function getCronSecret(): string {
 export function getLogLevel(): string {
   return process.env.LOG_LEVEL ?? "info";
 }
+
+export function getAzureMaiEnv() {
+  const endpoint = process.env.AZURE_MAI_ENDPOINT;
+  const key = process.env.AZURE_MAI_KEY;
+  const region = process.env.AZURE_MAI_REGION;
+  return {
+    AZURE_MAI_ENDPOINT: endpoint,
+    AZURE_MAI_KEY: key,
+    AZURE_MAI_REGION: region,
+    isConfigured: Boolean(endpoint && key),
+  } as const;
+}
+
+export function getTranscriptionConfigEnv() {
+  const primaryProvider =
+    (process.env.TRANSCRIPTION_PRIMARY_PROVIDER as "azure-mai" | "openrouter" | undefined) ??
+    "openrouter";
+  return {
+    TRANSCRIPTION_PRIMARY_PROVIDER: primaryProvider,
+  } as const;
+}

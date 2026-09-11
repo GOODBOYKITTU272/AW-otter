@@ -800,3 +800,94 @@ describe("processTranscriptionQueue", () => {
     expect(result.claimed).toBe(0);
   });
 });
+
+describe("processTranscriptionJob with AzureMai provider", () => {
+  function fakeAzureMaiProvider(): TranscriptionProvider {
+    return {
+      name: "azure-mai",
+      transcribe: vi.fn(async () => ({
+        text: "Speaker zero speaks. Speaker one replies.",
+        detectedLanguage: "en",
+        durationSeconds: 2,
+        segments: [
+          {
+            index: 0,
+            startMs: 0,
+            endMs: 900,
+            text: "Speaker zero speaks.",
+            confidence: 0.95,
+            speakerTag: "Speaker 0",
+            speakerNumericId: 0,
+            words: [{ word: "Speaker", startMs: 0, endMs: 400 }],
+          },
+          {
+            index: 1,
+            startMs: 1000,
+            endMs: 1900,
+            text: "Speaker one replies.",
+            confidence: 0.92,
+            speakerTag: "Speaker 1",
+            speakerNumericId: 1,
+            words: [{ word: "Speaker", startMs: 1000, endMs: 1400 }],
+          },
+        ],
+        words: [
+          { word: "Speaker", startMs: 0, endMs: 400 },
+          { word: "Speaker", startMs: 1000, endMs: 1400 },
+        ],
+        model: "MAI-Transcribe-2",
+        usage: { seconds: 2, cost: null },
+        providerMetadata: {
+          task: "transcribe",
+          model: "MAI-Transcribe-2",
+          speakerCount: 2,
+          speakers: [0, 1],
+        },
+      })),
+    };
+  }
+
+  it("preserves Speaker 0 and Speaker 1 labels and records PCM WAV preprocessing provenance", async () => {
+    const tables = makeTables();
+    tables.meeting_bot_jobs.rows.push({ ...baseJob });
+    tables.meeting_transcripts.rows.push({
+      id: "t-azure",
+      organization_id: "org-1",
+      meeting_id: "meeting-1",
+      processing_status: "pending",
+      retry_count: 0,
+      provider: "openrouter",
+    });
+    const supabase = createFakeSupabase(tables);
+
+    const azureProvider = fakeAzureMaiProvider();
+    await processTranscriptionJob(
+      supabase,
+      tables.meeting_transcripts.rows[0] as Parameters<
+        typeof processTranscriptionJob
+      >[1],
+      {
+        vexaEnv: { baseUrl: "https://vexa.test", apiKey: "k" },
+        transcriptionProvider: azureProvider,
+        normalizationProvider: fakeNormalizationProvider(),
+        fetchImpl: fakeVexaFetch(),
+        storage: fakeStorage(),
+      },
+    );
+
+    const transcript = tables.meeting_transcripts.rows[0];
+    expect(transcript?.processing_status).toBe("completed");
+    expect(transcript?.provider).toBe("azure-mai");
+    expect(transcript?.model).toBe("MAI-Transcribe-2");
+
+    expect(tables.transcript_segments.rows).toHaveLength(2);
+    expect(tables.transcript_segments.rows[0]?.speaker_label).toBe("Speaker 0");
+    expect(tables.transcript_segments.rows[1]?.speaker_label).toBe("Speaker 1");
+
+    const meta = transcript?.provider_metadata as Record<string, unknown>;
+    expect(meta.provider).toBe("azure-mai");
+    expect(meta.preprocessingVersion).toBe("v1-pcm16k-wav");
+    expect(typeof meta.originalSha256).toBe("string");
+    expect(typeof meta.derivedSha256).toBe("string");
+  });
+});

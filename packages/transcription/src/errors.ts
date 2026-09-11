@@ -23,3 +23,23 @@ export class TranscriptionTimeoutError extends Error {
     this.name = "TranscriptionTimeoutError";
   }
 }
+
+export class TranscriptionAuthError extends TranscriptionApiError {
+  constructor(
+    status: number = 401,
+    message: string = "Transcription provider authentication failed.",
+  ) {
+    super(status, message);
+    this.name = "TranscriptionAuthError";
+  }
+}
+
+export class TranscriptionRateLimitError extends TranscriptionApiError {
+  constructor(
+    status: number = 429,
+    message: string = "Transcription provider rate limit exceeded.",
+  ) {
+    super(status, message);
+    this.name = "TranscriptionRateLimitError";
+  }
+}

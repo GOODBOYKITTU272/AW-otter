@@ -1,4 +1,6 @@
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -150,4 +152,54 @@ export async function probeAudioFile(
   } catch {
     return { durationSeconds: null, hasAudioStream: false };
   }
+}
+
+/**
+ * Transcodes raw audio into a 16kHz mono 16-bit PCM WAV file.
+ * Used as the deterministic derived-media format for Azure MAI and
+ * other providers requiring uncompressed PCM WAV.
+ */
+export async function transcodeToPcmWav(
+  inputPath: string,
+  outputPath: string,
+  timeoutMs: number = DEFAULT_TRANSCODE_TIMEOUT_MS,
+): Promise<void> {
+  try {
+    await execFileAsync(
+      "ffmpeg",
+      [
+        "-y",
+        "-i",
+        inputPath,
+        "-ar",
+        "16000",
+        "-ac",
+        "1",
+        "-c:a",
+        "pcm_s16le",
+        outputPath,
+      ],
+      { timeout: timeoutMs, maxBuffer: 10 * 1024 * 1024 },
+    );
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException & {
+      killed?: boolean;
+      signal?: string;
+    };
+    if (err.killed || err.signal === "SIGTERM") {
+      throw new TranscodeTimeoutError();
+    }
+    throw new TranscodeFailedError(
+      `ffmpeg WAV transcode failed: ${err.message ?? "unknown error"}`,
+    );
+  }
+}
+
+export function computeBytesSha256(bytes: Uint8Array | Buffer): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+export async function computeFileSha256(filePath: string): Promise<string> {
+  const bytes = await readFile(filePath);
+  return computeBytesSha256(bytes);
 }
