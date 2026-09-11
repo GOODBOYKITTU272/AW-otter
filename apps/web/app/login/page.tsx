@@ -5,19 +5,13 @@ import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { Eye, EyeOff } from "lucide-react";
 
-const ROLE_ROUTES = {
-  admin: "/admin/overview",
-  manager: "/manager/overview",
-  am: "/home",
-} as const;
-
 const ROLE_LABELS = {
   admin: "Admin",
   manager: "Manager",
   am: "AM (Employee)",
 } as const;
 
-type RoleType = keyof typeof ROLE_ROUTES;
+type RoleType = keyof typeof ROLE_LABELS;
 
 export default function LoginPage() {
   const router = useRouter();
@@ -45,21 +39,34 @@ export default function LoginPage() {
       return;
     }
 
-    const { data: membershipData } = await supabase
+    const { data: membership } = await supabase
       .from("organization_memberships")
-      .select("role_key")
+      .select("role_id")
       .eq("user_id", data.user.id)
+      .eq("status", "active")
       .maybeSingle();
 
-    const actualRole = membershipData?.role_key;
-    let targetRoute = "/";
+    if (!membership) {
+      router.push("/access-pending");
+      router.refresh();
+      return;
+    }
 
-    if (actualRole === "admin") {
-      targetRoute = ROLE_ROUTES.admin;
-    } else if (actualRole === "manager" || actualRole === "senior_manager") {
-      targetRoute = ROLE_ROUTES.manager;
-    } else if (actualRole === "account_manager") {
-      targetRoute = ROLE_ROUTES.am;
+    const { data: role } = await supabase
+      .from("roles")
+      .select("key")
+      .eq("id", membership.role_id)
+      .maybeSingle();
+
+    const roleKey = role?.key;
+
+    let targetRoute = "/";
+    if (roleKey === "admin") {
+      targetRoute = "/admin/overview";
+    } else if (roleKey === "senior_manager" || roleKey === "manager") {
+      targetRoute = "/manager/overview";
+    } else if (roleKey === "account_manager") {
+      targetRoute = "/home";
     }
 
     router.push(targetRoute);
