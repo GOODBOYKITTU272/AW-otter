@@ -210,7 +210,7 @@ export function formatUntrustedMeetingEvidence(
  */
 export function evaluateEvidenceGrounding(
   claim: string,
-  citedEvidence: EchoEvidenceItem[],
+  citedEvidence: Array<EchoEvidenceItem | import("@applywizz/ai").EvidenceItem>,
 ): {
   groundingStatus: GroundingStatus;
   integrityWarning: string | null;
@@ -226,11 +226,11 @@ export function evaluateEvidenceGrounding(
 
   // Check 1: P3E Integrity Flags
   const hasIntegrityIssues = citedEvidence.some(
-    (e) => e.needsReview || e.integrityFlags.length > 0,
+    (e) => Boolean(e.needsReview) || Boolean(e.integrityFlags && e.integrityFlags.length > 0),
   );
   if (hasIntegrityIssues) {
     const flags = Array.from(
-      new Set(citedEvidence.flatMap((e) => e.integrityFlags)),
+      new Set(citedEvidence.flatMap((e) => e.integrityFlags ?? [])),
     );
     const flagDesc = flags.length > 0 ? flags.join(", ") : "needs review";
     return {

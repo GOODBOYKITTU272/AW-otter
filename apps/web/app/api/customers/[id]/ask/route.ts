@@ -46,7 +46,7 @@ export async function POST(
     // path below was dead — nothing previously threw it, so an
     // unauthenticated caller fell through to the RLS-hidden-customer 404
     // instead of the intended 401.
-    await requireAuthenticatedUser(supabase);
+    const user = await requireAuthenticatedUser(supabase);
     const { data: customer, error: customerError } = await supabase
       .from("customers")
       .select("id")
@@ -67,6 +67,7 @@ export async function POST(
       provider,
       id,
       question,
+      user.id,
     );
     return NextResponse.json({ result }, { status: 200 });
   } catch (error) {

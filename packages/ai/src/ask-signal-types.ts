@@ -20,6 +20,13 @@ export interface EvidenceItem {
   meetingId: string | null;
   label: string;
   text: string;
+  speakerRole?: "AM" | "CANDIDATE" | "OTHER" | "UNKNOWN";
+  speakerName?: string | null;
+  startMs?: number | null;
+  endMs?: number | null;
+  needsReview?: boolean;
+  integrityFlags?: string[];
+  injectionAttemptDetected?: boolean;
 }
 
 export interface EvidenceBundle {
