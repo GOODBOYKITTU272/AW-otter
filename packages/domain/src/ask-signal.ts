@@ -210,6 +210,13 @@ export async function answerCustomerQuestion(
     ),
   );
 
+  const groundingStatus =
+    answerability === "insufficient_evidence"
+      ? ("insufficient_evidence" as const)
+      : answerability === "partially_answered"
+        ? ("partially_supported" as const)
+        : ("supported" as const);
+
   return {
     answerability,
     answer,
@@ -226,5 +233,8 @@ export async function answerCustomerQuestion(
       modelOutput.answerability !== "insufficient_evidence"
         ? []
         : modelOutput.followUpSuggestions,
+    groundingStatus,
+    integrityWarning: null,
+    proposedFacts: [],
   };
 }

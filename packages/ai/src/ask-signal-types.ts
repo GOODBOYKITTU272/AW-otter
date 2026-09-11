@@ -79,6 +79,19 @@ export interface AskSignalResult {
   meetingReferences: string[];
   unresolvedAmbiguity: string | null;
   followUpSuggestions: string[];
+  groundingStatus?:
+    | "supported"
+    | "partially_supported"
+    | "unsupported"
+    | "conflicting"
+    | "insufficient_evidence"
+    | "needs_review";
+  integrityWarning?: string | null;
+  proposedFacts?: Array<{
+    fieldKey: string;
+    proposedValue: unknown;
+    status: "proposed";
+  }>;
 }
 
 export interface AskSignalProviderResult {
