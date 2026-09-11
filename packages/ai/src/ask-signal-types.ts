@@ -20,6 +20,13 @@ export interface EvidenceItem {
   meetingId: string | null;
   label: string;
   text: string;
+  speakerRole?: "AM" | "CANDIDATE" | "OTHER" | "UNKNOWN";
+  speakerName?: string | null;
+  startMs?: number | null;
+  endMs?: number | null;
+  needsReview?: boolean;
+  integrityFlags?: string[];
+  injectionAttemptDetected?: boolean;
 }
 
 export interface EvidenceBundle {
@@ -79,6 +86,19 @@ export interface AskSignalResult {
   meetingReferences: string[];
   unresolvedAmbiguity: string | null;
   followUpSuggestions: string[];
+  groundingStatus?:
+    | "supported"
+    | "partially_supported"
+    | "unsupported"
+    | "conflicting"
+    | "insufficient_evidence"
+    | "needs_review";
+  integrityWarning?: string | null;
+  proposedFacts?: Array<{
+    fieldKey: string;
+    proposedValue: unknown;
+    status: "proposed";
+  }>;
 }
 
 export interface AskSignalProviderResult {

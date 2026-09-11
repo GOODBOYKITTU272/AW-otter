@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import type { AskSignalResult } from "@applywizz/ai";
 
@@ -9,12 +10,44 @@ const ANSWERABILITY_LABEL: Record<AskSignalResult["answerability"], string> = {
   insufficient_evidence: "Insufficient evidence",
 };
 
-// M13 vertical slice UI: a single question box, the answer, and its
-// evidence — no chatbot personality, no conversation history, no
-// follow-up thread. Every rendered evidence excerpt is exactly what the
-// route returned (already server-hydrated from the original bundle,
-// never anything the model wrote) — this component never re-derives or
-// re-displays model-authored text as if it were a quote.
+const GROUNDING_CONFIG: Record<
+  NonNullable<AskSignalResult["groundingStatus"]>,
+  { label: string; className: string }
+> = {
+  supported: {
+    label: "Supported",
+    className:
+      "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800",
+  },
+  partially_supported: {
+    label: "Partially supported",
+    className:
+      "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800",
+  },
+  unsupported: {
+    label: "Unsupported",
+    className:
+      "bg-red-50 text-red-700 border border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800",
+  },
+  needs_review: {
+    label: "Needs Review",
+    className:
+      "bg-orange-50 text-orange-700 border border-orange-200 dark:bg-orange-950 dark:text-orange-300 dark:border-orange-800",
+  },
+  conflicting: {
+    label: "Conflicting",
+    className:
+      "bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-800",
+  },
+  insufficient_evidence: {
+    label: "Insufficient evidence",
+    className:
+      "bg-zinc-100 text-zinc-600 border border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700",
+  },
+};
+
+// M13 / P4A Trust UI: question box, verified answer, grounding badges,
+// and immutable evidence citations with segment jump affordance.
 export function AskSignalPanel({ customerId }: { customerId: string }) {
   const [question, setQuestion] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -77,29 +110,71 @@ export function AskSignalPanel({ customerId }: { customerId: string }) {
 
       {result ? (
         <div className="flex flex-col gap-3 border-t border-zinc-200 pt-3 dark:border-zinc-800">
-          <span className="w-fit rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
-            {ANSWERABILITY_LABEL[result.answerability]}
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+              {ANSWERABILITY_LABEL[result.answerability]}
+            </span>
+            {result.groundingStatus && GROUNDING_CONFIG[result.groundingStatus] ? (
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs font-medium ${GROUNDING_CONFIG[result.groundingStatus].className}`}
+              >
+                {GROUNDING_CONFIG[result.groundingStatus].label}
+              </span>
+            ) : null}
+          </div>
+
           <p className="text-sm text-zinc-900 dark:text-zinc-100">
             {result.answer}
           </p>
+
+          {result.integrityWarning ? (
+            <div className="rounded-md bg-orange-50 p-2.5 text-xs text-orange-800 border border-orange-200 dark:bg-orange-950 dark:text-orange-200 dark:border-orange-800">
+              <span className="font-semibold">Integrity Warning: </span>
+              {result.integrityWarning}
+            </div>
+          ) : null}
+
           {result.unresolvedAmbiguity ? (
             <p className="text-sm italic text-zinc-500 dark:text-zinc-400">
               {result.unresolvedAmbiguity}
             </p>
           ) : null}
+
+          {result.proposedFacts && result.proposedFacts.length > 0 ? (
+            <div className="flex flex-col gap-1 rounded-md bg-amber-50 p-2.5 text-xs text-amber-900 border border-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:border-amber-800">
+              <span className="font-semibold">AI Proposed Fact (Awaiting AM Approval):</span>
+              <ul className="list-inside list-disc">
+                {result.proposedFacts.map((pf) => (
+                  <li key={pf.fieldKey}>
+                    <span className="font-medium">{pf.fieldKey}</span>: {JSON.stringify(pf.proposedValue)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
           {result.evidence.length > 0 ? (
             <div className="flex flex-col gap-2">
               <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                Evidence
+                Verified Evidence (Immutable)
               </span>
-              <ul className="flex flex-col gap-1">
+              <ul className="flex flex-col gap-1.5">
                 {result.evidence.map((item) => (
                   <li
                     key={`${item.type}:${item.id}`}
-                    className="rounded-md bg-zinc-50 p-2 text-xs text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+                    className="flex flex-col gap-1 rounded-md bg-zinc-50 p-2.5 text-xs text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800"
                   >
-                    <span className="font-medium">{item.label}</span>
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-zinc-900 dark:text-zinc-100">{item.label}</span>
+                      {item.type === "transcript_segment" && item.meetingId ? (
+                        <Link
+                          href={`/meetings/${item.meetingId}#segment-${item.id}`}
+                          className="text-xs text-blue-600 hover:underline dark:text-blue-400"
+                        >
+                          Jump to segment →
+                        </Link>
+                      ) : null}
+                    </div>
                     <span className="block text-zinc-600 dark:text-zinc-400">
                       {item.text}
                     </span>
@@ -108,6 +183,7 @@ export function AskSignalPanel({ customerId }: { customerId: string }) {
               </ul>
             </div>
           ) : null}
+
           {result.followUpSuggestions.length > 0 ? (
             <div className="flex flex-col gap-1">
               <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">

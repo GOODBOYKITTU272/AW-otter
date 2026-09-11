@@ -37,7 +37,8 @@
     "./microsoft-subscription-renewal": "./src/microsoft-subscription-renewal.ts",
     "./meeting-integrity": "./src/meeting-integrity.ts",
     "./speaker-identity": "./src/speaker-identity.ts",
-    "./shadow-pilot": "./src/shadow-pilot.ts"
+    "./shadow-pilot": "./src/shadow-pilot.ts",
+    "./echo-trust": "./src/echo-trust.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
