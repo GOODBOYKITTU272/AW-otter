@@ -531,40 +531,21 @@ function TranscriptTab({
     );
   }
 
-  const grouped = groupConsecutiveBySpeaker(segments);
-
   return (
     <div className={styles.panelPad} style={{ maxWidth: 720 }}>
-      {grouped.map((group) => {
-        // Groups are only ever created with at least one segment (see
-        // groupConsecutiveBySpeaker below), so these are always defined.
-        const first = group.segments[0]!;
-        const last = group.segments[group.segments.length - 1]!;
-        return (
-          <TranscriptLine
-            key={first.id}
-            speaker={group.speaker}
-            interpretation={speakerMap?.get(group.speaker)}
-            text={group.segments.map((s) => s.original_text).join(" ")}
-            endMs={last.end_ms}
-          />
-        );
-      })}
+      {segments.map((segment) => (
+        <TranscriptLine
+          key={segment.id}
+          id={segment.id}
+          speaker={segment.speaker_label}
+          interpretation={speakerMap?.get(segment.speaker_label)}
+          text={segment.original_text}
+          endMs={segment.end_ms}
+          needsReview={segment.needs_review}
+        />
+      ))}
     </div>
   );
-}
-
-function groupConsecutiveBySpeaker<T extends { speaker_label: string }>(segments: T[]) {
-  const groups: { speaker: string; segments: T[] }[] = [];
-  for (const segment of segments) {
-    const last = groups[groups.length - 1];
-    if (last && last.speaker === segment.speaker_label) {
-      last.segments.push(segment);
-    } else {
-      groups.push({ speaker: segment.speaker_label, segments: [segment] });
-    }
-  }
-  return groups;
 }
 
 // ---------- Actions ----------
@@ -707,15 +688,19 @@ function TimelineDot({ step }: { step: TimelineStep }) {
 }
 
 function TranscriptLine({
+  id,
   speaker,
   interpretation,
   text,
   endMs,
+  needsReview,
 }: {
+  id?: string;
   speaker: string;
   interpretation?: { name: string | null; role: string; confirmed: boolean };
   text: string;
   endMs: number;
+  needsReview?: boolean;
 }) {
   const rawTag = speaker === "speaker_unknown" ? "Unknown speaker" : speaker;
   const roleDisplay =
@@ -727,9 +712,12 @@ function TranscriptLine({
     : rawTag;
 
   return (
-    <div className={styles.transcriptLine}>
+    <div
+      id={id ? `segment-${id}` : undefined}
+      className={styles.transcriptLine}
+    >
       <div className={styles.avatar}>{displayName.charAt(0).toUpperCase()}</div>
-      <div>
+      <div style={{ flex: 1 }}>
         <span className={styles.who}>
           {displayName}
           {interpretation?.name && (
@@ -738,6 +726,11 @@ function TranscriptLine({
             </span>
           )}
           <span className={styles.when}>{formatTimestamp(endMs)}</span>
+          {needsReview ? (
+            <span className={styles.adminPill} style={{ marginLeft: 8, color: "var(--warning)" }}>
+              Needs Review
+            </span>
+          ) : null}
         </span>
         <div className={styles.transcriptText}>{text}</div>
       </div>

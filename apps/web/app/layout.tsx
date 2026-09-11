@@ -13,9 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ApplyWizz Signal",
-  description:
-    "Company-controlled meeting intelligence and organizational memory.",
+  title: "Apply Wizz Echo",
+  description: "Apply Wizz Echo remembers every customer conversation.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

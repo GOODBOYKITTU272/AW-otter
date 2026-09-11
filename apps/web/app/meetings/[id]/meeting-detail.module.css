@@ -272,6 +272,28 @@
   gap: 10px;
   padding: 10px 0;
   border-bottom: 1px dashed var(--border);
+  transition: background-color 0.3s ease;
+}
+.transcriptLine:target {
+  animation: highlightFade 4s ease-out forwards;
+  border-radius: var(--radius-sm);
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+@keyframes highlightFade {
+  0% {
+    background-color: var(--accent-tint);
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+  65% {
+    background-color: var(--accent-tint);
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
 }
 .transcriptLine:last-child { border-bottom: none; }
 .avatar {

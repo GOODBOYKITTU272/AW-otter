@@ -35,7 +35,7 @@ export default async function AskSignalPage({
           ← {customer.name}
         </Link>
         <h1 className="mt-1 text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-          Ask Signal
+          Ask Echo
         </h1>
       </div>
       <AskSignalPanel customerId={id} />

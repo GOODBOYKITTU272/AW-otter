@@ -95,9 +95,16 @@ export interface AskSignalResult {
     | "needs_review";
   integrityWarning?: string | null;
   proposedFacts?: Array<{
+    id?: string;
     fieldKey: string;
     proposedValue: unknown;
     status: "proposed";
+    evidenceSegmentId?: string;
+    sourceMeetingId?: string;
+    speakerName?: string;
+    speakerRole?: string;
+    timestampMs?: number;
+    rationale?: string;
   }>;
 }
 

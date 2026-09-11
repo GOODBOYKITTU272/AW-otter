@@ -183,70 +183,115 @@ export default async function AccountManagerHomePage() {
     .map((c) => ({ customer: c, daysAway: c.serviceEndDaysAway! }))
     .sort((a, b) => a.daysAway - b.daysAway);
 
-  return (
-    <main className="flex flex-1 flex-col gap-6 p-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold tracking-tight">Home</h1>
-        <SignOutButton />
-      </div>
-      <p className="-mt-4 text-sm text-zinc-500 dark:text-zinc-400">
-        Signed in as {membership.displayName}.
-      </p>
+  const nextCall = todaysCalls[0] ?? null;
+  let nextCallRemembers: string[] = [];
+  if (nextCall) {
+    const [topFacts, topActions] = await Promise.all([
+      supabase
+        .from("customer_truth_facts")
+        .select("field_key, value")
+        .eq("customer_id", nextCall.customer.customerId)
+        .eq("status", "confirmed")
+        .limit(3),
+      supabase
+        .from("call_records")
+        .select("description")
+        .eq("customer_id", nextCall.customer.customerId)
+        .eq("status", "detected")
+        .limit(2),
+    ]);
+    nextCallRemembers = [
+      ...(topFacts.data ?? []).map(
+        (f) =>
+          `${f.field_key.replaceAll("_", " ")}: ${typeof f.value === "string" ? f.value : JSON.stringify(f.value)}`,
+      ),
+      ...(topActions.data ?? []).map((a) => `Commitment: ${a.description}`),
+    ];
+  }
 
-      <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
-        <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-          <h2 className="text-sm font-medium">Today&apos;s calls</h2>
+  const firstName = membership.displayName.split(" ")[0] ?? membership.displayName;
+
+  return (
+    <main className="flex flex-1 flex-col gap-6 p-8 max-w-5xl mx-auto w-full">
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+            Good morning, {firstName}
+          </h1>
+          <SignOutButton />
         </div>
-        {todaysCalls.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-zinc-500">
-            No customer calls today.
-          </p>
-        ) : (
-          <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
-            {todaysCalls.map(({ customer, call }) => (
-              <li
-                key={`${customer.customerId}-${call.scheduledAt}`}
-                className="flex items-start justify-between gap-3 px-4 py-3 text-sm"
+        <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
+          <span className="font-semibold text-blue-600 dark:text-blue-400">
+            {todaysCalls.length}
+          </span>{" "}
+          call{todaysCalls.length === 1 ? "" : "s"} today ·{" "}
+          <span className="font-semibold text-amber-600 dark:text-amber-400">
+            {needsAttention.length}
+          </span>{" "}
+          thing{needsAttention.length === 1 ? "" : "s"} need your attention
+        </p>
+      </div>
+
+      {nextCall ? (
+        <section className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50/70 to-indigo-50/40 p-5 shadow-sm dark:border-blue-900/50 dark:from-blue-950/40 dark:to-indigo-950/20">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300">
+              Next Call
+            </span>
+            <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800 dark:bg-blue-900/60 dark:text-blue-300">
+              {formatTime(nextCall.call.scheduledAt)}
+            </span>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-baseline justify-between gap-2">
+            <div>
+              <Link
+                href={`/customers/${nextCall.customer.customerId}`}
+                className="text-lg font-bold text-zinc-900 hover:underline dark:text-zinc-100"
               >
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Link
-                      href={`/customers/${customer.customerId}`}
-                      className="font-medium hover:underline"
-                    >
-                      {customer.name}
-                    </Link>
-                    <StatusBadge tone="info">
-                      {callTypeLabel(call.callType)}
-                    </StatusBadge>
-                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                      {formatTime(call.scheduledAt)}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                    {customer.openActionCount} open action
-                    {customer.openActionCount === 1 ? "" : "s"} ·{" "}
-                    {customer.pendingTruthCount} pending change
-                    {customer.pendingTruthCount === 1 ? "" : "s"} ·{" "}
-                    {customer.openBlockerCount} blocker
-                    {customer.openBlockerCount === 1 ? "" : "s"}
-                  </p>
-                </div>
-                {call.meetingId ? (
-                  <Link
-                    href={`/meetings/${call.meetingId}/prep`}
-                    className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
-                  >
-                    Prepare
-                  </Link>
-                ) : (
-                  <span className="text-xs text-zinc-400">Not yet linked</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+                {nextCall.customer.name}
+              </Link>
+              <span className="ml-2 text-xs text-zinc-500">
+                · {callTypeLabel(nextCall.call.callType)}
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-lg border border-blue-100 bg-white/80 p-3.5 text-xs dark:border-blue-900/40 dark:bg-zinc-900/80">
+            <span className="font-semibold text-zinc-700 dark:text-zinc-300">
+              Echo remembers:
+            </span>
+            {nextCallRemembers.length > 0 ? (
+              <ul className="mt-1.5 list-inside list-disc space-y-1 text-zinc-600 dark:text-zinc-300">
+                {nextCallRemembers.map((item, idx) => (
+                  <li key={idx}>{item}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-1 text-zinc-500 dark:text-zinc-400">
+                No prior flags recorded. Echo is ready to capture this call.
+              </p>
+            )}
+          </div>
+
+          <div className="mt-4 flex items-center gap-3">
+            {nextCall.call.meetingId ? (
+              <Link
+                href={`/meetings/${nextCall.call.meetingId}/prep`}
+                className="rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500"
+              >
+                Prepare call
+              </Link>
+            ) : null}
+            <Link
+              href={`/customers/${nextCall.customer.customerId}`}
+              className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+            >
+              Open customer →
+            </Link>
+          </div>
+        </section>
+      ) : null}
 
       <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
         <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
@@ -254,7 +299,7 @@ export default async function AccountManagerHomePage() {
         </div>
         {needsAttention.length === 0 ? (
           <p className="px-4 py-6 text-sm text-zinc-500">
-            Nothing needs attention.
+            Nothing needs attention right now.
           </p>
         ) : (
           <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
@@ -283,6 +328,58 @@ export default async function AccountManagerHomePage() {
                     <li key={r.code}>{r.label}</li>
                   ))}
                 </ul>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
+        <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+          <h2 className="text-sm font-medium">Today&apos;s calls</h2>
+        </div>
+        {todaysCalls.length === 0 ? (
+          <p className="px-4 py-6 text-sm text-zinc-500">
+            No customer calls scheduled today.
+          </p>
+        ) : (
+          <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
+            {todaysCalls.map(({ customer, call }) => (
+              <li
+                key={`${customer.customerId}-${call.scheduledAt}`}
+                className="flex items-start justify-between gap-3 px-4 py-3 text-sm"
+              >
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold text-zinc-700 dark:text-zinc-300">
+                      {formatTime(call.scheduledAt)}
+                    </span>
+                    <span className="text-zinc-400">·</span>
+                    <Link
+                      href={`/customers/${customer.customerId}`}
+                      className="font-medium hover:underline text-blue-600 dark:text-blue-400"
+                    >
+                      {customer.name}
+                    </Link>
+                    <StatusBadge tone="info">
+                      {callTypeLabel(call.callType)}
+                    </StatusBadge>
+                  </div>
+                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                    {customer.openActionCount} open action{customer.openActionCount === 1 ? "" : "s"} ·{" "}
+                    {customer.pendingTruthCount} pending update{customer.pendingTruthCount === 1 ? "" : "s"}
+                  </p>
+                </div>
+                {call.meetingId ? (
+                  <Link
+                    href={`/meetings/${call.meetingId}`}
+                    className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+                  >
+                    View meeting →
+                  </Link>
+                ) : (
+                  <span className="text-xs text-zinc-400">Scheduled</span>
+                )}
               </li>
             ))}
           </ul>
