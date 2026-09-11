@@ -3,60 +3,109 @@ import {
   extractGroundedFactProposalsFromEvidence,
 } from "./echo-trust";
 import { answerCustomerQuestion } from "./ask-signal";
-import { fakeLiveSupabase } from "./echo-live-request.test";
+import { fakeLiveSupabase } from "./echo-test-helpers";
 import type { AskSignalProvider } from "@applywizz/ai";
 
 describe("Echo Grounded Proposal Regression Tests", () => {
-  it("Texas evidence produces Texas only (never California or hardcoded default)", () => {
+  it("extracts arbitrary location 'Boston' without Boston hardcoded anywhere", () => {
     const proposals = extractGroundedFactProposalsFromEvidence([
       {
-        id: "seg-tx",
+        id: "seg-boston",
         meetingId: "meet-1",
-        text: "I might relocate to Texas depending on the compensation package.",
+        text: "I can relocate to Boston.",
         speakerRole: "CANDIDATE",
-        speakerName: "Jane Candidate",
+        speakerName: "David Candidate",
       },
     ]);
 
     expect(proposals).toHaveLength(1);
     expect(proposals[0]?.fieldKey).toBe("relocation_pref");
-    expect(proposals[0]?.proposedValue).toBe("Open to Texas (Conditional)");
-    expect(proposals[0]?.proposedValue).not.toContain("California");
+    expect(proposals[0]?.proposedValue).toBe("Willing to relocate to Boston");
+    expect(proposals[0]?.isTentative).toBe(false);
+    expect(proposals[0]?.groundingStatus).toBe("supported");
   });
 
-  it("California evidence produces California only (never Texas)", () => {
+  it("extracts arbitrary location 'Hyderabad' without Hyderabad hardcoded anywhere and preserves tentative uncertainty", () => {
     const proposals = extractGroundedFactProposalsFromEvidence([
       {
-        id: "seg-ca",
+        id: "seg-hyderabad",
         meetingId: "meet-1",
-        text: "I am open to relocate to California for the right opportunity.",
+        text: "I might relocate to Hyderabad.",
         speakerRole: "CANDIDATE",
-        speakerName: "John Candidate",
+        speakerName: "Sunil Candidate",
       },
     ]);
 
     expect(proposals).toHaveLength(1);
     expect(proposals[0]?.fieldKey).toBe("relocation_pref");
-    expect(proposals[0]?.proposedValue).toBe("Willing to relocate to California");
-    expect(proposals[0]?.proposedValue).not.toContain("Texas");
-  });
-
-  it("'might relocate' preserves uncertainty and produces tentative (Conditional) proposal, never confirmed/willing", () => {
-    const proposals = extractGroundedFactProposalsFromEvidence([
-      {
-        id: "seg-tentative",
-        meetingId: "meet-1",
-        text: "I might relocate to Seattle if there is hybrid flexibility.",
-        speakerRole: "CANDIDATE",
-        speakerName: "Alice Candidate",
-      },
-    ]);
-
-    expect(proposals).toHaveLength(1);
+    expect(proposals[0]?.proposedValue).toBe("Open to Hyderabad (Conditional)");
     expect(proposals[0]?.isTentative).toBe(true);
     expect(proposals[0]?.groundingStatus).toBe("partially_supported");
-    expect(proposals[0]?.proposedValue).toBe("Open to Seattle (Conditional)");
-    expect(proposals[0]?.proposedValue).not.toContain("Willing to relocate");
+  });
+
+  it("preserves both alternatives for 'Dallas or Houston' rather than picking one", () => {
+    const proposals = extractGroundedFactProposalsFromEvidence([
+      {
+        id: "seg-dallas-houston",
+        meetingId: "meet-1",
+        text: "I’m open to Dallas or Houston.",
+        speakerRole: "CANDIDATE",
+        speakerName: "Maria Candidate",
+      },
+    ]);
+
+    expect(proposals).toHaveLength(1);
+    expect(proposals[0]?.fieldKey).toBe("relocation_pref");
+    expect(proposals[0]?.proposedValue).toBe("Open to Dallas or Houston");
+    expect(proposals[0]?.proposedValue).toContain("Dallas");
+    expect(proposals[0]?.proposedValue).toContain("Houston");
+  });
+
+  it("'Bay Area only' constraint is preserved", () => {
+    const proposals = extractGroundedFactProposalsFromEvidence([
+      {
+        id: "seg-bay-area",
+        meetingId: "meet-1",
+        text: "Bay Area only.",
+        speakerRole: "CANDIDATE",
+        speakerName: "Ken Candidate",
+      },
+    ]);
+
+    expect(proposals).toHaveLength(1);
+    expect(proposals[0]?.fieldKey).toBe("relocation_pref");
+    expect(proposals[0]?.proposedValue).toBe("Open to Bay Area only");
+  });
+
+  it("'Anywhere in the Northeast' regional preference is extracted", () => {
+    const proposals = extractGroundedFactProposalsFromEvidence([
+      {
+        id: "seg-northeast",
+        meetingId: "meet-1",
+        text: "I can move to Anywhere in the Northeast.",
+        speakerRole: "CANDIDATE",
+        speakerName: "Sarah Candidate",
+      },
+    ]);
+
+    expect(proposals).toHaveLength(1);
+    expect(proposals[0]?.fieldKey).toBe("relocation_pref");
+    expect(proposals[0]?.proposedValue).toBe("Willing to relocate: Anywhere in the Northeast");
+  });
+
+  it("'Anywhere except California' NEVER creates affirmative California proposal", () => {
+    const proposals = extractGroundedFactProposalsFromEvidence([
+      {
+        id: "seg-except-ca",
+        meetingId: "meet-1",
+        text: "Anywhere except California.",
+        speakerRole: "CANDIDATE",
+        speakerName: "Alex Candidate",
+      },
+    ]);
+
+    // Negative exclusion: must not create an unsafe affirmative proposal
+    expect(proposals).toHaveLength(0);
   });
 
   it("'cannot relocate' produces NO affirmative relocation proposal", () => {
@@ -73,7 +122,7 @@ describe("Echo Grounded Proposal Regression Tests", () => {
     expect(proposals).toHaveLength(0);
   });
 
-  it("unrelated question with no relocation evidence produces NO proposal", () => {
+  it("unrelated text with no relocation evidence produces NO proposal", () => {
     const proposals = extractGroundedFactProposalsFromEvidence([
       {
         id: "seg-intro",
@@ -92,7 +141,7 @@ describe("Echo Grounded Proposal Regression Tests", () => {
       {
         id: "seg-unknown",
         meetingId: "meet-1",
-        text: "The candidate might relocate to Texas.",
+        text: "The candidate can relocate to Boston.",
         speakerRole: "UNKNOWN",
         speakerName: null,
       },
@@ -101,7 +150,21 @@ describe("Echo Grounded Proposal Regression Tests", () => {
     expect(proposals).toHaveLength(0);
   });
 
-  it("repeated Ask Echo query does not create duplicate proposals (idempotency)", async () => {
+  it("failed/ambiguous extraction produces NO unsafe proposal (safety over coverage)", () => {
+    const proposals = extractGroundedFactProposalsFromEvidence([
+      {
+        id: "seg-ambiguous",
+        meetingId: "meet-1",
+        text: "We talked about moving the meeting to 3pm tomorrow.",
+        speakerRole: "CANDIDATE",
+        speakerName: "Lisa Candidate",
+      },
+    ]);
+
+    expect(proposals).toHaveLength(0);
+  });
+
+  it("same fact + same value repeated does not create duplicate proposal (idempotency)", async () => {
     const tables = {
       customers: [
         { id: "cust-1", name: "Jordan Lee", organization_id: "org-1" },
@@ -129,7 +192,7 @@ describe("Echo Grounded Proposal Regression Tests", () => {
           transcript_id: "tr-1",
           start_ms: 15000,
           end_ms: 20000,
-          original_text: "I might relocate to Texas depending on the compensation package.",
+          original_text: "I can relocate to Boston.",
           speaker_label: "Speaker 1",
           needs_review: false,
           provider_segment_metadata: {},
@@ -157,7 +220,7 @@ describe("Echo Grounded Proposal Regression Tests", () => {
       respond: async () => ({
         result: {
           answerability: "answered",
-          answer: "The candidate mentioned they might relocate to Texas.",
+          answer: "The candidate stated they can relocate to Boston.",
           citedEvidence: [{ type: "transcript_segment", id: "seg-reloc-1" }],
           unresolvedAmbiguity: null,
           followUpSuggestions: [],
@@ -191,5 +254,103 @@ describe("Echo Grounded Proposal Regression Tests", () => {
     expect(res2.proposedFacts).toHaveLength(1);
     expect(res2.proposedFacts?.[0]?.id).toBe(initialFactId);
     expect(tables.customer_truth_facts).toHaveLength(1); // Still exactly 1 row!
+  });
+
+  it("same field + different value must NOT incorrectly reuse old proposal ID", async () => {
+    // Database already has an existing proposal for Boston
+    const tables = {
+      customers: [
+        { id: "cust-1", name: "Jordan Lee", organization_id: "org-1" },
+      ],
+      meetings: [
+        {
+          id: "meet-2",
+          customer_id: "cust-1",
+          title: "Follow-up Call",
+          scheduled_start: "2026-09-11T14:00:00.000Z",
+        },
+      ],
+      meeting_transcripts: [{ id: "tr-2", meeting_id: "meet-2" }],
+      meeting_speaker_interpretations: [
+        {
+          meeting_id: "meet-2",
+          raw_speaker_tag: "Speaker 1",
+          business_role: "CANDIDATE",
+          interpreted_name: "Jordan Lee",
+        },
+      ],
+      transcript_segments: [
+        {
+          id: "seg-reloc-2",
+          transcript_id: "tr-2",
+          start_ms: 10000,
+          end_ms: 15000,
+          original_text: "I might relocate to Hyderabad.",
+          speaker_label: "Speaker 1",
+          needs_review: false,
+          provider_segment_metadata: {},
+        },
+      ],
+      customer_truth_facts: [
+        {
+          id: "fact-existing-boston",
+          organization_id: "org-1",
+          customer_id: "cust-1",
+          field_key: "relocation_pref",
+          value: "Willing to relocate to Boston",
+          status: "proposed",
+          source_type: "meeting",
+          source_meeting_id: "meet-1",
+          evidence_segment_ids: ["seg-boston-old"],
+          source_speaker: "Jordan Lee",
+          detected_at: "2026-09-10T15:00:00.000Z",
+        },
+      ],
+      call_records: [
+        {
+          id: "call-rec-2",
+          customer_id: "cust-1",
+          meeting_id: "meet-2",
+          record_type: "action_item",
+          description: "Follow-up relocation discussion",
+          status: "detected",
+          evidence_segment_ids: ["seg-reloc-2"],
+        },
+      ],
+      audit_events: [],
+    };
+
+    const { client } = fakeLiveSupabase(tables);
+
+    const provider: AskSignalProvider = {
+      name: "test-provider",
+      respond: async () => ({
+        result: {
+          answerability: "answered",
+          answer: "The candidate mentioned they might relocate to Hyderabad.",
+          citedEvidence: [{ type: "transcript_segment", id: "seg-reloc-2" }],
+          unresolvedAmbiguity: null,
+          followUpSuggestions: [],
+        },
+        model: "mock-model",
+        usage: { promptTokens: 10, completionTokens: 10, cost: 0.001 },
+      }),
+    };
+
+    const res = await answerCustomerQuestion(
+      client,
+      provider,
+      "cust-1",
+      "Can the candidate relocate to Hyderabad?",
+      "user-1",
+    );
+
+    expect(res.proposedFacts).toHaveLength(1);
+    const hyderabadProposal = res.proposedFacts?.[0];
+    expect(hyderabadProposal?.proposedValue).toBe("Open to Hyderabad (Conditional)");
+
+    // Crucial requirement: Must NOT reuse the Boston proposal ID
+    expect(hyderabadProposal?.id).not.toBe("fact-existing-boston");
+    expect(tables.customer_truth_facts).toHaveLength(2); // Boston + Hyderabad
   });
 });

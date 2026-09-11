@@ -399,17 +399,51 @@ export async function answerCustomerQuestion(
         .maybeSingle();
 
       if (cust?.organization_id && candidate.sourceMeetingId) {
-        // Idempotency: check if an identical proposed fact already exists for this customer & field
-        const { data: existingProposed } = await supabase
+        // Query existing pending proposals for this customer & field
+        const { data: existingProposals } = await supabase
           .from("customer_truth_facts")
-          .select("id")
+          .select("id, value, source_meeting_id, evidence_segment_ids")
           .eq("customer_id", customerId)
           .eq("field_key", candidate.fieldKey)
-          .eq("status", "proposed")
-          .maybeSingle();
+          .eq("status", "proposed");
 
-        if (existingProposed?.id) {
-          factId = existingProposed.id;
+        const normalizeValue = (val: unknown): string => {
+          if (typeof val === "string") return val.trim().toLowerCase();
+          try {
+            return JSON.stringify(val).toLowerCase();
+          } catch {
+            return String(val).toLowerCase();
+          }
+        };
+
+        const candidateValueNorm = normalizeValue(candidate.proposedValue);
+
+        // Deduplication requires:
+        // 1. Semantic equivalence of the proposed value
+        // 2. Appropriate source/evidence relationship (same meeting or shared evidence segments)
+        const matchingProposal = (
+          (existingProposals as Array<{
+            id: string;
+            value: unknown;
+            source_meeting_id: string | null;
+            evidence_segment_ids: string[] | null;
+          }> | null) ?? []
+        ).find((existing) => {
+          const valueMatches = normalizeValue(existing.value) === candidateValueNorm;
+          if (!valueMatches) return false;
+
+          const sameMeeting = existing.source_meeting_id === candidate.sourceMeetingId;
+          const overlappingSegments =
+            Array.isArray(existing.evidence_segment_ids) &&
+            existing.evidence_segment_ids.some((segId: string) =>
+              candidate.evidenceSegmentIds.includes(segId),
+            );
+
+          return sameMeeting || overlappingSegments;
+        });
+
+        if (matchingProposal?.id) {
+          factId = matchingProposal.id;
         } else {
           // Persist strictly as 'proposed' via RLS policy
           const { data: insertedFact, error: insertError } = await supabase

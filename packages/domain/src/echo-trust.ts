@@ -375,8 +375,10 @@ export interface GroundedFactProposal {
  * 1. UNKNOWN or AM speaker statements NEVER become candidate truth facts.
  * 2. Flagged audio (needsReview) or injection attempts NEVER generate proposals.
  * 3. Uncertainty is preserved: tentative language ("might relocate", "considering") remains tentative, never "confirmed" or "willing to relocate".
- * 4. Refusals ("cannot relocate", "won't relocate") NEVER produce affirmative proposals.
- * 5. Destinations and values are derived strictly from spoken evidence (e.g. California -> California only; Texas -> Texas only).
+ * 4. Refusals ("cannot relocate", "won't relocate") and negative exclusions ("except California") NEVER produce affirmative proposals.
+ * 5. Arbitrary locations are supported generically from grammar/syntax without any hardcoded location allowlists.
+ * 6. Alternative locations ("Dallas or Houston") preserve both alternatives or safely produce no proposal, never arbitrarily selecting one.
+ * 7. Ambiguous or unparseable extractions produce NO proposal (safety over extraction coverage).
  */
 export function extractGroundedFactProposalsFromEvidence(
   evidence: Array<{
@@ -406,84 +408,140 @@ export function extractGroundedFactProposalsFromEvidence(
     const meetingId = item.meetingId ?? fallbackMeetingId;
     if (!meetingId) continue;
 
-    const text = item.text;
+    const text = item.text.trim();
 
-    // 3. Relocation preference extraction
-    if (/\brelocat/i.test(text)) {
-      // "cannot relocate" must not become an affirmative relocation preference
-      const isRefusal =
-        /\b(?:cannot|can't|won't|will not|not able to|not open to|no relocation|refuse to)\s+relocat/i.test(
-          text,
-        );
-      if (isRefusal) {
-        continue;
-      }
+    // 3. Must concern relocation, moving, or location preferences
+    const mentionsRelocation =
+      /\b(?:relocat(?:e|ion|ing)?|moving|move to|open to|preference for)\b/i.test(text) ||
+      /\b(?:only|anywhere in|anywhere except)\b/i.test(text);
 
-      // "might relocate" must not become "willing to relocate" (preserve uncertainty)
-      const isTentative =
-        /\b(?:might|maybe|considering|could|depending|conditional|possibly|potenti?ally)\b/i.test(
-          text,
-        );
-
-      // Extract destination mentioned in the text
-      let location: string | null = null;
-      const stopWords = new Set([
-        "depending", "if", "for", "conditionally", "only", "provided",
-        "unless", "the", "a", "an", "work", "hybrid", "remote", "opportunity",
-      ]);
-
-      const match = text.match(
-        /\b(?:relocate to|move to|open to(?: relocate to)?|in)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/,
-      );
-      if (match && match[1]) {
-        const words = match[1]
-          .split(/\s+/)
-          .filter((w) => !stopWords.has(w.toLowerCase()));
-        if (words.length > 0) {
-          location = words.join(" ");
-        }
-      }
-
-      if (!location) {
-        if (/\bCalifornia\b/i.test(text)) {
-          location = "California";
-        } else if (/\bTexas\b/i.test(text)) {
-          location = "Texas";
-        } else if (/\bNew York\b/i.test(text)) {
-          location = "New York";
-        } else if (/\bAustin\b/i.test(text)) {
-          location = "Austin";
-        } else if (/\bSeattle\b/i.test(text)) {
-          location = "Seattle";
-        }
-      }
-
-      // Location must match what was actually spoken
-      let proposedValue: string;
-      if (location) {
-        proposedValue = isTentative
-          ? `Open to ${location} (Conditional)`
-          : `Willing to relocate to ${location}`;
-      } else {
-        proposedValue = isTentative
-          ? "Considering relocation (Conditional)"
-          : "Willing to relocate";
-      }
-
-      proposals.push({
-        fieldKey: "relocation_pref",
-        proposedValue,
-        sourceMeetingId: meetingId,
-        evidenceSegmentIds: [item.id],
-        sourceSpeaker: item.speakerName ?? item.speakerRole,
-        status: "proposed",
-        groundingStatus: isTentative ? "partially_supported" : "supported",
-        isTentative,
-        rationale: isTentative
-          ? "Tentative statement from candidate — requires human confirmation."
-          : "Direct candidate statement — requires human confirmation.",
-      });
+    if (!mentionsRelocation) {
+      continue;
     }
+
+    // 4. "cannot relocate" / refusals must not become an affirmative relocation preference
+    const isRefusal =
+      /\b(?:cannot|can't|won't|will not|not able to|not open to|no relocation|refuse to|never|unwilling to|not willing to)\s+(?:relocat|move)/i.test(
+        text,
+      );
+    if (isRefusal) {
+      continue;
+    }
+
+    // 5. Negative exclusions / constraints ("except California", "not to ...")
+    // Must NEVER become an affirmative proposal for the excluded location.
+    const hasNegativeExclusion = /\b(?:except|excluding|other than|not to)\b/i.test(text);
+    if (hasNegativeExclusion) {
+      continue;
+    }
+
+    // 6. "might relocate" must not become "willing to relocate" (preserve uncertainty)
+    const isTentative =
+      /\b(?:might|maybe|considering|could|depending|conditional|possibly|potenti?ally|subject to|tentative)\b/i.test(
+        text,
+      ) || /\b(?:if|provided|as long as)\b/i.test(text);
+
+    const isOpenTo = /\bopen to\b/i.test(text);
+
+    // 7. Generic location target extraction (NO HARDCODED ALLOWLIST OF CITIES OR STATES)
+    let rawTarget: string | null = null;
+
+    // Pattern A: "relocate to <target>" or "move to <target>"
+    const matchRelocate = text.match(
+      /\b(?:relocat(?:e|ing|ion)? to|mov(?:e|ing) to)\s+([^.,;!]+)/i,
+    );
+    if (matchRelocate && matchRelocate[1]) {
+      rawTarget = matchRelocate[1];
+    }
+
+    // Pattern B: "open to <target>" / "considering <target>"
+    if (!rawTarget) {
+      const matchOpenTo = text.match(
+        /\b(?:open to|considering|preference for)\s+(?:relocat(?:e|ing|ion)? to\s+|mov(?:e|ing) to\s+)?([^.,;!]+)/i,
+      );
+      if (matchOpenTo && matchOpenTo[1]) {
+        rawTarget = matchOpenTo[1];
+      }
+    }
+
+    // Pattern C: "Anywhere in <Region>"
+    if (!rawTarget) {
+      const matchAnywhereIn = text.match(/\b(anywhere in\s+[^.,;!]+)/i);
+      if (matchAnywhereIn && matchAnywhereIn[1]) {
+        rawTarget = matchAnywhereIn[1];
+      }
+    }
+
+    // Pattern D: "<Target> only"
+    if (!rawTarget) {
+      const matchOnly = text.match(/\b([A-Z][a-zA-Z0-9\s]+?)\s+only\b/);
+      if (matchOnly && matchOnly[1]) {
+        rawTarget = `${matchOnly[1].trim()} only`;
+      }
+    }
+
+    if (!rawTarget) {
+      // Failed/ambiguous extraction: safely produce no proposal
+      continue;
+    }
+
+    // Clean up subordinate clauses and trailing conjunctions
+    let target = rawTarget
+      .replace(
+        /\b(?:if|depending|provided|as long as|subject to|for the right|for a|when|because|since|but|though|although|with|where)\b.*$/i,
+        "",
+      )
+      .trim();
+
+    // Clean up trailing punctuation
+    target = target.replace(/[.,;!]+$/, "").trim();
+
+    // Safety checks on the extracted target:
+    // Discard if empty, too long, time/date, or ambiguous pronouns / filler words
+    if (!target || target.length > 60 || !/[a-zA-Z]/.test(target)) {
+      continue;
+    }
+
+    if (/^\d+/i.test(target) || /\b(?:am|pm|o'clock|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.test(target)) {
+      continue;
+    }
+
+    const ambiguousWords = new Set([
+      "it", "them", "there", "somewhere", "here", "that", "this", "something",
+      "anything", "anywhere", "work", "hybrid", "remote", "an opportunity", "the role",
+    ]);
+    if (ambiguousWords.has(target.toLowerCase())) {
+      continue;
+    }
+
+    // Format proposed value preserving semantic meaning
+    let proposedValue: string;
+    const cleanTarget = target.replace(/^open to\s+/i, "");
+    if (isTentative) {
+      proposedValue = `Open to ${cleanTarget} (Conditional)`;
+    } else if (isOpenTo || target.toLowerCase().startsWith("open to ")) {
+      proposedValue = `Open to ${cleanTarget}`;
+    } else if (target.toLowerCase().endsWith(" only")) {
+      proposedValue = `Open to ${target}`;
+    } else if (target.toLowerCase().startsWith("anywhere in ")) {
+      proposedValue = `Willing to relocate: ${target}`;
+    } else {
+      proposedValue = `Willing to relocate to ${target}`;
+    }
+
+    proposals.push({
+      fieldKey: "relocation_pref",
+      proposedValue,
+      sourceMeetingId: meetingId,
+      evidenceSegmentIds: [item.id],
+      sourceSpeaker: item.speakerName ?? item.speakerRole,
+      status: "proposed",
+      groundingStatus: isTentative ? "partially_supported" : "supported",
+      isTentative,
+      rationale: isTentative
+        ? "Tentative statement from candidate — requires human confirmation."
+        : "Direct candidate statement — requires human confirmation.",
+    });
   }
 
   return proposals;
