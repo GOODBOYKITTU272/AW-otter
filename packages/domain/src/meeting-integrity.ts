@@ -64,6 +64,31 @@ export interface AnalyzeMeetingIntegrityInput {
   meetingId?: string;
 }
 
+/**
+ * Determines if a transcript with the given integrity verdict is eligible
+ * for AI intelligence processing and customer truth materialization.
+ *
+ * FAIL verdicts block all downstream AI processing:
+ * - "transcription_unreliable": critical hallucination loops detected
+ * - "insufficient_speech": < 10s of transcribed speech
+ *
+ * WARN verdicts allow processing but remain auditable:
+ * - "needs_review": repetition warnings, multiple flags
+ * - "suspected_background_media": media tokens detected
+ * - "poor_audio": low quality indicators
+ *
+ * PASS verdict allows normal processing:
+ * - "good": clean transcript
+ */
+export function isEligibleForIntelligence(verdict: IntegrityVerdict): boolean {
+  // FAIL verdicts: block all downstream processing
+  if (verdict === "transcription_unreliable" || verdict === "insufficient_speech") {
+    return false;
+  }
+  // WARN and PASS verdicts: allow processing (WARN remains auditable via the report)
+  return true;
+}
+
 const MEDIA_TOKENS_REGEX =
   /(?:\[(?:music|applause|laughter|silence|audio)\]|\((?:music|applause|laughter|silence|audio)\)|\*(?:music|sings|singing|applause|laughter)\*|[♪♫♩♬])/i;
 

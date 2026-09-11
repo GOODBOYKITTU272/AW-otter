@@ -11,7 +11,11 @@ import {
   type MeetingIntelligenceProvider,
 } from "@applywizz/ai";
 import { logLifecycleEvent } from "./meeting-bots";
-import { evaluateAndPersistMeetingIntegrity } from "./meeting-integrity";
+import {
+  evaluateAndPersistMeetingIntegrity,
+  isEligibleForIntelligence,
+  type IntegrityVerdict,
+} from "./meeting-integrity";
 
 export type AppSupabaseClient = SupabaseClient<Database>;
 
@@ -50,6 +54,51 @@ export async function enqueuePendingIntelligenceRuns(
 
   let enqueued = 0;
   for (const transcript of transcripts ?? []) {
+    // Phase 4 HARD GATE: Ensure integrity is evaluated first, then check eligibility
+    let integrityVerdict: IntegrityVerdict | null = null;
+    try {
+      const { data: existingReport } = await serviceRoleClient
+        .from("meeting_integrity_reports")
+        .select("overall_verdict")
+        .eq("meeting_id", transcript.meeting_id)
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+
+      if (existingReport) {
+        integrityVerdict = existingReport.overall_verdict as IntegrityVerdict;
+      } else {
+        // Evaluate integrity if not already done
+        const analysis = await evaluateAndPersistMeetingIntegrity(
+          serviceRoleClient,
+          transcript.meeting_id,
+          organizationId,
+        );
+        integrityVerdict = analysis.verdict;
+      }
+    } catch (err: unknown) {
+      // If integrity evaluation fails, log and skip this meeting (conservative: don't process without verification)
+      await logLifecycleEvent(serviceRoleClient, {
+        meetingId: transcript.meeting_id,
+        organizationId,
+        eventType: "transcript.integrity_evaluation_failed",
+        source: "worker",
+        payload: { error: err instanceof Error ? err.message : "unknown" },
+      }).catch(() => {});
+      continue;
+    }
+
+    // INTEGRITY GATE: Block intelligence processing for FAIL verdicts
+    if (integrityVerdict && !isEligibleForIntelligence(integrityVerdict)) {
+      await logLifecycleEvent(serviceRoleClient, {
+        meetingId: transcript.meeting_id,
+        organizationId,
+        eventType: "meeting_intelligence.blocked_by_integrity",
+        source: "worker",
+        payload: { verdict: integrityVerdict },
+      });
+      continue;
+    }
+
     const { error: insertError } = await serviceRoleClient
       .from("ai_runs")
       .insert({
@@ -73,33 +122,6 @@ export async function enqueuePendingIntelligenceRuns(
       eventType: "meeting_intelligence.enqueued",
       source: "worker",
     });
-
-    // Ensure transcript integrity is evaluated and persisted for completed transcripts (Blocker 6)
-    try {
-      const { data: existingReport } = await serviceRoleClient
-        .from("meeting_integrity_reports")
-        .select("id")
-        .eq("meeting_id", transcript.meeting_id)
-        .eq("organization_id", organizationId)
-        .maybeSingle();
-
-      if (!existingReport) {
-        await evaluateAndPersistMeetingIntegrity(
-          serviceRoleClient,
-          transcript.meeting_id,
-          organizationId,
-        );
-      }
-    } catch (err: unknown) {
-      // Non-blocking catch: failure in integrity must not block intelligence run
-      await logLifecycleEvent(serviceRoleClient, {
-        meetingId: transcript.meeting_id,
-        organizationId,
-        eventType: "transcript.integrity_evaluation_failed",
-        source: "worker",
-        payload: { error: err instanceof Error ? err.message : "unknown" },
-      }).catch(() => {});
-    }
   }
 
   return { enqueued };
@@ -176,6 +198,25 @@ export async function processIntelligenceRun(
   let customerTruthDeltaCount = 0;
 
   try {
+    // Phase 4 DEFENSE IN DEPTH: Verify integrity eligibility before processing
+    const { data: integrityReport, error: integrityError } = await serviceRoleClient
+      .from("meeting_integrity_reports")
+      .select("overall_verdict")
+      .eq("meeting_id", run.meeting_id)
+      .eq("organization_id", run.organization_id)
+      .maybeSingle();
+    if (integrityError) throw integrityError;
+
+    if (integrityReport) {
+      const verdict = integrityReport.overall_verdict as IntegrityVerdict;
+      if (!isEligibleForIntelligence(verdict)) {
+        // INTEGRITY GATE: Refuse to process FAIL verdicts
+        throw new Error(
+          `Transcript integrity FAIL (${verdict}): AI intelligence processing blocked`,
+        );
+      }
+    }
+
     const { data: meeting, error: meetingError } = await serviceRoleClient
       .from("meetings")
       .select("call_type")

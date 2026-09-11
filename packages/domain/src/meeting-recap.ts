@@ -7,6 +7,7 @@ import type {
 import { logAuditEvent } from "./audit";
 import {
   analyzeMeetingIntegrity,
+  isEligibleForIntelligence,
   type MeetingIntegrityAnalysis,
   type MeetingIntegrityFlag,
   type IntegrityVerdict,
@@ -1008,6 +1009,23 @@ export async function approveMeetingRecap(
     throw new Error(
       "Only the responsible Account Manager for this meeting can approve the recap.",
     );
+  }
+
+  // Phase 4 INTEGRITY GATE: Block recap approval for FAIL verdicts
+  const { data: integrityReport, error: integrityError } = await supabase
+    .from("meeting_integrity_reports")
+    .select("overall_verdict")
+    .eq("meeting_id", input.meetingId)
+    .maybeSingle();
+  if (integrityError) throw integrityError;
+
+  if (integrityReport) {
+    const verdict = integrityReport.overall_verdict as IntegrityVerdict;
+    if (!isEligibleForIntelligence(verdict)) {
+      throw new Error(
+        `Cannot approve recap: transcript integrity FAIL (${verdict}). This recording requires human review or retranscription.`,
+      );
+    }
   }
 
   let recapId: string;
