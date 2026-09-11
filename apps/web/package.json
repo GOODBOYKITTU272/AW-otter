@@ -11,15 +11,16 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@applywizz/ai": "workspace:*",
     "@applywizz/auth": "workspace:*",
+    "@applywizz/crm": "workspace:*",
     "@applywizz/database": "workspace:*",
     "@applywizz/domain": "workspace:*",
-    "@applywizz/microsoft": "workspace:*",
     "@applywizz/meeting-bots": "workspace:*",
+    "@applywizz/microsoft": "workspace:*",
     "@applywizz/transcription": "workspace:*",
-    "@applywizz/ai": "workspace:*",
-    "@applywizz/crm": "workspace:*",
     "@supabase/ssr": "^0.8.0",
+    "lucide-react": "^1.44.0",
     "next": "16.3.4",
     "react": "19.2.8",
     "react-dom": "19.2.8"

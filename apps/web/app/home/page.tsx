@@ -212,20 +212,20 @@ export default async function AccountManagerHomePage() {
   const firstName = membership.displayName.split(" ")[0] ?? membership.displayName;
 
   return (
-    <main className="flex flex-1 flex-col gap-6 p-8 max-w-5xl mx-auto w-full">
+    <main className="flex flex-1 flex-col gap-6 p-8 max-w-5xl mx-auto w-full bg-[#EFFBFF]">
       <div className="flex flex-col gap-1">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+          <h1 className="text-3xl font-bold tracking-tight text-[#1E1E1E]">
             Good morning, {firstName}
           </h1>
           <SignOutButton />
         </div>
-        <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
-          <span className="font-semibold text-blue-600 dark:text-blue-400">
+        <p className="text-sm font-medium text-[#1E1E1E]/70">
+          <span className="font-semibold text-[#2C76FF]">
             {todaysCalls.length}
           </span>{" "}
           call{todaysCalls.length === 1 ? "" : "s"} today ·{" "}
-          <span className="font-semibold text-amber-600 dark:text-amber-400">
+          <span className="font-semibold text-[#FFDE59]">
             {needsAttention.length}
           </span>{" "}
           thing{needsAttention.length === 1 ? "" : "s"} need your attention
@@ -233,59 +233,59 @@ export default async function AccountManagerHomePage() {
       </div>
 
       {nextCall ? (
-        <section className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50/70 to-indigo-50/40 p-5 shadow-sm dark:border-blue-900/50 dark:from-blue-950/40 dark:to-indigo-950/20">
+        <section className="rounded-xl border border-[#2C76FF]/20 bg-gradient-to-br from-[#2C76FF]/10 to-[#29FE29]/5 p-6 shadow-lg">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#2C76FF]">
               Next Call
             </span>
-            <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800 dark:bg-blue-900/60 dark:text-blue-300">
+            <span className="rounded-full bg-[#2C76FF] px-3 py-1 text-xs font-semibold text-white">
               {formatTime(nextCall.call.scheduledAt)}
             </span>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-baseline justify-between gap-2">
+          <div className="mt-4 flex flex-wrap items-baseline justify-between gap-2">
             <div>
               <Link
                 href={`/customers/${nextCall.customer.customerId}`}
-                className="text-lg font-bold text-zinc-900 hover:underline dark:text-zinc-100"
+                className="text-xl font-bold text-[#1E1E1E] hover:underline"
               >
                 {nextCall.customer.name}
               </Link>
-              <span className="ml-2 text-xs text-zinc-500">
+              <span className="ml-2 text-sm text-[#1E1E1E]/60">
                 · {callTypeLabel(nextCall.call.callType)}
               </span>
             </div>
           </div>
 
-          <div className="mt-3 rounded-lg border border-blue-100 bg-white/80 p-3.5 text-xs dark:border-blue-900/40 dark:bg-zinc-900/80">
-            <span className="font-semibold text-zinc-700 dark:text-zinc-300">
+          <div className="mt-4 rounded-lg border border-[#2C76FF]/20 bg-white p-4 text-sm">
+            <span className="font-semibold text-[#1E1E1E]">
               Echo remembers:
             </span>
             {nextCallRemembers.length > 0 ? (
-              <ul className="mt-1.5 list-inside list-disc space-y-1 text-zinc-600 dark:text-zinc-300">
+              <ul className="mt-2 list-inside list-disc space-y-1 text-[#1E1E1E]/80">
                 {nextCallRemembers.map((item, idx) => (
                   <li key={idx}>{item}</li>
                 ))}
               </ul>
             ) : (
-              <p className="mt-1 text-zinc-500 dark:text-zinc-400">
+              <p className="mt-2 text-[#1E1E1E]/60">
                 No prior flags recorded. Echo is ready to capture this call.
               </p>
             )}
           </div>
 
-          <div className="mt-4 flex items-center gap-3">
+          <div className="mt-5 flex items-center gap-3">
             {nextCall.call.meetingId ? (
               <Link
                 href={`/meetings/${nextCall.call.meetingId}/prep`}
-                className="rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500"
+                className="rounded-lg bg-[#29FE29] px-4 py-2 text-sm font-semibold text-[#1E1E1E] shadow-md hover:bg-[#29FE29]/90 transition-all"
               >
                 Prepare call
               </Link>
             ) : null}
             <Link
               href={`/customers/${nextCall.customer.customerId}`}
-              className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+              className="rounded-lg border border-[#1E1E1E]/20 bg-white px-4 py-2 text-sm font-semibold text-[#1E1E1E] hover:bg-[#F5F5F5] transition-all"
             >
               Open customer →
             </Link>
@@ -293,25 +293,25 @@ export default async function AccountManagerHomePage() {
         </section>
       ) : null}
 
-      <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
-        <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-          <h2 className="text-sm font-medium">Needs your attention</h2>
+      <section className="rounded-xl border border-[#1E1E1E]/10 bg-white shadow-md">
+        <div className="border-b border-[#1E1E1E]/10 px-5 py-4">
+          <h2 className="text-base font-semibold text-[#1E1E1E]">Needs your attention</h2>
         </div>
         {needsAttention.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-zinc-500">
+          <p className="px-5 py-6 text-sm text-[#1E1E1E]/60">
             Nothing needs attention right now.
           </p>
         ) : (
-          <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
+          <ul className="divide-y divide-[#1E1E1E]/10">
             {needsAttention.map((c) => (
               <li
                 key={c.customerId}
-                className="flex flex-col gap-1 px-4 py-3 text-sm"
+                className="flex flex-col gap-1 px-5 py-4 text-sm"
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <Link
                     href={`/customers/${c.customerId}`}
-                    className="font-medium hover:underline"
+                    className="font-medium text-[#1E1E1E] hover:underline"
                   >
                     {c.name}
                   </Link>
@@ -323,7 +323,7 @@ export default async function AccountManagerHomePage() {
                       : "Medium attention"}
                   </StatusBadge>
                 </div>
-                <ul className="ml-4 list-disc text-xs text-zinc-500 dark:text-zinc-400">
+                <ul className="ml-4 list-disc text-xs text-[#1E1E1E]/70">
                   {c.attention.reasons.map((r) => (
                     <li key={r.code}>{r.label}</li>
                   ))}
@@ -334,30 +334,30 @@ export default async function AccountManagerHomePage() {
         )}
       </section>
 
-      <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
-        <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-          <h2 className="text-sm font-medium">Today&apos;s calls</h2>
+      <section className="rounded-xl border border-[#1E1E1E]/10 bg-white shadow-md">
+        <div className="border-b border-[#1E1E1E]/10 px-5 py-4">
+          <h2 className="text-base font-semibold text-[#1E1E1E]">Today&apos;s calls</h2>
         </div>
         {todaysCalls.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-zinc-500">
+          <p className="px-5 py-6 text-sm text-[#1E1E1E]/60">
             No customer calls scheduled today.
           </p>
         ) : (
-          <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
+          <ul className="divide-y divide-[#1E1E1E]/10">
             {todaysCalls.map(({ customer, call }) => (
               <li
                 key={`${customer.customerId}-${call.scheduledAt}`}
-                className="flex items-start justify-between gap-3 px-4 py-3 text-sm"
+                className="flex items-start justify-between gap-3 px-5 py-4 text-sm"
               >
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold text-zinc-700 dark:text-zinc-300">
+                    <span className="font-semibold text-[#1E1E1E]">
                       {formatTime(call.scheduledAt)}
                     </span>
-                    <span className="text-zinc-400">·</span>
+                    <span className="text-[#1E1E1E]/40">·</span>
                     <Link
                       href={`/customers/${customer.customerId}`}
-                      className="font-medium hover:underline text-blue-600 dark:text-blue-400"
+                      className="font-medium text-[#2C76FF] hover:underline"
                     >
                       {customer.name}
                     </Link>
@@ -365,7 +365,7 @@ export default async function AccountManagerHomePage() {
                       {callTypeLabel(call.callType)}
                     </StatusBadge>
                   </div>
-                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  <p className="mt-1 text-xs text-[#1E1E1E]/70">
                     {customer.openActionCount} open action{customer.openActionCount === 1 ? "" : "s"} ·{" "}
                     {customer.pendingTruthCount} pending update{customer.pendingTruthCount === 1 ? "" : "s"}
                   </p>
@@ -373,12 +373,12 @@ export default async function AccountManagerHomePage() {
                 {call.meetingId ? (
                   <Link
                     href={`/meetings/${call.meetingId}`}
-                    className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+                    className="rounded-lg border border-[#2C76FF]/30 bg-[#2C76FF]/10 px-3 py-1.5 text-xs font-medium text-[#2C76FF] hover:bg-[#2C76FF]/20 transition-all"
                   >
                     View meeting →
                   </Link>
                 ) : (
-                  <span className="text-xs text-zinc-400">Scheduled</span>
+                  <span className="text-xs text-[#1E1E1E]/40">Scheduled</span>
                 )}
               </li>
             ))}
@@ -386,12 +386,12 @@ export default async function AccountManagerHomePage() {
         )}
       </section>
 
-      <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
-        <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-          <h2 className="text-sm font-medium">Overdue / due soon</h2>
+      <section className="rounded-xl border border-[#1E1E1E]/10 bg-white shadow-md">
+        <div className="flex items-center justify-between border-b border-[#1E1E1E]/10 px-5 py-4">
+          <h2 className="text-base font-semibold text-[#1E1E1E]">Overdue / due soon</h2>
           <Link
             href="/actions"
-            className="text-xs text-zinc-500 hover:underline dark:text-zinc-400"
+            className="text-sm text-[#2C76FF] hover:underline"
           >
             View all
           </Link>
@@ -399,9 +399,9 @@ export default async function AccountManagerHomePage() {
         {overdueRecords.length === 0 &&
         dueTodayRecords.length === 0 &&
         dueSoonRecords.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-zinc-500">No overdue actions.</p>
+          <p className="px-5 py-6 text-sm text-[#1E1E1E]/60">No overdue actions.</p>
         ) : (
-          <div className="divide-y divide-zinc-100 dark:divide-zinc-900">
+          <div className="divide-y divide-[#1E1E1E]/10">
             {[
               {
                 label: "Overdue",
@@ -421,11 +421,11 @@ export default async function AccountManagerHomePage() {
             ]
               .filter((bucket) => bucket.rows.length > 0)
               .map((bucket) => (
-                <div key={bucket.label} className="px-4 py-3">
-                  <p className="mb-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                <div key={bucket.label} className="px-5 py-4">
+                  <p className="mb-3 text-xs font-medium text-[#1E1E1E]/70 uppercase tracking-wider">
                     {bucket.label}
                   </p>
-                  <ul className="flex flex-col gap-2">
+                  <ul className="flex flex-col gap-3">
                     {bucket.rows.map((record) => (
                       <li
                         key={record.id}
@@ -438,13 +438,13 @@ export default async function AccountManagerHomePage() {
                                 record.recordType}
                             </StatusBadge>
                             {record.dueAt ? (
-                              <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                              <span className="text-xs text-[#1E1E1E]/70">
                                 Due {formatDate(record.dueAt)}
                               </span>
                             ) : null}
                           </div>
-                          <p className="mt-1">{record.description}</p>
-                          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                          <p className="mt-1 text-[#1E1E1E]">{record.description}</p>
+                          <p className="mt-1 text-xs text-[#1E1E1E]/70">
                             {record.customerId
                               ? customerNameById.get(record.customerId)
                               : null}
@@ -460,33 +460,33 @@ export default async function AccountManagerHomePage() {
         )}
       </section>
 
-      <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
-        <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-          <h2 className="text-sm font-medium">Recent changes</h2>
+      <section className="rounded-xl border border-[#1E1E1E]/10 bg-white shadow-md">
+        <div className="border-b border-[#1E1E1E]/10 px-5 py-4">
+          <h2 className="text-base font-semibold text-[#1E1E1E]">Recent changes</h2>
         </div>
         {recentChanges.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-zinc-500">No recent changes.</p>
+          <p className="px-5 py-6 text-sm text-[#1E1E1E]/60">No recent changes.</p>
         ) : (
-          <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
+          <ul className="divide-y divide-[#1E1E1E]/10">
             {recentChanges.map((change) => (
               <li
                 key={change.key}
-                className="flex flex-col gap-1 px-4 py-3 text-sm"
+                className="flex flex-col gap-1 px-5 py-4 text-sm"
               >
                 <div className="flex flex-wrap items-center gap-2">
                   {change.customerId ? (
                     <Link
                       href={`/customers/${change.customerId}`}
-                      className="font-medium hover:underline"
+                      className="font-medium text-[#1E1E1E] hover:underline"
                     >
                       {customerNameById.get(change.customerId) ?? "Customer"}
                     </Link>
                   ) : null}
-                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                  <span className="text-xs text-[#1E1E1E]/70">
                     {formatDate(change.at)}
                   </span>
                 </div>
-                <p className="text-zinc-600 dark:text-zinc-400">
+                <p className="text-[#1E1E1E]/80">
                   {change.text}
                 </p>
               </li>
@@ -495,35 +495,35 @@ export default async function AccountManagerHomePage() {
         )}
       </section>
 
-      <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
-        <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-          <h2 className="text-sm font-medium">Upcoming renewals</h2>
+      <section className="rounded-xl border border-[#1E1E1E]/10 bg-white shadow-md">
+        <div className="border-b border-[#1E1E1E]/10 px-5 py-4">
+          <h2 className="text-base font-semibold text-[#1E1E1E]">Upcoming renewals</h2>
         </div>
         {upcomingRenewals.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-zinc-500">
+          <p className="px-5 py-6 text-sm text-[#1E1E1E]/60">
             No upcoming renewals in the next 30 days.
           </p>
         ) : (
-          <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
+          <ul className="divide-y divide-[#1E1E1E]/10">
             {upcomingRenewals.map(({ customer, daysAway }) => (
               <li
                 key={customer.customerId}
-                className="flex items-start justify-between gap-3 px-4 py-3 text-sm"
+                className="flex items-start justify-between gap-3 px-5 py-4 text-sm"
               >
                 <div>
                   <Link
                     href={`/customers/${customer.customerId}`}
-                    className="font-medium hover:underline"
+                    className="font-medium text-[#1E1E1E] hover:underline"
                   >
                     {customer.name}
                   </Link>
-                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  <p className="mt-1 text-xs text-[#1E1E1E]/70">
                     Service period ends {relativeDayLabel(daysAway)}
                     {customer.lastCall
                       ? ` · Last call: ${callTypeLabel(customer.lastCall.callType)}`
                       : ""}
                   </p>
-                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  <p className="mt-1 text-xs text-[#1E1E1E]/70">
                     {customer.openActionCount} open action
                     {customer.openActionCount === 1 ? "" : "s"} ·{" "}
                     {customer.openBlockerCount} blocker
@@ -532,7 +532,7 @@ export default async function AccountManagerHomePage() {
                 </div>
                 <Link
                   href={`/customers/${customer.customerId}`}
-                  className="text-xs text-zinc-500 hover:underline dark:text-zinc-400"
+                  className="text-sm text-[#2C76FF] hover:underline"
                 >
                   Review customer
                 </Link>
@@ -543,29 +543,29 @@ export default async function AccountManagerHomePage() {
       </section>
 
       <section>
-        <h2 className="mb-2 font-medium">Upcoming customer calls</h2>
+        <h2 className="mb-3 text-base font-semibold text-[#1E1E1E]">Upcoming customer calls</h2>
         <UpcomingMeetings supabase={supabase} showRequestAction />
       </section>
 
-      <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
-        <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-          <h2 className="text-sm font-medium">Recent conversations</h2>
+      <section className="rounded-xl border border-[#1E1E1E]/10 bg-white shadow-md">
+        <div className="border-b border-[#1E1E1E]/10 px-5 py-4">
+          <h2 className="text-base font-semibold text-[#1E1E1E]">Recent conversations</h2>
         </div>
         {recentMeetings.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-zinc-500">
+          <p className="px-5 py-6 text-sm text-[#1E1E1E]/60">
             No recent conversations with intelligence ready yet.
           </p>
         ) : (
-          <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
+          <ul className="divide-y divide-[#1E1E1E]/10">
             {recentMeetings.map((m) => (
               <li
                 key={m.meetingId}
-                className="flex flex-col gap-1 px-4 py-3 text-sm"
+                className="flex flex-col gap-1 px-5 py-4 text-sm"
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <Link
                     href={`/meetings/${m.meetingId}/recap`}
-                    className="font-medium hover:underline"
+                    className="font-medium text-[#1E1E1E] hover:underline"
                   >
                     {m.customerName ?? "Unlinked meeting"}
                   </Link>
@@ -574,16 +574,16 @@ export default async function AccountManagerHomePage() {
                       {callTypeLabel(m.callType)}
                     </StatusBadge>
                   ) : null}
-                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                  <span className="text-xs text-[#1E1E1E]/70">
                     {formatDate(m.scheduledStart)}
                   </span>
                 </div>
                 {m.summary ? (
-                  <p className="text-zinc-600 dark:text-zinc-400">
+                  <p className="text-[#1E1E1E]/80">
                     {m.summary}
                   </p>
                 ) : null}
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                <p className="text-xs text-[#1E1E1E]/70">
                   {m.truthChangeCount} truth change
                   {m.truthChangeCount === 1 ? "" : "s"} · {m.openActionCount}{" "}
                   action
@@ -595,7 +595,7 @@ export default async function AccountManagerHomePage() {
         )}
       </section>
 
-      <Link href="/integrations" className="w-fit text-sm underline">
+      <Link href="/integrations" className="w-fit text-sm text-[#2C76FF] hover:underline">
         Integrations
       </Link>
     </main>
