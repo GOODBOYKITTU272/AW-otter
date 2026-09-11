@@ -442,9 +442,9 @@ describe("Speaker Identity & Business Role Interpretation (P3D)", () => {
     expect(auditPayload?.["action"]).toBe("speaker_interpretation.corrected");
     expect(auditPayload?.["entity_type"]).toBe("meeting_speaker_interpretation");
     expect(auditPayload?.["actor_id"]).toBe(actorId);
-    const meta = auditPayload?.["metadata"] as Record<string, unknown>;
-    expect(meta?.previousRole).toBe("UNKNOWN");
-    expect(meta?.newRole).toBe("CANDIDATE");
-    expect(meta?.newName).toBe("Kartik Patel (Verified)");
+    const meta = (auditPayload?.["metadata"] ?? {}) as Record<string, unknown>;
+    expect(meta.previousRole).toBe("UNKNOWN");
+    expect(meta.newRole).toBe("CANDIDATE");
+    expect(meta.newName).toBe("Kartik Patel (Verified)");
   });
 });
