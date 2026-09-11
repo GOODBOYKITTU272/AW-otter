@@ -1,12 +1,11 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { Eye, EyeOff } from "lucide-react";
+import { ROLE_HOME_ROUTE, isSystemRoleKey } from "@applywizz/domain";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -38,8 +37,8 @@ export default function LoginPage() {
       .maybeSingle();
 
     if (!membership) {
-      router.push("/access-pending");
-      router.refresh();
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- Hard navigation required to commit cookies before SSR
+      window.location.assign("/access-pending");
       return;
     }
 
@@ -51,17 +50,15 @@ export default function LoginPage() {
 
     const roleKey = role?.key;
 
-    let targetRoute = "/";
-    if (roleKey === "admin") {
-      targetRoute = "/admin/overview";
-    } else if (roleKey === "senior_manager" || roleKey === "manager") {
-      targetRoute = "/manager/overview";
-    } else if (roleKey === "account_manager") {
-      targetRoute = "/home";
+    if (!roleKey || !isSystemRoleKey(roleKey)) {
+      setError(
+        "Your account role is not recognized. Please contact your administrator."
+      );
+      setSubmitting(false);
+      return;
     }
 
-    router.push(targetRoute);
-    router.refresh();
+    window.location.assign(ROLE_HOME_ROUTE[roleKey]);
   }
 
   return (
