@@ -92,7 +92,7 @@ describe("executeTranscriptionWithFallback", () => {
       {
         sequence: 1,
         provider: "azure-mai",
-        model: "azure-mai",
+        model: null,
         outcome: "failed",
         failureCode: "TIMEOUT",
       },
@@ -185,14 +185,14 @@ describe("executeTranscriptionWithFallback", () => {
       {
         sequence: 1,
         provider: "azure-mai",
-        model: "azure-mai",
+        model: null,
         outcome: "failed",
         failureCode: "TIMEOUT",
       },
       {
         sequence: 2,
         provider: "azure-mai",
-        model: "azure-mai",
+        model: null,
         outcome: "failed",
         failureCode: "TIMEOUT",
       },
@@ -232,7 +232,7 @@ describe("executeTranscriptionWithFallback", () => {
       {
         sequence: 1,
         provider: "azure-mai",
-        model: "azure-mai",
+        model: null,
         outcome: "failed",
         failureCode: "AUTH_FAILURE",
       },

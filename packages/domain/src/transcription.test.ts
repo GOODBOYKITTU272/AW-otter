@@ -1146,9 +1146,9 @@ describe("processTranscriptionJob with AzureMai provider", () => {
     expect(meta.fallbackReason).toContain("Primary provider azure-mai failed after 2 attempts. Final error: TIMEOUT");
     const attempts = meta.attempts as Array<Record<string, unknown>>;
     expect(attempts).toHaveLength(3);
-    expect(attempts[0]).toMatchObject({ sequence: 1, provider: "azure-mai", outcome: "failed", failureCode: "TIMEOUT" });
-    expect(attempts[1]).toMatchObject({ sequence: 2, provider: "azure-mai", outcome: "failed", failureCode: "TIMEOUT" });
-    expect(attempts[2]).toMatchObject({ sequence: 3, provider: "openrouter", outcome: "accepted" });
+    expect(attempts[0]).toMatchObject({ sequence: 1, provider: "azure-mai", model: null, outcome: "failed", failureCode: "TIMEOUT" });
+    expect(attempts[1]).toMatchObject({ sequence: 2, provider: "azure-mai", model: null, outcome: "failed", failureCode: "TIMEOUT" });
+    expect(attempts[2]).toMatchObject({ sequence: 3, provider: "openrouter", model: "whisper-large-v3-turbo", outcome: "accepted" });
 
     expect(mockAzureProvider.transcribe).toHaveBeenCalledTimes(2);
     expect(mockOpenRouterProvider.transcribe).toHaveBeenCalledTimes(1);
@@ -1219,8 +1219,8 @@ describe("processTranscriptionJob with AzureMai provider", () => {
     expect(meta.fallbackReason).toContain("Primary provider azure-mai encountered non-retryable error: AUTH_FAILURE");
     const attempts = meta.attempts as Array<Record<string, unknown>>;
     expect(attempts).toHaveLength(2);
-    expect(attempts[0]).toMatchObject({ sequence: 1, provider: "azure-mai", outcome: "failed", failureCode: "AUTH_FAILURE" });
-    expect(attempts[1]).toMatchObject({ sequence: 2, provider: "openrouter", outcome: "accepted" });
+    expect(attempts[0]).toMatchObject({ sequence: 1, provider: "azure-mai", model: null, outcome: "failed", failureCode: "AUTH_FAILURE" });
+    expect(attempts[1]).toMatchObject({ sequence: 2, provider: "openrouter", model: "whisper-large-v3-turbo", outcome: "accepted" });
 
     // Ensure Azure was NOT retried on auth failure
     expect(mockAzureProvider.transcribe).toHaveBeenCalledTimes(1);
@@ -1277,8 +1277,8 @@ describe("processTranscriptionJob with AzureMai provider", () => {
     expect(safeMeta.fallbackReason).toContain("Primary provider azure-mai failed after 2 attempts.");
     const attempts = safeMeta.attempts as Array<Record<string, unknown>>;
     expect(attempts).toHaveLength(3);
-    expect(attempts[0]).toMatchObject({ sequence: 1, provider: "azure-mai", failureCode: "TIMEOUT" });
-    expect(attempts[1]).toMatchObject({ sequence: 2, provider: "azure-mai", failureCode: "TIMEOUT" });
-    expect(attempts[2]).toMatchObject({ sequence: 3, provider: "openrouter", failureCode: "PROVIDER_5XX" });
+    expect(attempts[0]).toMatchObject({ sequence: 1, provider: "azure-mai", model: null, failureCode: "TIMEOUT" });
+    expect(attempts[1]).toMatchObject({ sequence: 2, provider: "azure-mai", model: null, failureCode: "TIMEOUT" });
+    expect(attempts[2]).toMatchObject({ sequence: 3, provider: "openrouter", model: null, failureCode: "PROVIDER_5XX" });
   });
 });

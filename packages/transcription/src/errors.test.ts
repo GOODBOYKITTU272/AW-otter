@@ -34,12 +34,27 @@ describe("Provider Failure Taxonomy and Classification", () => {
     expect(classifyProviderFailure(new TranscriptionApiError(404, "not found"))).toBe("NON_RETRYABLE_PROVIDER_ERROR");
   });
 
-  it("classifies network errors as PROVIDER_UNAVAILABLE", () => {
-    const fetchErr = new Error("fetch failed");
-    expect(classifyProviderFailure(fetchErr)).toBe("PROVIDER_UNAVAILABLE");
+  it("classifies network and timeout errors via typed names and error codes", () => {
+    const abortErr = new Error("aborted");
+    abortErr.name = "AbortError";
+    expect(classifyProviderFailure(abortErr)).toBe("TIMEOUT");
+
+    const timeoutErr = new Error("timeout");
+    timeoutErr.name = "TimeoutError";
+    expect(classifyProviderFailure(timeoutErr)).toBe("TIMEOUT");
 
     const connRefused = Object.assign(new Error("connect failed"), { code: "ECONNREFUSED" });
     expect(classifyProviderFailure(connRefused)).toBe("PROVIDER_UNAVAILABLE");
+
+    const fetchErrWithCause = Object.assign(new TypeError("fetch failed"), {
+      cause: Object.assign(new Error("connect reset"), { code: "ECONNRESET" }),
+    });
+    expect(classifyProviderFailure(fetchErrWithCause)).toBe("PROVIDER_UNAVAILABLE");
+
+    const timeoutCause = Object.assign(new TypeError("fetch failed"), {
+      cause: Object.assign(new Error("socket timeout"), { code: "ETIMEDOUT" }),
+    });
+    expect(classifyProviderFailure(timeoutCause)).toBe("TIMEOUT");
   });
 
   it("determines retryability according to policy", () => {

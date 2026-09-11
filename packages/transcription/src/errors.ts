@@ -64,6 +64,47 @@ export type ProviderFailureCode =
   | "PROVIDER_UNAVAILABLE"
   | "NON_RETRYABLE_PROVIDER_ERROR";
 
+function isTimeoutError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  if ("name" in err) {
+    const name = (err as { name: unknown }).name;
+    if (name === "TimeoutError" || name === "AbortError") return true;
+  }
+  if ("code" in err) {
+    const code = (err as { code: unknown }).code;
+    if (code === "ETIMEDOUT" || code === "UND_ERR_CONNECT_TIMEOUT") return true;
+  }
+  if ("cause" in err && (err as { cause: unknown }).cause) {
+    return isTimeoutError((err as { cause: unknown }).cause);
+  }
+  return false;
+}
+
+const NETWORK_UNAVAILABLE_CODES = new Set([
+  "ECONNREFUSED",
+  "ENOTFOUND",
+  "ECONNRESET",
+  "EAI_AGAIN",
+  "ENETUNREACH",
+  "EHOSTUNREACH",
+  "UND_ERR_SOCKET",
+  "UND_ERR_HEADERS_TIMEOUT",
+]);
+
+function isNetworkUnavailableError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  if ("code" in err) {
+    const code = (err as { code: unknown }).code;
+    if (typeof code === "string" && NETWORK_UNAVAILABLE_CODES.has(code)) {
+      return true;
+    }
+  }
+  if ("cause" in err && (err as { cause: unknown }).cause) {
+    return isNetworkUnavailableError((err as { cause: unknown }).cause);
+  }
+  return false;
+}
+
 export function classifyProviderFailure(error: unknown): ProviderFailureCode {
   if (error instanceof TranscriptionAuthError) {
     return "AUTH_FAILURE";
@@ -89,20 +130,11 @@ export function classifyProviderFailure(error: unknown): ProviderFailureCode {
     if (status === 400 || status === 422) return "INVALID_RESPONSE";
     return "NON_RETRYABLE_PROVIDER_ERROR";
   }
-  if (error instanceof Error) {
-    if (error.name === "AbortError" || error.message.includes("timed out")) {
-      return "TIMEOUT";
-    }
-    const code = (error as { code?: string }).code;
-    if (
-      code === "ECONNREFUSED" ||
-      code === "ENOTFOUND" ||
-      code === "ETIMEDOUT" ||
-      code === "ECONNRESET" ||
-      error.message.includes("fetch failed")
-    ) {
-      return "PROVIDER_UNAVAILABLE";
-    }
+  if (isTimeoutError(error)) {
+    return "TIMEOUT";
+  }
+  if (isNetworkUnavailableError(error)) {
+    return "PROVIDER_UNAVAILABLE";
   }
   return "NON_RETRYABLE_PROVIDER_ERROR";
 }

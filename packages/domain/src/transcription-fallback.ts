@@ -11,7 +11,7 @@ import {
 export interface ProviderAttemptRecord {
   sequence: number;
   provider: string;
-  model: string;
+  model: string | null;
   outcome: "accepted" | "failed";
   failureCode?: ProviderFailureCode;
 }
@@ -90,7 +90,7 @@ export async function executeTranscriptionWithFallback(
     attempts.push({
       sequence: 1,
       provider: primaryProvider.name,
-      model: primaryProvider.name,
+      model: null,
       outcome: "failed",
       failureCode: primaryAttempt1FailureCode,
     });
@@ -128,7 +128,7 @@ export async function executeTranscriptionWithFallback(
       attempts.push({
         sequence: 2,
         provider: primaryProvider.name,
-        model: primaryProvider.name,
+        model: null,
         outcome: "failed",
         failureCode,
       });
@@ -162,7 +162,7 @@ export async function executeTranscriptionWithFallback(
       attempts.push({
         sequence: attempts.length + 1,
         provider: fallbackProvider.name,
-        model: fallbackProvider.name,
+        model: null,
         outcome: "failed",
         failureCode,
       });
