@@ -76,6 +76,32 @@ describe("OpenRouterTranscriptionProvider", () => {
     });
   });
 
+  it("transcribes WAV files and attaches audio/wav MIME type", async () => {
+    let capturedBlobType: string | undefined;
+    const fetchImpl = vi.fn(async (_url: string, init: RequestInit) => {
+      const form = init.body as FormData;
+      const fileBlob = form.get("file") as Blob;
+      capturedBlobType = fileBlob?.type;
+      return new Response(JSON.stringify(VERBOSE_JSON_BODY), { status: 200 });
+    });
+
+    const wavPath = join(tmpdir(), `transcription-wav-${crypto.randomUUID()}.wav`);
+    await writeFile(wavPath, new Uint8Array([1, 2, 3]));
+    try {
+      const provider = new OpenRouterTranscriptionProvider(
+        "test-key",
+        undefined,
+        undefined,
+        fetchImpl as unknown as typeof fetch,
+      );
+      const result = await provider.transcribe(wavPath);
+      expect(capturedBlobType).toBe("audio/wav");
+      expect(result.text).toBe("We should shift toward Python.");
+    } finally {
+      await rm(wavPath, { force: true });
+    }
+  });
+
   it("passes the language option through when supplied", async () => {
     const fetchImpl = vi.fn(async (_url: string, init: RequestInit) => {
       const form = init.body as FormData;

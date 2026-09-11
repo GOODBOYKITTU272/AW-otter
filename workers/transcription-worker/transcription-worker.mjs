@@ -87,12 +87,18 @@ const transcriptionProvider = createTranscriptionProvider({
   },
 });
 
+const fallbackProvider =
+  primaryProvider === "azure-mai"
+    ? new OpenRouterTranscriptionProvider(openRouterApiKey)
+    : undefined;
+
 const deps = {
   vexaEnv: {
     baseUrl: requiredEnv("VEXA_BASE_URL"),
     apiKey: requiredEnv("VEXA_API_KEY"),
   },
   transcriptionProvider,
+  fallbackProvider,
   normalizationProvider: new OpenRouterNormalizationProvider(openRouterApiKey),
   storage: supabase.storage.from(MEETING_RECORDINGS_BUCKET),
 };

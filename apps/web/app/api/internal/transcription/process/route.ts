@@ -10,6 +10,7 @@ import {
 } from "@applywizz/domain/meeting-recordings";
 import {
   OpenRouterNormalizationProvider,
+  OpenRouterTranscriptionProvider,
   createTranscriptionProvider,
 } from "@applywizz/transcription";
 import {
@@ -105,9 +106,15 @@ export async function POST(request: NextRequest) {
     },
   });
 
+  const fallbackProvider =
+    transcriptionConfig.TRANSCRIPTION_PRIMARY_PROVIDER === "azure-mai"
+      ? new OpenRouterTranscriptionProvider(openRouterEnv.OPENROUTER_API_KEY)
+      : undefined;
+
   const deps = {
     vexaEnv,
     transcriptionProvider,
+    fallbackProvider,
     normalizationProvider: new OpenRouterNormalizationProvider(
       openRouterEnv.OPENROUTER_API_KEY,
     ),
