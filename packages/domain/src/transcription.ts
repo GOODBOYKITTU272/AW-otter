@@ -110,6 +110,8 @@ export interface TranscriptionDeps {
   vexaEnv: VexaEnv;
   transcriptionProvider: TranscriptionProvider;
   fallbackProvider?: TranscriptionProvider;
+  /** Phase 3: Ordered provider chain for three-provider fallback (Azure → Sarvam → Whisper). If present, takes precedence over transcriptionProvider+fallbackProvider. */
+  providers?: TranscriptionProvider[];
   normalizationProvider: EnglishNormalizationProvider;
   storage: RecordingStorageClient;
   fetchImpl?: typeof fetch;
@@ -297,6 +299,7 @@ export async function processTranscriptionJob(
       attempts,
       fallbackReason,
     } = await executeTranscriptionWithFallback({
+      providers: deps.providers,
       primaryProvider: deps.transcriptionProvider,
       fallbackProvider: deps.fallbackProvider,
       filePath: cleanPath,

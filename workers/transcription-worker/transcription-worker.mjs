@@ -47,6 +47,7 @@ import { MEETING_RECORDINGS_BUCKET } from "@applywizz/domain/meeting-recordings"
 import {
   OpenRouterNormalizationProvider,
   OpenRouterTranscriptionProvider,
+  SarvamTranscriptionProvider,
   createTranscriptionProvider,
 } from "@applywizz/transcription";
 
@@ -68,13 +69,14 @@ const supabase = createClient(
 );
 
 const openRouterApiKey = requiredEnv("OPENROUTER_API_KEY");
-const primaryProvider = process.env.TRANSCRIPTION_PRIMARY_PROVIDER || "openrouter";
+const primaryProviderName = process.env.TRANSCRIPTION_PRIMARY_PROVIDER || "openrouter";
 const azureEndpoint = process.env.AZURE_MAI_ENDPOINT;
 const azureKey = process.env.AZURE_MAI_KEY;
 const azureRegion = process.env.AZURE_MAI_REGION;
+const sarvamApiKey = process.env.SARVAM_API_KEY;
 
 const transcriptionProvider = createTranscriptionProvider({
-  primaryProvider,
+  primaryProvider: primaryProviderName,
   azureMai: (azureEndpoint && azureKey)
     ? {
         endpoint: azureEndpoint,
@@ -82,15 +84,30 @@ const transcriptionProvider = createTranscriptionProvider({
         region: azureRegion,
       }
     : undefined,
+  sarvam: sarvamApiKey ? { apiKey: sarvamApiKey } : undefined,
   openRouter: {
     apiKey: openRouterApiKey,
   },
 });
 
-const fallbackProvider =
-  primaryProvider === "azure-mai"
-    ? new OpenRouterTranscriptionProvider(openRouterApiKey)
-    : undefined;
+// Phase 3: Three-provider fallback chain for azure-mai primary (Azure → Sarvam → Whisper)
+let providers = undefined;
+let fallbackProvider = undefined;
+
+if (primaryProviderName === "azure-mai") {
+  const whisperProvider = new OpenRouterTranscriptionProvider(openRouterApiKey);
+  if (sarvamApiKey) {
+    // Full three-provider chain: Azure → Sarvam → Whisper
+    const sarvamProvider = new SarvamTranscriptionProvider(sarvamApiKey);
+    providers = [transcriptionProvider, sarvamProvider, whisperProvider];
+  } else {
+    // Sarvam not configured, skip it: Azure → Whisper
+    providers = [transcriptionProvider, whisperProvider];
+  }
+} else {
+  // For non-azure primary, keep legacy two-slot behavior (no fallback)
+  fallbackProvider = undefined;
+}
 
 const deps = {
   vexaEnv: {
@@ -99,6 +116,7 @@ const deps = {
   },
   transcriptionProvider,
   fallbackProvider,
+  providers,
   normalizationProvider: new OpenRouterNormalizationProvider(openRouterApiKey),
   storage: supabase.storage.from(MEETING_RECORDINGS_BUCKET),
 };

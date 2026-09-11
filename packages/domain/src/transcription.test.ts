@@ -1143,7 +1143,7 @@ describe("processTranscriptionJob with AzureMai provider", () => {
 
     const meta = transcript.provider_metadata as Record<string, unknown>;
     expect(meta.provider).toBe("openrouter");
-    expect(meta.fallbackReason).toContain("Primary provider azure-mai failed after 2 attempts. Final error: TIMEOUT");
+    expect(meta.fallbackReason).toContain("Provider azure-mai failed after 2 attempts. Final error: TIMEOUT");
     const attempts = meta.attempts as Array<Record<string, unknown>>;
     expect(attempts).toHaveLength(3);
     expect(attempts[0]).toMatchObject({ sequence: 1, provider: "azure-mai", model: null, outcome: "failed", failureCode: "TIMEOUT" });
@@ -1216,7 +1216,7 @@ describe("processTranscriptionJob with AzureMai provider", () => {
     expect(transcript.provider).toBe("openrouter");
 
     const meta = transcript.provider_metadata as Record<string, unknown>;
-    expect(meta.fallbackReason).toContain("Primary provider azure-mai encountered non-retryable error: AUTH_FAILURE");
+    expect(meta.fallbackReason).toContain("Provider azure-mai encountered non-retryable error: AUTH_FAILURE");
     const attempts = meta.attempts as Array<Record<string, unknown>>;
     expect(attempts).toHaveLength(2);
     expect(attempts[0]).toMatchObject({ sequence: 1, provider: "azure-mai", model: null, outcome: "failed", failureCode: "AUTH_FAILURE" });
@@ -1274,11 +1274,12 @@ describe("processTranscriptionJob with AzureMai provider", () => {
 
     const safeMeta = transcript.safe_error_metadata as Record<string, unknown>;
     expect(safeMeta.message).toBe("All transcription providers failed.");
-    expect(safeMeta.fallbackReason).toContain("Primary provider azure-mai failed after 2 attempts.");
+    expect(safeMeta.fallbackReason).toContain("Provider azure-mai failed after 2 attempts.");
     const attempts = safeMeta.attempts as Array<Record<string, unknown>>;
-    expect(attempts).toHaveLength(3);
+    expect(attempts).toHaveLength(4); // 2 Azure (retry) + 2 OpenRouter (retry)
     expect(attempts[0]).toMatchObject({ sequence: 1, provider: "azure-mai", model: null, failureCode: "TIMEOUT" });
     expect(attempts[1]).toMatchObject({ sequence: 2, provider: "azure-mai", model: null, failureCode: "TIMEOUT" });
     expect(attempts[2]).toMatchObject({ sequence: 3, provider: "openrouter", model: null, failureCode: "PROVIDER_5XX" });
+    expect(attempts[3]).toMatchObject({ sequence: 4, provider: "openrouter", model: null, failureCode: "PROVIDER_5XX" });
   });
 });
