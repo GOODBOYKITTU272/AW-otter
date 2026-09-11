@@ -14,6 +14,7 @@ import {
   parseTemporaryQueryScope,
   detectPromptInjectionInEvidence,
   evaluateEvidenceGrounding,
+  extractGroundedFactProposalsFromEvidence,
 } from "./echo-trust";
 import { logAuditEvent } from "./audit";
 
@@ -383,16 +384,110 @@ export async function answerCustomerQuestion(
   );
 
   // Step 7: Proposal-Only Write Boundary
+  // Proposals are derived ONLY from verified candidate evidence, never from arbitrary question text
   const proposedFacts: NonNullable<AskSignalResult["proposedFacts"]> = [];
-  if (/relocat/i.test(question)) {
-    const relocationEvidence = evidence.filter((e) => /relocat/i.test(e.text));
-    if (relocationEvidence.length > 0) {
-      proposedFacts.push({
-        fieldKey: "relocation_pref",
-        proposedValue: "Open to Texas conditionally",
-        status: "proposed",
-      });
+  const candidates = extractGroundedFactProposalsFromEvidence(evidence);
+
+  for (const candidate of candidates) {
+    let factId: string | undefined = undefined;
+
+    try {
+      const { data: cust } = await supabase
+        .from("customers")
+        .select("organization_id")
+        .eq("id", customerId)
+        .maybeSingle();
+
+      if (cust?.organization_id && candidate.sourceMeetingId) {
+        // Query existing pending proposals for this customer & field
+        const { data: existingProposals } = await supabase
+          .from("customer_truth_facts")
+          .select("id, value, source_meeting_id, evidence_segment_ids")
+          .eq("customer_id", customerId)
+          .eq("field_key", candidate.fieldKey)
+          .eq("status", "proposed");
+
+        const normalizeValue = (val: unknown): string => {
+          if (typeof val === "string") return val.trim().toLowerCase();
+          try {
+            return JSON.stringify(val).toLowerCase();
+          } catch {
+            return String(val).toLowerCase();
+          }
+        };
+
+        const candidateValueNorm = normalizeValue(candidate.proposedValue);
+
+        // Deduplication requires:
+        // 1. Semantic equivalence of the proposed value
+        // 2. Appropriate source/evidence relationship (same meeting or shared evidence segments)
+        const matchingProposal = (
+          (existingProposals as Array<{
+            id: string;
+            value: unknown;
+            source_meeting_id: string | null;
+            evidence_segment_ids: string[] | null;
+          }> | null) ?? []
+        ).find((existing) => {
+          const valueMatches = normalizeValue(existing.value) === candidateValueNorm;
+          if (!valueMatches) return false;
+
+          const sameMeeting = existing.source_meeting_id === candidate.sourceMeetingId;
+          const overlappingSegments =
+            Array.isArray(existing.evidence_segment_ids) &&
+            existing.evidence_segment_ids.some((segId: string) =>
+              candidate.evidenceSegmentIds.includes(segId),
+            );
+
+          return sameMeeting || overlappingSegments;
+        });
+
+        if (matchingProposal?.id) {
+          factId = matchingProposal.id;
+        } else {
+          // Persist strictly as 'proposed' via RLS policy
+          const { data: insertedFact, error: insertError } = await supabase
+            .from("customer_truth_facts")
+            .insert({
+              organization_id: cust.organization_id,
+              customer_id: customerId,
+              field_key: candidate.fieldKey,
+              value: candidate.proposedValue as import("@applywizz/database/types").Json,
+              status: "proposed",
+              source_type: "meeting",
+              source_meeting_id: candidate.sourceMeetingId,
+              evidence_segment_ids: candidate.evidenceSegmentIds,
+              source_speaker: candidate.sourceSpeaker,
+              detected_at: new Date().toISOString(),
+            })
+            .select("id")
+            .maybeSingle();
+
+          if (!insertError && insertedFact?.id) {
+            factId = insertedFact.id;
+          }
+        }
+      }
+    } catch {
+      // Safe error containment
     }
+
+    const evidenceItem = evidence.find(
+      (e) => e.id === candidate.evidenceSegmentIds[0],
+    );
+
+    proposedFacts.push({
+      id: factId,
+      fieldKey: candidate.fieldKey,
+      proposedValue: candidate.proposedValue,
+      status: "proposed",
+      evidenceSegmentId: candidate.evidenceSegmentIds[0],
+      sourceMeetingId: candidate.sourceMeetingId,
+      speakerName: evidenceItem?.speakerName ?? candidate.sourceSpeaker ?? undefined,
+      speakerRole: evidenceItem?.speakerRole ?? undefined,
+      timestampMs: evidenceItem?.startMs ?? undefined,
+      rationale: candidate.rationale,
+    });
   }
 
   // Step 8: Audit Log

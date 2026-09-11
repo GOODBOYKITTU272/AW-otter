@@ -15,6 +15,8 @@ import {
 import { StatusBadge } from "@/components/admin/status-badge";
 import { requireRole } from "@/lib/require-role";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { AskSignalPanel } from "@/components/ask-signal/ask-signal-panel";
+import { CustomerDetailTabs } from "@/components/customer/customer-tabs";
 
 const CALL_TYPE_LABEL: Record<string, string> = {
   discovery: "Discovery",
@@ -61,11 +63,6 @@ function humanizeFieldKey(fieldKey: string) {
   return fieldKey.replaceAll("_", " ");
 }
 
-// M10: Customer Truth review + history on one page (sections A+B of the
-// locked spec — same data, split only by status). RLS scopes every
-// query to whatever the signed-in user (own/manager-in-tree/admin) can
-// see; this page never re-implements that authorization, only displays
-// it and calls the confirm/reject RPCs via ConfirmRejectActions.
 export default async function CustomerDetailPage({
   params,
 }: {
@@ -83,8 +80,6 @@ export default async function CustomerDetailPage({
   if (customerError) throw customerError;
   if (!customer) notFound();
 
-  // M14: shown for manager clarity when viewing a report's customer —
-  // harmless for an AM viewing their own (it's just their own name).
   const { data: ownerMembership, error: ownerError } = await supabase
     .from("organization_memberships")
     .select("display_name")
@@ -97,25 +92,18 @@ export default async function CustomerDetailPage({
     .select("field_key, value")
     .eq("customer_id", id);
   if (currentError) throw currentError;
-  // customer_truth_current is a VIEW — the generated type marks every
-  // column nullable regardless of the base table's real NOT NULL
-  // constraints on field_key; this is a codegen gap, not a real
-  // nullability (matches the pattern already used elsewhere in this repo
-  // for generated-type gaps).
+
   const currentByField = new Map<string, unknown>(
-    (current ?? []).map((row) => [row.field_key as string, row.value]),
+    (current ?? [])
+      .filter((row): row is typeof row & { field_key: string } => Boolean(row.field_key))
+      .map((row) => [row.field_key, row.value]),
   );
 
-  // M10 amendment: effective truth = confirmed Signal fact if one exists,
-  // else the CRM baseline (never the reverse — a CRM refresh can never
-  // overwrite a confirmed Signal fact). Only covers the fields the CRM
-  // baseline actually maps to; other Signal-only fields (skills,
-  // concerns, application_strategy, ...) are Signal-confirmed-only and
-  // stay in currentByField above.
   const effectiveTruth = await getEffectiveCustomerTruth(supabase, id);
-  const effectiveByField = new Map(
-    effectiveTruth.map((f) => [f.fieldKey as string, f]),
+  const effectiveByField = new Map<string, (typeof effectiveTruth)[number]>(
+    effectiveTruth.map((item) => [item.fieldKey, item]),
   );
+
   const signalOnlyFields = Array.from(currentByField.entries()).filter(
     ([fieldKey]) => !effectiveByField.has(fieldKey),
   );
@@ -123,7 +111,7 @@ export default async function CustomerDetailPage({
   const { data: facts, error: factsError } = await supabase
     .from("customer_truth_facts")
     .select(
-      "id, field_key, value, status, previous_fact_id, source_meeting_id, evidence_segment_ids, detected_at, confirmed_by_membership_id, confirmed_at, rejected_by_membership_id, rejected_at, rejection_reason",
+      "id, field_key, value, status, detected_at, confirmed_at, rejected_at, confirmed_by_membership_id, rejected_by_membership_id, rejection_reason, evidence_segment_ids",
     )
     .eq("customer_id", id)
     .order("detected_at", { ascending: false });
@@ -173,13 +161,9 @@ export default async function CustomerDetailPage({
       .filter((s): s is EvidenceSegment => Boolean(s));
   }
 
-  // M11: recent meetings, open actions, and journey timeline — additive
-  // sections reusing M9/M10 data already scoped by the RLS this page
-  // already relies on above. Nothing here duplicates the Current
-  // Truth/Pending Changes/History sections.
   const recentMeetings = await listRecentMeetingSummaries(supabase, {
     customerId: id,
-    limit: 5,
+    limit: 10,
   });
 
   const { data: openActionRows, error: openActionsError } = await supabase
@@ -201,30 +185,127 @@ export default async function CustomerDetailPage({
     .order("scheduled_at", { ascending: true });
   if (journeyError) throw journeyError;
 
-  return (
-    <div className="flex flex-col gap-6 p-6">
-      <div>
-        <Link
-          href="/customers"
-          className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
-        >
-          ← All customers
-        </Link>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight">
-          {customer.name}
-        </h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          {customer.lifecycle_stage ?? "Lifecycle stage unknown"}
-          {ownerMembership ? ` · Owned by ${ownerMembership.display_name}` : ""}
-        </p>
-        <Link
-          href={`/customers/${customer.id}/ask`}
-          className="mt-2 inline-block text-sm text-zinc-700 underline dark:text-zinc-300"
-        >
-          Ask Signal about this customer →
-        </Link>
-      </div>
+  // Render Tabs
+  const overviewContent = (
+    <div className="flex flex-col gap-6">
+      <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
+        <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+          <h2 className="text-sm font-medium">Open actions &amp; commitments</h2>
+        </div>
+        {(openActionRows ?? []).length === 0 ? (
+          <p className="px-4 py-6 text-sm text-zinc-500">
+            No outstanding commitments.
+          </p>
+        ) : (
+          <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
+            {(openActionRows ?? []).map((record) => (
+              <li key={record.id} className="flex flex-col gap-2 px-4 py-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusBadge tone="info">
+                        {RECORD_TYPE_LABELS[record.record_type] ??
+                          record.record_type}
+                      </StatusBadge>
+                      {record.due_at ? (
+                        <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                          Due {formatShortDate(record.due_at)}
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="mt-1 text-sm font-medium">{record.description}</p>
+                  </div>
+                  <ResolveAction recordId={record.id} />
+                </div>
+                <EvidenceSegments
+                  segments={evidenceFor(record.evidence_segment_ids)}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
+      <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
+        <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+          <h2 className="text-sm font-medium">Recent meetings</h2>
+        </div>
+        {recentMeetings.length === 0 ? (
+          <p className="px-4 py-6 text-sm text-zinc-500">
+            No meetings with intelligence ready yet.
+          </p>
+        ) : (
+          <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
+            {recentMeetings.slice(0, 3).map((m) => (
+              <li
+                key={m.meetingId}
+                className="flex flex-col gap-1 px-4 py-3 text-sm"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Link
+                    href={`/meetings/${m.meetingId}`}
+                    className="font-semibold text-blue-600 hover:underline dark:text-blue-400"
+                  >
+                    {m.callType
+                      ? (CALL_TYPE_LABEL[m.callType] ?? m.callType)
+                      : "Meeting"}
+                  </Link>
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                    {formatShortDate(m.scheduledStart)}
+                  </span>
+                </div>
+                {m.summary ? (
+                  <p className="text-zinc-600 dark:text-zinc-400 text-xs line-clamp-2">
+                    {m.summary}
+                  </p>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
+        <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+          <h2 className="text-sm font-medium">Call history &amp; journey</h2>
+        </div>
+        {(journeyRows ?? []).length === 0 ? (
+          <p className="px-4 py-6 text-sm text-zinc-500">
+            No scheduled or completed calls yet.
+          </p>
+        ) : (
+          <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
+            {(journeyRows ?? []).map((call) => (
+              <li
+                key={call.id}
+                className="flex items-center justify-between px-4 py-2 text-sm"
+              >
+                <span>
+                  {CALL_TYPE_LABEL[call.canonical_call_type] ??
+                    call.canonical_call_type}
+                </span>
+                <span className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                  {formatShortDate(call.scheduled_at)}
+                  <StatusBadge tone={call.meeting_id ? "success" : "neutral"}>
+                    {call.meeting_id ? "Completed" : call.external_status}
+                  </StatusBadge>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+
+  const askEchoContent = (
+    <div className="flex flex-col gap-4">
+      <AskSignalPanel customerId={id} />
+    </div>
+  );
+
+  const truthContent = (
+    <div className="flex flex-col gap-6">
       <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
           <h2 className="text-sm font-medium">Current truth</h2>
@@ -297,9 +378,6 @@ export default async function CustomerDetailPage({
         ) : (
           <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
             {proposed.map((fact) => {
-              // §11: compare against EFFECTIVE current truth (confirmed
-              // Signal fact if any, else the CRM baseline) — deterministic
-              // structured comparison, no second AI call.
               const effectiveCurrent =
                 effectiveByField.get(fact.field_key)?.currentValue ??
                 currentByField.get(fact.field_key) ??
@@ -395,119 +473,100 @@ export default async function CustomerDetailPage({
           </ul>
         )}
       </section>
+    </div>
+  );
 
-      <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
-        <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-          <h2 className="text-sm font-medium">Recent meetings</h2>
-        </div>
-        {recentMeetings.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-zinc-500">
-            No meetings with intelligence ready yet.
-          </p>
-        ) : (
-          <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
-            {recentMeetings.map((m) => (
-              <li
-                key={m.meetingId}
-                className="flex flex-col gap-1 px-4 py-3 text-sm"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <Link
-                    href={`/meetings/${m.meetingId}/recap`}
-                    className="font-medium hover:underline"
-                  >
-                    {m.callType
-                      ? (CALL_TYPE_LABEL[m.callType] ?? m.callType)
-                      : "Call"}
-                  </Link>
-                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                    {formatShortDate(m.scheduledStart)}
-                  </span>
-                </div>
-                {m.summary ? (
-                  <p className="text-zinc-600 dark:text-zinc-400">
-                    {m.summary}
-                  </p>
-                ) : null}
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  {m.truthChangeCount} truth change
-                  {m.truthChangeCount === 1 ? "" : "s"} · {m.openActionCount}{" "}
-                  action{m.openActionCount === 1 ? "" : "s"}
+  const meetingsContent = (
+    <div className="flex flex-col gap-4">
+      {recentMeetings.length === 0 ? (
+        <p className="rounded-lg border border-zinc-200 p-8 text-center text-sm text-zinc-500 dark:border-zinc-800">
+          No recorded meetings for this customer yet.
+        </p>
+      ) : (
+        <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+          {recentMeetings.map((m) => (
+            <li
+              key={m.meetingId}
+              className="flex flex-col gap-2 p-4 text-sm hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50"
+            >
+              <div className="flex items-center justify-between">
+                <Link
+                  href={`/meetings/${m.meetingId}`}
+                  className="font-semibold text-blue-600 hover:underline dark:text-blue-400"
+                >
+                  {m.callType ? CALL_TYPE_LABEL[m.callType] ?? m.callType : "Customer Meeting"}
+                </Link>
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                  {formatShortDate(m.scheduledStart)}
+                </span>
+              </div>
+              {m.summary && (
+                <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                  {m.summary}
                 </p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+              )}
+              <div className="flex items-center gap-4 text-xs text-zinc-500 pt-1">
+                <Link
+                  href={`/meetings/${m.meetingId}?tab=transcript`}
+                  className="text-blue-600 hover:underline dark:text-blue-400 font-medium"
+                >
+                  Transcript →
+                </Link>
+                <Link
+                  href={`/meetings/${m.meetingId}/recap`}
+                  className="text-zinc-600 hover:underline dark:text-zinc-400"
+                >
+                  Recap details →
+                </Link>
+                <span>· {m.openActionCount} action{m.openActionCount === 1 ? "" : "s"}</span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 
-      <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
-        <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-          <h2 className="text-sm font-medium">Open actions</h2>
+  return (
+    <div className="flex flex-col gap-6 p-6 max-w-5xl mx-auto w-full">
+      <div>
+        <Link
+          href="/customers"
+          className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
+        >
+          ← All customers
+        </Link>
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+              {customer.name}
+            </h1>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              {customer.lifecycle_stage ?? "Lifecycle stage unknown"}
+              {ownerMembership ? ` · Owned by ${ownerMembership.display_name}` : ""}
+            </p>
+          </div>
         </div>
-        {(openActionRows ?? []).length === 0 ? (
-          <p className="px-4 py-6 text-sm text-zinc-500">
-            Nothing outstanding.
-          </p>
-        ) : (
-          <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
-            {(openActionRows ?? []).map((record) => (
-              <li key={record.id} className="flex flex-col gap-2 px-4 py-3">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <StatusBadge tone="info">
-                        {RECORD_TYPE_LABELS[record.record_type] ??
-                          record.record_type}
-                      </StatusBadge>
-                      {record.due_at ? (
-                        <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                          Due {formatShortDate(record.due_at)}
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="mt-1 text-sm">{record.description}</p>
-                  </div>
-                  <ResolveAction recordId={record.id} />
-                </div>
-                <EvidenceSegments
-                  segments={evidenceFor(record.evidence_segment_ids)}
-                />
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      </div>
 
-      <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
-        <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-          <h2 className="text-sm font-medium">Customer history</h2>
-        </div>
-        {(journeyRows ?? []).length === 0 ? (
-          <p className="px-4 py-6 text-sm text-zinc-500">
-            No scheduled or completed calls yet.
-          </p>
-        ) : (
-          <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
-            {(journeyRows ?? []).map((call) => (
-              <li
-                key={call.id}
-                className="flex items-center justify-between px-4 py-2 text-sm"
-              >
-                <span>
-                  {CALL_TYPE_LABEL[call.canonical_call_type] ??
-                    call.canonical_call_type}
-                </span>
-                <span className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-                  {formatShortDate(call.scheduled_at)}
-                  <StatusBadge tone={call.meeting_id ? "success" : "neutral"}>
-                    {call.meeting_id ? "Completed" : call.external_status}
-                  </StatusBadge>
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <CustomerDetailTabs
+        tabs={[
+          { key: "overview", label: "Overview", content: overviewContent },
+          { key: "ask", label: "Ask Echo", content: askEchoContent },
+          {
+            key: "truth",
+            label: "Customer Truth",
+            count: proposed.length > 0 ? proposed.length : undefined,
+            content: truthContent,
+          },
+          {
+            key: "meetings",
+            label: "Meetings",
+            count: recentMeetings.length > 0 ? recentMeetings.length : undefined,
+            content: meetingsContent,
+          },
+        ]}
+      />
     </div>
   );
 }
