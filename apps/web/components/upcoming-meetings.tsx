@@ -88,7 +88,7 @@ export async function UpcomingMeetings({
 
   if (!meetings || meetings.length === 0) {
     return (
-      <p className="text-sm text-zinc-500 dark:text-zinc-400">
+      <p className="text-sm text-[#1E1E1E]/70">
         No upcoming meetings.
       </p>
     );
@@ -162,15 +162,15 @@ export async function UpcomingMeetings({
   }
 
   return (
-    <ul className="flex flex-col gap-2">
+    <ul className="flex flex-col gap-3">
       {meetings.map((meeting) => (
         <li
           key={meeting.id}
-          className="flex items-center justify-between gap-4 rounded-md border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-800"
+          className="flex items-center justify-between gap-4 rounded-xl border border-[#1E1E1E]/10 bg-white px-5 py-4 text-sm shadow-sm"
         >
           <div className="flex flex-col gap-1">
-            <span className="font-medium">{meeting.title}</span>
-            <span className="text-zinc-500 dark:text-zinc-400">
+            <span className="font-medium text-[#1E1E1E]">{meeting.title}</span>
+            <span className="text-sm text-[#1E1E1E]/70">
               {new Date(meeting.scheduled_start).toLocaleString()}
             </span>
             <StatusBadge
@@ -192,7 +192,7 @@ export async function UpcomingMeetings({
             ) : null}
             {meeting.customer_link_status === "linked_auto" ||
             meeting.customer_link_status === "linked_manual" ? (
-              <span className="text-xs text-zinc-500 dark:text-zinc-400">
+              <span className="text-xs text-[#1E1E1E]/70">
                 {meeting.customer_id
                   ? customerNameById.get(meeting.customer_id)
                   : null}
@@ -216,7 +216,7 @@ export async function UpcomingMeetings({
               <CallTypeConfirmControl meetingId={meeting.id} />
             ) : null}
             {showOwner && meeting.owner_membership_id ? (
-              <span className="text-xs text-zinc-500 dark:text-zinc-400">
+              <span className="text-xs text-[#1E1E1E]/70">
                 {ownerNameById.get(meeting.owner_membership_id) ?? "Unassigned"}
               </span>
             ) : null}
@@ -225,7 +225,7 @@ export async function UpcomingMeetings({
             {meeting.meeting_url ? (
               <a
                 href={meeting.meeting_url}
-                className="underline"
+                className="text-[#2C76FF] hover:underline"
                 target="_blank"
                 rel="noreferrer"
               >
@@ -235,7 +235,7 @@ export async function UpcomingMeetings({
             {showOwner ? (
               <Link
                 href={`/meetings/${meeting.id}/prep`}
-                className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+                className="rounded-lg border border-[#2C76FF]/30 bg-[#2C76FF]/10 px-3 py-1.5 text-xs font-medium text-[#2C76FF] hover:bg-[#2C76FF]/20 transition-all"
               >
                 View prep
               </Link>

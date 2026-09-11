@@ -6,12 +6,12 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   const membership = await requireRole(["admin"]);
 
   return (
-    <div className="flex flex-1">
+    <div className="flex flex-1 bg-[#0B1D33]">
       <AdminSidebar />
       <div className="flex flex-1 flex-col">
-        <header className="flex items-center justify-end gap-4 border-b border-zinc-200 px-8 py-3 dark:border-zinc-800">
-          <span className="text-sm text-zinc-500 dark:text-zinc-400">
-            {membership.displayName} <span className="text-zinc-400 dark:text-zinc-600">· Admin</span>
+        <header className="flex items-center justify-end gap-4 border-b border-[#F5F5F5]/10 bg-[#1E1E1E] px-8 py-3">
+          <span className="text-sm text-[#F5F5F5]/90">
+            {membership.displayName} <span className="text-[#F5F5F5]/50">· Admin</span>
           </span>
           <SignOutButton />
         </header>
