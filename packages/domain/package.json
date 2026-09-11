@@ -36,7 +36,8 @@
     "./operational-incidents": "./src/operational-incidents.ts",
     "./microsoft-subscription-renewal": "./src/microsoft-subscription-renewal.ts",
     "./meeting-integrity": "./src/meeting-integrity.ts",
-    "./speaker-identity": "./src/speaker-identity.ts"
+    "./speaker-identity": "./src/speaker-identity.ts",
+    "./shadow-pilot": "./src/shadow-pilot.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
