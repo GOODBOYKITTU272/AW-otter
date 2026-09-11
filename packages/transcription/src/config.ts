@@ -31,3 +31,7 @@ export const DEFAULT_NORMALIZATION_MODEL = "openai/gpt-4o-mini";
 /** A ~1MB compressed real meeting recording round-tripped in ~5-10s during testing; generous headroom for a long real call. */
 export const DEFAULT_TRANSCRIPTION_TIMEOUT_MS = 120_000;
 export const DEFAULT_NORMALIZATION_TIMEOUT_MS = 30_000;
+
+export const DEFAULT_AZURE_MAI_MODEL = "MAI-Transcribe-2";
+export const DEFAULT_AZURE_MAI_API_VERSION = "2025-10-15";
+export const DEFAULT_AZURE_MAI_TIMEOUT_MS = 180_000;

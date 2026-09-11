@@ -800,3 +800,280 @@ describe("processTranscriptionQueue", () => {
     expect(result.claimed).toBe(0);
   });
 });
+
+describe("processTranscriptionJob with AzureMai provider", () => {
+  function fakeAzureMaiProvider(): TranscriptionProvider {
+    return {
+      name: "azure-mai",
+      transcribe: vi.fn(async () => ({
+        text: "Speaker zero speaks. Speaker one replies.",
+        detectedLanguage: "en",
+        durationSeconds: 2,
+        segments: [
+          {
+            index: 0,
+            startMs: 0,
+            endMs: 900,
+            text: "Speaker zero speaks.",
+            confidence: 0.95,
+            speakerTag: "Speaker 0",
+            speakerNumericId: 0,
+            words: [{ word: "Speaker", startMs: 0, endMs: 400 }],
+          },
+          {
+            index: 1,
+            startMs: 1000,
+            endMs: 1900,
+            text: "Speaker one replies.",
+            confidence: 0.92,
+            speakerTag: "Speaker 1",
+            speakerNumericId: 1,
+            words: [{ word: "Speaker", startMs: 1000, endMs: 1400 }],
+          },
+        ],
+        words: [
+          { word: "Speaker", startMs: 0, endMs: 400 },
+          { word: "Speaker", startMs: 1000, endMs: 1400 },
+        ],
+        model: "MAI-Transcribe-2",
+        usage: { seconds: 2, cost: null },
+        providerMetadata: {
+          task: "transcribe",
+          model: "MAI-Transcribe-2",
+          speakerCount: 2,
+          speakers: [0, 1],
+        },
+      })),
+    };
+  }
+
+  it("preserves Speaker 0 and Speaker 1 labels and records PCM WAV preprocessing provenance", async () => {
+    const tables = makeTables();
+    tables.meeting_bot_jobs.rows.push({ ...baseJob });
+    tables.meeting_transcripts.rows.push({
+      id: "t-azure",
+      organization_id: "org-1",
+      meeting_id: "meeting-1",
+      processing_status: "pending",
+      retry_count: 0,
+      provider: "openrouter",
+    });
+    const supabase = createFakeSupabase(tables);
+
+    const azureProvider = fakeAzureMaiProvider();
+    await processTranscriptionJob(
+      supabase,
+      tables.meeting_transcripts.rows[0] as Parameters<
+        typeof processTranscriptionJob
+      >[1],
+      {
+        vexaEnv: { baseUrl: "https://vexa.test", apiKey: "k" },
+        transcriptionProvider: azureProvider,
+        normalizationProvider: fakeNormalizationProvider(),
+        fetchImpl: fakeVexaFetch(),
+        storage: fakeStorage(),
+      },
+    );
+
+    const transcript = tables.meeting_transcripts.rows[0];
+    expect(transcript?.processing_status).toBe("completed");
+    expect(transcript?.provider).toBe("azure-mai");
+    expect(transcript?.model).toBe("MAI-Transcribe-2");
+
+    expect(tables.transcript_segments.rows).toHaveLength(2);
+    expect(tables.transcript_segments.rows[0]?.speaker_label).toBe("Speaker 0");
+    expect(tables.transcript_segments.rows[1]?.speaker_label).toBe("Speaker 1");
+
+    const meta = transcript?.provider_metadata as Record<string, unknown>;
+    expect(meta.provider).toBe("azure-mai");
+    expect(meta.preprocessingVersion).toBe("v1-pcm16k-wav");
+    expect(typeof meta.originalSha256).toBe("string");
+    expect(typeof meta.derivedSha256).toBe("string");
+  });
+
+  it("persists code-switched segment languages, preserves speakerNumericId 0 and 1, and saves word timestamps", async () => {
+    const tables = makeTables();
+    tables.meeting_bot_jobs.rows.push({ ...baseJob });
+    tables.meeting_transcripts.rows.push({
+      id: "t-azure-codeswitch",
+      organization_id: "org-1",
+      meeting_id: "meeting-1",
+      processing_status: "pending",
+      retry_count: 0,
+      provider: "openrouter",
+    });
+    const supabase = createFakeSupabase(tables);
+
+    const mockProvider: TranscriptionProvider = {
+      name: "azure-mai",
+      transcribe: vi.fn(async () => ({
+        text: "How was your interview? నేను బాగా చేశాను.",
+        detectedLanguage: "en", // Whole-meeting primary detection is English
+        durationSeconds: 5,
+        segments: [
+          {
+            index: 0,
+            startMs: 40,
+            endMs: 2000,
+            text: "How was your interview?",
+            confidence: 0.98,
+            speakerTag: "Speaker 0",
+            speakerNumericId: 0,
+            language: "en",
+            words: [
+              { word: "How", startMs: 40, endMs: 200 },
+              { word: "was", startMs: 220, endMs: 400 },
+              { word: "your", startMs: 420, endMs: 600 },
+              { word: "interview?", startMs: 620, endMs: 1900 },
+            ],
+          },
+          {
+            index: 1,
+            startMs: 2200,
+            endMs: 4800,
+            text: "నేను బాగా చేశాను.",
+            confidence: 0.91,
+            speakerTag: "Speaker 1",
+            speakerNumericId: 1,
+            language: "te",
+            words: [
+              { word: "నేను", startMs: 2200, endMs: 2800 },
+              { word: "బాగా", startMs: 2900, endMs: 3600 },
+              { word: "చేశాను.", startMs: 3700, endMs: 4700 },
+            ],
+          },
+        ],
+        words: null,
+        model: "MAI-Transcribe-2",
+        usage: { seconds: 5, cost: null },
+        providerMetadata: { model: "MAI-Transcribe-2" },
+      })),
+    };
+
+    const mockNorm: EnglishNormalizationProvider = {
+      name: "test-norm",
+      normalize: vi.fn(async (text: string, lang: string | null) => {
+        expect(lang).toBe("te"); // Verifies Telugu segment passes 'te', not meeting 'en'!
+        return {
+          canonicalEnglishText: "I did well.",
+          confidence: 0.94,
+        };
+      }),
+    };
+
+    await processTranscriptionJob(
+      supabase,
+      tables.meeting_transcripts.rows[0] as Parameters<
+        typeof processTranscriptionJob
+      >[1],
+      {
+        vexaEnv: { baseUrl: "https://vexa.test", apiKey: "k" },
+        transcriptionProvider: mockProvider,
+        normalizationProvider: mockNorm,
+        fetchImpl: fakeVexaFetch(),
+        storage: fakeStorage(),
+      },
+    );
+
+    expect(tables.transcript_segments.rows).toHaveLength(2);
+    const seg0 = tables.transcript_segments.rows[0]!;
+    const seg1 = tables.transcript_segments.rows[1]!;
+
+    // Segment 0: English, Speaker 0
+    expect(seg0.speaker_label).toBe("Speaker 0");
+    expect(seg0.original_language).toBe("en");
+    expect(seg0.original_text).toBe("How was your interview?");
+    expect(seg0.canonical_english_text).toBe("How was your interview?");
+    expect(seg0.needs_review).toBe(false);
+
+    const seg0Meta = seg0.provider_segment_metadata as Record<string, unknown>;
+    expect(seg0Meta.speakerTag).toBe("Speaker 0");
+    expect(seg0Meta.speakerNumericId).toBe(0); // 0 preserved, not falsy null!
+    expect(seg0Meta.speakerSource).toBe("azure-diarization");
+    expect(seg0Meta.language).toBe("en");
+    expect(seg0Meta.words).toEqual([
+      { word: "How", startMs: 40, endMs: 200 },
+      { word: "was", startMs: 220, endMs: 400 },
+      { word: "your", startMs: 420, endMs: 600 },
+      { word: "interview?", startMs: 620, endMs: 1900 },
+    ]);
+
+    // Segment 1: Telugu, Speaker 1
+    expect(seg1.speaker_label).toBe("Speaker 1");
+    expect(seg1.original_language).toBe("te");
+    expect(seg1.original_text).toBe("నేను బాగా చేశాను.");
+    expect(seg1.canonical_english_text).toBe("I did well.");
+    expect(seg1.needs_review).toBe(true);
+
+    const seg1Meta = seg1.provider_segment_metadata as Record<string, unknown>;
+    expect(seg1Meta.speakerTag).toBe("Speaker 1");
+    expect(seg1Meta.speakerNumericId).toBe(1);
+    expect(seg1Meta.speakerSource).toBe("azure-diarization");
+    expect(seg1Meta.language).toBe("te");
+    expect(seg1Meta.words).toEqual([
+      { word: "నేను", startMs: 2200, endMs: 2800 },
+      { word: "బాగా", startMs: 2900, endMs: 3600 },
+      { word: "చేశాను.", startMs: 3700, endMs: 4700 },
+    ]);
+  });
+
+  it("safely falls back to detectedLanguage when segment language is null/unavailable", async () => {
+    const tables = makeTables();
+    tables.meeting_bot_jobs.rows.push({ ...baseJob });
+    tables.meeting_transcripts.rows.push({
+      id: "t-fallback-lang",
+      organization_id: "org-1",
+      meeting_id: "meeting-1",
+      processing_status: "pending",
+      retry_count: 0,
+    });
+    const supabase = createFakeSupabase(tables);
+
+    const mockProvider: TranscriptionProvider = {
+      name: "openrouter",
+      transcribe: vi.fn(async () => ({
+        text: "Hello from fallback provider.",
+        detectedLanguage: "en",
+        durationSeconds: 2,
+        segments: [
+          {
+            index: 0,
+            startMs: 0,
+            endMs: 1500,
+            text: "Hello from fallback provider.",
+            confidence: 0.99,
+            // language omitted/null
+          },
+        ],
+        words: null,
+        model: "whisper-large-v3-turbo",
+        usage: { seconds: 2, cost: null },
+        providerMetadata: {},
+      })),
+    };
+
+    await processTranscriptionJob(
+      supabase,
+      tables.meeting_transcripts.rows[0] as Parameters<
+        typeof processTranscriptionJob
+      >[1],
+      {
+        vexaEnv: { baseUrl: "https://vexa.test", apiKey: "k" },
+        transcriptionProvider: mockProvider,
+        normalizationProvider: fakeNormalizationProvider(),
+        fetchImpl: fakeVexaFetch(),
+        storage: fakeStorage(),
+      },
+    );
+
+    const seg = tables.transcript_segments.rows[0]!;
+    expect(seg.original_language).toBe("en");
+    expect(seg.needs_review).toBe(false);
+
+    const meta = seg.provider_segment_metadata as Record<string, unknown>;
+    expect(meta.language).toBe("en");
+    expect(meta.speakerTag).toBe("speaker_unknown");
+    expect(meta.speakerNumericId).toBeNull();
+    expect(meta.speakerSource).toBe("unavailable");
+  });
+});

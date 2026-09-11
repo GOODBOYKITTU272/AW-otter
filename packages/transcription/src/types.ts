@@ -6,6 +6,14 @@ export interface TranscriptionSegment {
   text: string;
   /** Per-segment confidence if the provider supplies one (e.g. Whisper's avg_logprob-derived value); null if not available. */
   confidence: number | null;
+  /** Raw provider speaker tag (e.g. "Speaker 0", "Speaker 1"). Null/undefined if diarization unavailable. */
+  speakerTag?: string | null;
+  /** Raw provider numeric speaker ID if reported (e.g. 0, 1). */
+  speakerNumericId?: number | null;
+  /** Per-segment detected/reported language code (e.g. "en", "te"). Null/undefined if unavailable. */
+  language?: string | null;
+  /** Per-segment word-level timestamps if supported/available. */
+  words?: TranscriptionWord[] | null;
 }
 
 export interface TranscriptionWord {
