@@ -212,25 +212,41 @@ export default async function AccountManagerHomePage() {
   const firstName = membership.displayName.split(" ")[0] ?? membership.displayName;
 
   return (
-    <main className="flex flex-1 flex-col gap-6 p-8 max-w-5xl mx-auto w-full bg-[#EFFBFF]">
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center justify-between">
+    <main className="flex flex-1 flex-col bg-[#EFFBFF]">
+      <header className="border-b border-[#1E1E1E]/10 bg-white px-8 py-4 shadow-sm">
+        <div className="flex items-center justify-between max-w-5xl mx-auto w-full">
+          <Link href="/home" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+            <div className="h-8 w-8 rounded-lg bg-[#29FE29] flex items-center justify-center">
+              <span className="text-sm font-bold text-[#1E1E1E]">AW</span>
+            </div>
+            <span className="text-base font-bold tracking-tight text-[#1E1E1E]">
+              Apply Wizz Echo
+            </span>
+          </Link>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-[#1E1E1E]/90">
+              {membership.displayName} <span className="text-[#1E1E1E]/50">· Account Manager</span>
+            </span>
+            <SignOutButton />
+          </div>
+        </div>
+      </header>
+      <div className="flex flex-1 flex-col gap-6 p-8 max-w-5xl mx-auto w-full">
+        <div className="flex flex-col gap-1">
           <h1 className="text-3xl font-bold tracking-tight text-[#1E1E1E]">
             Good morning, {firstName}
           </h1>
-          <SignOutButton />
+          <p className="text-sm font-medium text-[#1E1E1E]/70">
+            <span className="font-semibold text-[#2C76FF]">
+              {todaysCalls.length}
+            </span>{" "}
+            call{todaysCalls.length === 1 ? "" : "s"} today ·{" "}
+            <span className="font-semibold text-[#FFDE59]">
+              {needsAttention.length}
+            </span>{" "}
+            thing{needsAttention.length === 1 ? "" : "s"} need your attention
+          </p>
         </div>
-        <p className="text-sm font-medium text-[#1E1E1E]/70">
-          <span className="font-semibold text-[#2C76FF]">
-            {todaysCalls.length}
-          </span>{" "}
-          call{todaysCalls.length === 1 ? "" : "s"} today ·{" "}
-          <span className="font-semibold text-[#FFDE59]">
-            {needsAttention.length}
-          </span>{" "}
-          thing{needsAttention.length === 1 ? "" : "s"} need your attention
-        </p>
-      </div>
 
       {nextCall ? (
         <section className="rounded-xl border border-[#2C76FF]/20 bg-gradient-to-br from-[#2C76FF]/10 to-[#29FE29]/5 p-6 shadow-lg">
@@ -595,9 +611,10 @@ export default async function AccountManagerHomePage() {
         )}
       </section>
 
-      <Link href="/integrations" className="w-fit text-sm text-[#2C76FF] hover:underline">
-        Integrations
-      </Link>
+        <Link href="/integrations" className="w-fit text-sm text-[#2C76FF] hover:underline">
+          Integrations
+        </Link>
+      </div>
     </main>
   );
 }

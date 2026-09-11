@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { Eye, EyeOff } from "lucide-react";
 import { ROLE_HOME_ROUTE, isSystemRoleKey } from "@applywizz/domain";
+import Link from "next/link";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -11,6 +12,36 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    async function checkExistingSession() {
+      const supabase = getSupabaseBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session) {
+        const { data: membership } = await supabase
+          .from("organization_memberships")
+          .select("role_id")
+          .eq("user_id", session.user.id)
+          .eq("status", "active")
+          .maybeSingle();
+
+        if (membership) {
+          const { data: role } = await supabase
+            .from("roles")
+            .select("key")
+            .eq("id", membership.role_id)
+            .maybeSingle();
+
+          const roleKey = role?.key;
+          if (roleKey && isSystemRoleKey(roleKey)) {
+            window.location.assign(ROLE_HOME_ROUTE[roleKey]);
+          }
+        }
+      }
+    }
+    checkExistingSession();
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -65,11 +96,11 @@ export default function LoginPage() {
     <main className="flex min-h-screen flex-1 flex-col items-center justify-center gap-6 bg-gradient-to-br from-[#0B1D33] via-[#1E1E1E] to-[#1E1E1E] px-6">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 mb-3">
+          <Link href="/" className="inline-flex items-center gap-2 mb-3 hover:opacity-80 transition-opacity">
             <div className="h-10 w-10 rounded-lg bg-[#29FE29] flex items-center justify-center">
               <span className="text-xl font-bold text-[#1E1E1E]">AW</span>
             </div>
-          </div>
+          </Link>
           <h1 className="text-3xl font-bold tracking-tight text-white">
             Apply Wizz Echo
           </h1>
