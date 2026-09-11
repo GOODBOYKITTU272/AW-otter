@@ -105,6 +105,11 @@ export function getOpenRouterEnv() {
   } as const;
 }
 
+/**
+ * Reserved for M17D internal recap email implementation.
+ * Not yet used — packages/email/ does not exist yet.
+ * This function will throw if called until email integration ships.
+ */
 export function getEmailEnv() {
   return {
     EMAIL_PROVIDER_API_KEY: required(
