@@ -94,7 +94,7 @@ begin
     organization_id, transcript_id, sequence_index, start_ms, end_ms,
     original_text, original_language, canonical_english_text,
     speaker_label, speaker_source, transcription_confidence,
-    translation_confidence, needs_review
+    translation_confidence, needs_review, provider_segment_metadata
   )
   select
     p_organization_id,
@@ -109,7 +109,8 @@ begin
     coalesce((seg->>'speaker_source')::public.speaker_source, 'unavailable'),
     nullif(seg->>'transcription_confidence', '')::numeric,
     nullif(seg->>'translation_confidence', '')::numeric,
-    coalesce((seg->>'needs_review')::boolean, false)
+    coalesce((seg->>'needs_review')::boolean, false),
+    seg->'provider_segment_metadata'
   from jsonb_array_elements(coalesce(p_segments, '[]'::jsonb)) as seg;
 
   update public.meeting_transcripts

@@ -266,10 +266,11 @@ export async function processTranscriptionJob(
 
     const result = await deps.transcriptionProvider.transcribe(cleanPath);
     const detectedLanguage = result.detectedLanguage;
-    const isEnglish = detectedLanguage === "en";
 
     const segmentRows: Record<string, unknown>[] = [];
     for (const segment of result.segments) {
+      const segmentLanguage = segment.language ?? result.detectedLanguage ?? null;
+      const isEnglish = segmentLanguage === "en";
       let canonicalEnglishText: string | null = null;
       let translationConfidence: number | null = null;
       const needsReview = !isEnglish;
@@ -280,7 +281,7 @@ export async function processTranscriptionJob(
         try {
           const normalized = await deps.normalizationProvider.normalize(
             segment.text,
-            detectedLanguage,
+            segmentLanguage,
           );
           canonicalEnglishText = normalized.canonicalEnglishText;
           translationConfidence = normalized.confidence;
@@ -292,18 +293,36 @@ export async function processTranscriptionJob(
         }
       }
 
+      const speakerNumericId =
+        typeof segment.speakerNumericId === "number" &&
+        Number.isFinite(segment.speakerNumericId)
+          ? segment.speakerNumericId
+          : null;
+
+      const providerSegmentMetadata: Record<string, unknown> = {
+        speakerTag: segment.speakerTag ?? "speaker_unknown",
+        speakerNumericId,
+        speakerSource:
+          segment.speakerTag && segment.speakerTag !== "speaker_unknown"
+            ? (isAzure ? "azure-diarization" : "provider-diarization")
+            : "unavailable",
+        language: segmentLanguage,
+        words: segment.words && segment.words.length > 0 ? segment.words : null,
+      };
+
       segmentRows.push({
         sequence_index: segment.index,
         start_ms: segment.startMs,
         end_ms: segment.endMs,
         original_text: segment.text,
-        original_language: detectedLanguage,
+        original_language: segmentLanguage,
         canonical_english_text: canonicalEnglishText,
         speaker_label: segment.speakerTag ?? "speaker_unknown",
         speaker_source: "unavailable",
         transcription_confidence: segment.confidence,
         translation_confidence: translationConfidence,
         needs_review: needsReview,
+        provider_segment_metadata: providerSegmentMetadata,
       });
     }
 

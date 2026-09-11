@@ -103,6 +103,7 @@ export function normalizeAzureMaiResponse(
         confidence: typeof p.confidence === "number" && Number.isFinite(p.confidence) ? p.confidence : null,
         speakerTag,
         speakerNumericId,
+        language: p.locale ?? null,
         words: segmentWords,
       },
     ];

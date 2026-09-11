@@ -10,6 +10,8 @@ export interface TranscriptionSegment {
   speakerTag?: string | null;
   /** Raw provider numeric speaker ID if reported (e.g. 0, 1). */
   speakerNumericId?: number | null;
+  /** Per-segment detected/reported language code (e.g. "en", "te"). Null/undefined if unavailable. */
+  language?: string | null;
   /** Per-segment word-level timestamps if supported/available. */
   words?: TranscriptionWord[] | null;
 }

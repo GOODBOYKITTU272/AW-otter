@@ -132,6 +132,41 @@ describe("AzureMaiTranscriptionProvider Normalization", () => {
       TranscriptionMalformedResponseError,
     );
   });
+
+  it("preserves per-segment locale across mixed-language phrases", () => {
+    const raw: RawAzureMaiResponse = {
+      durationMilliseconds: 10000,
+      phrases: [
+        {
+          speaker: 0,
+          offsetMilliseconds: 0,
+          durationMilliseconds: 2000,
+          text: "How was your interview?",
+          locale: "en",
+        },
+        {
+          speaker: 1,
+          offsetMilliseconds: 2200,
+          durationMilliseconds: 3000,
+          text: "నేను బాగా చేశాను.",
+          locale: "te",
+        },
+        {
+          speaker: 0,
+          offsetMilliseconds: 5400,
+          durationMilliseconds: 2000,
+          text: "That sounds great!",
+          locale: "en",
+        },
+      ],
+    };
+
+    const result = normalizeAzureMaiResponse(raw, "MAI-Transcribe-2");
+    expect(result.segments).toHaveLength(3);
+    expect(result.segments[0]!.language).toBe("en");
+    expect(result.segments[1]!.language).toBe("te");
+    expect(result.segments[2]!.language).toBe("en");
+  });
 });
 
 describe("AzureMaiTranscriptionProvider Client", () => {
