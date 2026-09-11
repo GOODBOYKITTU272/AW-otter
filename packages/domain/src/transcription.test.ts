@@ -4,9 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import type {
-  EnglishNormalizationProvider,
-  TranscriptionProvider,
+import {
+  TranscriptionApiError,
+  TranscriptionTimeoutError,
+  type EnglishNormalizationProvider,
+  type TranscriptionProvider,
 } from "@applywizz/transcription";
 import {
   enqueuePendingTranscriptions,
@@ -1075,5 +1077,208 @@ describe("processTranscriptionJob with AzureMai provider", () => {
     expect(meta.speakerTag).toBe("speaker_unknown");
     expect(meta.speakerNumericId).toBeNull();
     expect(meta.speakerSource).toBe("unavailable");
+  });
+
+  it("falls back to OpenRouter when primary Azure provider fails with timeout twice", async () => {
+    const tables = makeTables();
+    tables.meeting_bot_jobs.rows.push({ ...baseJob });
+    tables.meeting_transcripts.rows.push({
+      id: "t-fallback-timeout",
+      organization_id: "org-1",
+      meeting_id: "meeting-1",
+      processing_status: "pending",
+      retry_count: 0,
+    });
+    const supabase = createFakeSupabase(tables);
+
+    const mockAzureProvider: TranscriptionProvider = {
+      name: "azure-mai",
+      transcribe: vi
+        .fn()
+        .mockRejectedValueOnce(new TranscriptionTimeoutError())
+        .mockRejectedValueOnce(new TranscriptionTimeoutError()),
+    };
+
+    const mockOpenRouterProvider: TranscriptionProvider = {
+      name: "openrouter",
+      transcribe: vi.fn(async () => ({
+        text: "Safety fallback transcript.",
+        detectedLanguage: "en",
+        durationSeconds: 2,
+        segments: [
+          {
+            index: 0,
+            startMs: 0,
+            endMs: 2000,
+            text: "Safety fallback transcript.",
+            confidence: 0.98,
+            language: "en",
+          },
+        ],
+        words: null,
+        model: "whisper-large-v3-turbo",
+        usage: { seconds: 2, cost: 0.001 },
+        providerMetadata: { fallbackInfo: "ok" },
+      })),
+    };
+
+    await processTranscriptionJob(
+      supabase,
+      tables.meeting_transcripts.rows[0] as Parameters<
+        typeof processTranscriptionJob
+      >[1],
+      {
+        vexaEnv: { baseUrl: "https://vexa.test", apiKey: "k" },
+        transcriptionProvider: mockAzureProvider,
+        fallbackProvider: mockOpenRouterProvider,
+        normalizationProvider: fakeNormalizationProvider(),
+        fetchImpl: fakeVexaFetch(),
+        storage: fakeStorage(),
+      },
+    );
+
+    const transcript = tables.meeting_transcripts.rows[0]!;
+    expect(transcript.processing_status).toBe("completed");
+    expect(transcript.provider).toBe("openrouter");
+
+    const meta = transcript.provider_metadata as Record<string, unknown>;
+    expect(meta.provider).toBe("openrouter");
+    expect(meta.fallbackReason).toContain("Primary provider azure-mai failed after 2 attempts. Final error: TIMEOUT");
+    const attempts = meta.attempts as Array<Record<string, unknown>>;
+    expect(attempts).toHaveLength(3);
+    expect(attempts[0]).toMatchObject({ sequence: 1, provider: "azure-mai", model: null, outcome: "failed", failureCode: "TIMEOUT" });
+    expect(attempts[1]).toMatchObject({ sequence: 2, provider: "azure-mai", model: null, outcome: "failed", failureCode: "TIMEOUT" });
+    expect(attempts[2]).toMatchObject({ sequence: 3, provider: "openrouter", model: "whisper-large-v3-turbo", outcome: "accepted" });
+
+    expect(mockAzureProvider.transcribe).toHaveBeenCalledTimes(2);
+    expect(mockOpenRouterProvider.transcribe).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back immediately to OpenRouter when primary Azure provider fails with AUTH_FAILURE (401)", async () => {
+    const tables = makeTables();
+    tables.meeting_bot_jobs.rows.push({ ...baseJob });
+    tables.meeting_transcripts.rows.push({
+      id: "t-fallback-auth",
+      organization_id: "org-1",
+      meeting_id: "meeting-1",
+      processing_status: "pending",
+      retry_count: 0,
+    });
+    const supabase = createFakeSupabase(tables);
+
+    const mockAzureProvider: TranscriptionProvider = {
+      name: "azure-mai",
+      transcribe: vi
+        .fn()
+        .mockRejectedValueOnce(new TranscriptionApiError(401, "Invalid Azure API key")),
+    };
+
+    const mockOpenRouterProvider: TranscriptionProvider = {
+      name: "openrouter",
+      transcribe: vi.fn(async () => ({
+        text: "Recovered via OpenRouter.",
+        detectedLanguage: "en",
+        durationSeconds: 2,
+        segments: [
+          {
+            index: 0,
+            startMs: 0,
+            endMs: 2000,
+            text: "Recovered via OpenRouter.",
+            confidence: 0.95,
+            language: "en",
+          },
+        ],
+        words: null,
+        model: "whisper-large-v3-turbo",
+        usage: { seconds: 2, cost: 0.001 },
+        providerMetadata: {},
+      })),
+    };
+
+    await processTranscriptionJob(
+      supabase,
+      tables.meeting_transcripts.rows[0] as Parameters<
+        typeof processTranscriptionJob
+      >[1],
+      {
+        vexaEnv: { baseUrl: "https://vexa.test", apiKey: "k" },
+        transcriptionProvider: mockAzureProvider,
+        fallbackProvider: mockOpenRouterProvider,
+        normalizationProvider: fakeNormalizationProvider(),
+        fetchImpl: fakeVexaFetch(),
+        storage: fakeStorage(),
+      },
+    );
+
+    const transcript = tables.meeting_transcripts.rows[0]!;
+    expect(transcript.processing_status).toBe("completed");
+    expect(transcript.provider).toBe("openrouter");
+
+    const meta = transcript.provider_metadata as Record<string, unknown>;
+    expect(meta.fallbackReason).toContain("Primary provider azure-mai encountered non-retryable error: AUTH_FAILURE");
+    const attempts = meta.attempts as Array<Record<string, unknown>>;
+    expect(attempts).toHaveLength(2);
+    expect(attempts[0]).toMatchObject({ sequence: 1, provider: "azure-mai", model: null, outcome: "failed", failureCode: "AUTH_FAILURE" });
+    expect(attempts[1]).toMatchObject({ sequence: 2, provider: "openrouter", model: "whisper-large-v3-turbo", outcome: "accepted" });
+
+    // Ensure Azure was NOT retried on auth failure
+    expect(mockAzureProvider.transcribe).toHaveBeenCalledTimes(1);
+    expect(mockOpenRouterProvider.transcribe).toHaveBeenCalledTimes(1);
+  });
+
+  it("marks transcript retryable and records attempts in safe_error_metadata when both providers fail", async () => {
+    const tables = makeTables();
+    tables.meeting_bot_jobs.rows.push({ ...baseJob });
+    tables.meeting_transcripts.rows.push({
+      id: "t-both-failed",
+      organization_id: "org-1",
+      meeting_id: "meeting-1",
+      processing_status: "pending",
+      retry_count: 0,
+    });
+    const supabase = createFakeSupabase(tables);
+
+    const mockAzureProvider: TranscriptionProvider = {
+      name: "azure-mai",
+      transcribe: vi
+        .fn()
+        .mockRejectedValue(new TranscriptionTimeoutError()),
+    };
+
+    const mockOpenRouterProvider: TranscriptionProvider = {
+      name: "openrouter",
+      transcribe: vi
+        .fn()
+        .mockRejectedValue(new TranscriptionApiError(500, "Service unavailable")),
+    };
+
+    await processTranscriptionJob(
+      supabase,
+      tables.meeting_transcripts.rows[0] as Parameters<
+        typeof processTranscriptionJob
+      >[1],
+      {
+        vexaEnv: { baseUrl: "https://vexa.test", apiKey: "k" },
+        transcriptionProvider: mockAzureProvider,
+        fallbackProvider: mockOpenRouterProvider,
+        normalizationProvider: fakeNormalizationProvider(),
+        fetchImpl: fakeVexaFetch(),
+        storage: fakeStorage(),
+      },
+    );
+
+    const transcript = tables.meeting_transcripts.rows[0]!;
+    expect(transcript.processing_status).toBe("retryable");
+    expect(transcript.retry_count).toBe(1);
+
+    const safeMeta = transcript.safe_error_metadata as Record<string, unknown>;
+    expect(safeMeta.message).toBe("All transcription providers failed.");
+    expect(safeMeta.fallbackReason).toContain("Primary provider azure-mai failed after 2 attempts.");
+    const attempts = safeMeta.attempts as Array<Record<string, unknown>>;
+    expect(attempts).toHaveLength(3);
+    expect(attempts[0]).toMatchObject({ sequence: 1, provider: "azure-mai", model: null, failureCode: "TIMEOUT" });
+    expect(attempts[1]).toMatchObject({ sequence: 2, provider: "azure-mai", model: null, failureCode: "TIMEOUT" });
+    expect(attempts[2]).toMatchObject({ sequence: 3, provider: "openrouter", model: null, failureCode: "PROVIDER_5XX" });
   });
 });

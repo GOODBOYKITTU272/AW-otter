@@ -20,6 +20,11 @@ import {
   transcodeToOpusOgg,
   transcodeToPcmWav,
 } from "./audio-transcode";
+import {
+  executeTranscriptionWithFallback,
+  AllTranscriptionProvidersFailedError,
+  type ProviderAttemptRecord,
+} from "./transcription-fallback";
 import { logLifecycleEvent } from "./meeting-bots";
 import {
   ensureOwnedRecording,
@@ -103,6 +108,7 @@ export async function enqueuePendingTranscriptions(
 export interface TranscriptionDeps {
   vexaEnv: VexaEnv;
   transcriptionProvider: TranscriptionProvider;
+  fallbackProvider?: TranscriptionProvider;
   normalizationProvider: EnglishNormalizationProvider;
   storage: RecordingStorageClient;
   fetchImpl?: typeof fetch;
@@ -120,7 +126,14 @@ type FailureCode =
   | "normalization_failed"
   | "unknown";
 
-function classifyError(error: unknown): { code: FailureCode; message: string } {
+interface ClassifiedTranscriptionError {
+  code: FailureCode;
+  message: string;
+  attempts?: ProviderAttemptRecord[];
+  fallbackReason?: string | null;
+}
+
+function classifyError(error: unknown): ClassifiedTranscriptionError {
   if (error instanceof RecordingNotReadyError) {
     return { code: "recording_not_ready", message: error.message };
   }
@@ -131,6 +144,17 @@ function classifyError(error: unknown): { code: FailureCode; message: string } {
           ? "transcode_timeout"
           : "transcode_failed",
       message: error.message,
+    };
+  }
+  if (error instanceof AllTranscriptionProvidersFailedError) {
+    const isTimeout =
+      error.lastError instanceof Error &&
+      error.lastError.name === "TranscriptionTimeoutError";
+    return {
+      code: isTimeout ? "stt_timeout" : "stt_failed",
+      message: error.message,
+      attempts: error.attempts,
+      fallbackReason: error.fallbackReason,
     };
   }
   if (error instanceof Error) {
@@ -152,6 +176,8 @@ function classifyError(error: unknown): { code: FailureCode; message: string } {
   }
   return { code: "unknown", message: String(error) };
 }
+
+export * from "./transcription-fallback";
 
 // Single source of truth lives in meeting-recordings.ts (Task 4) — that
 // module's own RecordingNotReadyError was deliberately kept byte-identical
@@ -264,7 +290,16 @@ export async function processTranscriptionJob(
     const derivedSha256 = await computeFileSha256(cleanPath);
     const preprocessingVersion = isAzure ? "v1-pcm16k-wav" : "v1-opus16k-ogg";
 
-    const result = await deps.transcriptionProvider.transcribe(cleanPath);
+    const {
+      result,
+      acceptedProvider,
+      attempts,
+      fallbackReason,
+    } = await executeTranscriptionWithFallback({
+      primaryProvider: deps.transcriptionProvider,
+      fallbackProvider: deps.fallbackProvider,
+      filePath: cleanPath,
+    });
     const detectedLanguage = result.detectedLanguage;
 
     const segmentRows: Record<string, unknown>[] = [];
@@ -304,7 +339,7 @@ export async function processTranscriptionJob(
         speakerNumericId,
         speakerSource:
           segment.speakerTag && segment.speakerTag !== "speaker_unknown"
-            ? (isAzure ? "azure-diarization" : "provider-diarization")
+            ? (acceptedProvider.name === "azure-mai" ? "azure-diarization" : "provider-diarization")
             : "unavailable",
         language: segmentLanguage,
         words: segment.words && segment.words.length > 0 ? segment.words : null,
@@ -330,7 +365,7 @@ export async function processTranscriptionJob(
     await serviceRoleClient
       .from("meeting_transcripts")
       .update({
-        provider: deps.transcriptionProvider.name,
+        provider: acceptedProvider.name,
       })
       .eq("id", transcript.id)
       .eq("organization_id", transcript.organization_id);
@@ -374,11 +409,13 @@ export async function processTranscriptionJob(
         } as Json,
         p_provider_metadata: {
           ...result.providerMetadata,
-          provider: deps.transcriptionProvider.name,
+          provider: acceptedProvider.name,
           originalSha256,
           derivedSha256,
           preprocessingVersion,
-        } as Json,
+          attempts,
+          ...(fallbackReason ? { fallbackReason } : {}),
+        } as unknown as Json,
         p_usage_seconds: result.usage.seconds,
         p_usage_cost: result.usage.cost,
         p_segments: segmentRows as unknown as Json,
@@ -395,7 +432,12 @@ export async function processTranscriptionJob(
       organizationId: transcript.organization_id,
       eventType: "transcript.completed",
       source: "worker",
-      payload: { segmentCount: segmentRows.length, detectedLanguage },
+      payload: {
+        segmentCount: segmentRows.length,
+        detectedLanguage,
+        provider: acceptedProvider.name,
+        fallbackUsed: acceptedProvider.name !== deps.transcriptionProvider.name,
+      },
     });
 
     // Best-effort automatic transcript integrity analysis upon transcript completion (Blocker 6)
@@ -410,18 +452,28 @@ export async function processTranscriptionJob(
       // Best-effort hook; reconciliation sweep will pick it up if missed.
     }
   } catch (error) {
-    const { code, message } = classifyError(error);
+    const classified = classifyError(error);
     const nextRetryCount = transcript.retry_count + 1;
     const terminal = nextRetryCount >= MAX_RETRY_COUNT;
+
+    const safeErrorMetadata: Record<string, unknown> = {
+      message: classified.message,
+    };
+    if (classified.attempts && classified.attempts.length > 0) {
+      safeErrorMetadata.attempts = classified.attempts;
+    }
+    if (classified.fallbackReason) {
+      safeErrorMetadata.fallbackReason = classified.fallbackReason;
+    }
 
     const { error: updateError } = await serviceRoleClient
       .from("meeting_transcripts")
       .update({
         processing_status: terminal ? "failed" : "retryable",
-        error_code: code,
+        error_code: classified.code,
         // message only — never the raw error object, which for a provider
         // error could echo request content.
-        safe_error_metadata: { message } as Json,
+        safe_error_metadata: safeErrorMetadata as Json,
         retry_count: nextRetryCount,
         next_retry_at: terminal ? null : retryBackoff(nextRetryCount),
       })
@@ -434,7 +486,10 @@ export async function processTranscriptionJob(
       organizationId: transcript.organization_id,
       eventType: `transcript.${terminal ? "failed" : "retry_scheduled"}`,
       source: "worker",
-      payload: { errorCode: code },
+      payload: {
+        errorCode: classified.code,
+        ...(classified.fallbackReason ? { fallbackReason: classified.fallbackReason } : {}),
+      },
     });
   } finally {
     if (workDir) {
