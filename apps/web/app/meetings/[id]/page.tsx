@@ -113,6 +113,12 @@ export default async function MeetingDetailPage({
     ]),
   );
 
+  const { data: integrityReport } = await supabase
+    .from("meeting_integrity_reports")
+    .select("overall_verdict, summary, confidence_score_avg, suspected_background_media")
+    .eq("meeting_id", id)
+    .maybeSingle();
+
   const recapState = await getMeetingRecapData(supabase, id);
 
   const intelligenceStatus =
@@ -212,6 +218,8 @@ export default async function MeetingDetailPage({
                 segmentById={segmentById}
                 previewSegments={(segmentRows ?? []).slice(0, 2)}
                 speakerMap={speakerMap}
+                integrityReport={integrityReport}
+                meetingId={id}
                 meeting={meeting}
                 botJob={botJob}
                 isAdmin={isAdmin}
@@ -265,6 +273,8 @@ function OverviewTab({
   segmentById,
   previewSegments,
   speakerMap,
+  integrityReport,
+  meetingId,
   meeting,
   botJob,
   isAdmin,
@@ -277,6 +287,13 @@ function OverviewTab({
   segmentById: Map<string, TranscriptSegmentData>;
   previewSegments: { id: string; speaker_label: string; original_text: string; end_ms: number }[];
   speakerMap?: Map<string, { name: string | null; role: string; confirmed: boolean }>;
+  integrityReport?: {
+    overall_verdict: string;
+    summary: string;
+    confidence_score_avg: number | null;
+    suspected_background_media: boolean;
+  } | null;
+  meetingId?: string;
   meeting: { organizer_name: string | null; organizer_email: string | null; scheduled_start: string; scheduled_end: string; provider: string };
   botJob: { status: string; last_error: string | null; provider: string; provider_bot_id: string | null; provider_metadata: unknown } | null;
   isAdmin: boolean;
@@ -284,6 +301,54 @@ function OverviewTab({
   return (
     <div className={styles.body}>
       <div className={styles.main}>
+        {integrityReport && integrityReport.overall_verdict !== "good" && (
+          <div
+            className={styles.card}
+            style={{
+              borderColor:
+                integrityReport.overall_verdict === "transcription_unreliable" ||
+                integrityReport.overall_verdict === "poor_audio"
+                  ? "var(--danger)"
+                  : "var(--warning)",
+              backgroundColor:
+                integrityReport.overall_verdict === "transcription_unreliable" ||
+                integrityReport.overall_verdict === "poor_audio"
+                  ? "rgba(239, 68, 68, 0.06)"
+                  : "rgba(245, 158, 11, 0.06)",
+            }}
+          >
+            <div className={styles.cardHead}>
+              <span className={styles.cardTitle} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span>Quality Truth Alert:</span>
+                <Badge
+                  tone={
+                    integrityReport.overall_verdict === "transcription_unreliable" ||
+                    integrityReport.overall_verdict === "poor_audio"
+                      ? "critical"
+                      : "warning"
+                  }
+                >
+                  {integrityReport.overall_verdict}
+                </Badge>
+              </span>
+              {integrityReport.confidence_score_avg != null && (
+                <span className={styles.muted} style={{ fontSize: 12 }}>
+                  Confidence: {Math.round(integrityReport.confidence_score_avg * 100)}%
+                </span>
+              )}
+            </div>
+            <div className={styles.cardBody}>
+              <p style={{ margin: 0, fontSize: 13 }}>{integrityReport.summary}</p>
+              {meetingId && (
+                <div style={{ marginTop: 8, fontSize: 12 }}>
+                  <Link href={`/meetings/${meetingId}/recap`} style={{ color: "var(--accent)" }}>
+                    Inspect evidence flags & review in Recap &rarr;
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         <div className={styles.card}>
           <div className={styles.cardHead}><span className={styles.cardTitle}>AI Summary</span></div>
           <div className={styles.cardBody}>

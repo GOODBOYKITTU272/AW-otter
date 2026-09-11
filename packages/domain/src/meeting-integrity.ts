@@ -71,9 +71,14 @@ const REPETITIVE_LOOP_PATTERNS = [
   /thank\s+you(?:\s+very\s+much)?(?:\s+for\s+watching)?/i,
   /subtitles\s+by/i,
   /please\s+(?:subscribe|like)/i,
+  /(?:hit|ring)\s+the\s+bell\s+icon/i,
+  /(?:like|share)\s+and\s+subscribe/i,
   /transcription\s+by/i,
   /amara\.org/i,
   /watching!/i,
+  /copyright\s+disclaimer/i,
+  /all\s+rights\s+reserved/i,
+  /patreon\.com/i,
 ];
 
 const FOREIGN_HALLUCINATION_PATTERNS = [
@@ -81,6 +86,57 @@ const FOREIGN_HALLUCINATION_PATTERNS = [
   /sous-titres\s+par/i,
   /untertitel\s+von/i,
 ];
+
+/**
+ * Detects in-segment repetition loops (e.g. "thank you thank you thank you" or "yeah yeah yeah yeah").
+ */
+export function detectInSegmentLoops(text: string): { phrase: string; count: number } | null {
+  const normalized = text.toLowerCase().replace(/[^\w\s]/g, " ").replace(/\s+/g, " ").trim();
+  const words = normalized.split(" ");
+  if (words.length < 4) return null;
+
+  // 1. Single-word consecutive repetition (e.g. "yeah yeah yeah yeah")
+  let currentWordCount = 1;
+  let maxWordCount = 1;
+  let maxWord = "";
+  for (let i = 1; i < words.length; i++) {
+    if (words[i] === words[i - 1] && words[i]!.length > 1) {
+      currentWordCount++;
+      if (currentWordCount > maxWordCount) {
+        maxWordCount = currentWordCount;
+        maxWord = words[i]!;
+      }
+    } else {
+      currentWordCount = 1;
+    }
+  }
+  if (maxWordCount >= 4) {
+    return { phrase: maxWord, count: maxWordCount };
+  }
+
+  // 2. Multi-word phrase repetition (2-4 words repeated 3+ times consecutively)
+  for (let phraseLen = 2; phraseLen <= 4; phraseLen++) {
+    for (let i = 0; i <= words.length - phraseLen * 3; i++) {
+      const phrase = words.slice(i, i + phraseLen).join(" ");
+      let count = 1;
+      let j = i + phraseLen;
+      while (j <= words.length - phraseLen) {
+        const nextPhrase = words.slice(j, j + phraseLen).join(" ");
+        if (nextPhrase === phrase) {
+          count++;
+          j += phraseLen;
+        } else {
+          break;
+        }
+      }
+      if (count >= 3) {
+        return { phrase, count };
+      }
+    }
+  }
+
+  return null;
+}
 
 /**
  * Plan A Meeting Integrity V1:
@@ -211,6 +267,22 @@ export function analyzeMeetingIntegrity(
         endMs: seg.endMs,
         reasonCode: "foreign_language_loop",
         message: `Foreign subtitle hallucination detected: "${seg.text.trim()}"`,
+        detectorVersion: "v1",
+      });
+    }
+
+    // Check for in-segment repetition loops (e.g. single segment with looping tokens)
+    const inSegLoop = detectInSegmentLoops(seg.text);
+    if (inSegLoop) {
+      flags.push({
+        meetingId,
+        transcriptSegmentId: seg.id,
+        flagType: "rapid_hallucination",
+        severity: inSegLoop.count >= 5 ? "critical" : "warning",
+        startMs: seg.startMs,
+        endMs: seg.endMs,
+        reasonCode: "in_segment_repetition_loop",
+        message: `Phrase/token "${inSegLoop.phrase}" repeated ${inSegLoop.count} times within single segment.`,
         detectorVersion: "v1",
       });
     }
