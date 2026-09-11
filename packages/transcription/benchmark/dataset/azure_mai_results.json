@@ -232,6 +232,7 @@
     "apiExecutionStatus": "PASS"
   },
   "long_meeting_32min": {
+    "testLabel": "32.8-MIN API DURATION / STRESS TEST = PASS",
     "audioProvenance": "CONCATENATED_REAL_SESSION_RECORDINGS",
     "durationSeconds": 1970,
     "durationMinutes": 32.8,
@@ -243,15 +244,16 @@
       1
     ],
     "speakerCount": 2,
-    "apiExecutionStatus": "PASS"
+    "apiExecutionStatus": "PASS",
+    "notes": "Proves Azure accepted long payload, completed without timeout or 429, and returned diarization and timestamps. Does NOT prove 32.8-minute natural meeting transcription quality."
   },
   "long_meeting_quality_sample": {
-    "groundTruthStatus": "PARTIAL_HUMAN_GROUNDED_SAMPLE",
+    "groundTruthStatus": "PARTIAL_HUMAN_GROUNDED_EXCERPT_WITHIN_FIRST_120S",
     "sampleDurationSeconds": 120,
     "groundTruthText": "How to pick share worthy topic? For me, picking the right topic is driven by a process and not something random, not something random. We need a method to crack that creativity code that leads to viral, viral video.",
     "hypothesisText": "How to pick Sheerworthy topic? For me, picking the right topic is driven by a process and now not something random, not something random. We need a method to crack that creativity code that leads to viral, viral video and",
     "sampleWer": 0.10256410256410256,
     "sampleCer": 0.05263157894736842,
-    "notes": "Acoustic audio contains YouTube background media speech; verbatim beginning preserved well, later section degraded due to background audio crosstalk."
+    "notes": "WER/CER applies only to the grounded excerpt, NOT the entire two-minute window. Missing text is not manufactured; Azure output is not used as ground truth."
   }
 }
