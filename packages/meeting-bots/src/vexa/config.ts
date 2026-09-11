@@ -3,4 +3,4 @@ export interface VexaEnv {
   apiKey: string;
 }
 
-export const DEFAULT_VEXA_BOT_NAME = "ApplyWizz Meeting Assistant";
+export const DEFAULT_VEXA_BOT_NAME = "AW Echo";

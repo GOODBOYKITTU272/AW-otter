@@ -1,10 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@applywizz/database/types";
 import type { MeetingBotProvider } from "@applywizz/meeting-bots";
+import { generateBotDisplayName } from "./bot-name";
 
 export type AppSupabaseClient = SupabaseClient<Database>;
 
-const BOT_NAME = "ApplyWizz Meeting Assistant";
 const TERMINAL_STATUSES = ["completed", "cancelled", "failed"] as const;
 const LIVE_FILTER = `(${TERMINAL_STATUSES.join(",")})`;
 
@@ -344,7 +344,7 @@ export async function processPendingBotJobs(
 
     const { data: meeting, error: meetingError } = await serviceRoleClient
       .from("meetings")
-      .select("meeting_url")
+      .select("meeting_url, owner_membership_id")
       .eq("id", job.meeting_id)
       .eq("organization_id", job.organization_id)
       .single();
@@ -368,11 +368,24 @@ export async function processPendingBotJobs(
       continue;
     }
 
+    // Fetch owner display name for personalized bot name
+    let ownerDisplayName: string | null = null;
+    if (meeting.owner_membership_id) {
+      const { data: ownerMembership } = await serviceRoleClient
+        .from("organization_memberships")
+        .select("display_name")
+        .eq("id", meeting.owner_membership_id)
+        .maybeSingle();
+      ownerDisplayName = ownerMembership?.display_name ?? null;
+    }
+
+    const botName = generateBotDisplayName(ownerDisplayName);
+
     try {
       const result = await provider.createBot({
         meetingUrl: meeting.meeting_url,
         idempotencyKey: job.idempotency_key,
-        botName: BOT_NAME,
+        botName,
       });
 
       // Confirm the real provider bot onto the row we claimed — guarded
