@@ -31,4 +31,19 @@ describe("CER Evaluation Suite", () => {
     expect(res.deletions).toBe(0);
     expect(res.substitutions).toBe(0);
   });
+
+  it("does NOT strip cross-script Tamil or Kannada hypotheses against Telugu reference", () => {
+    const ref = "ఈ సమయంలో"; // 8 Telugu code points / graphemes
+    const hypTamil = "இசமியம்லோ"; // Tamil script output from Whisper
+    const resTamil = computeCer(ref, hypTamil);
+
+    // Tamil characters must be retained and counted as substitutions/insertions, NOT stripped to 0
+    expect(resTamil.hypCharCount).toBeGreaterThan(0);
+    expect(resTamil.cer).toBeGreaterThanOrEqual(1);
+
+    const hypKannada = "ಇನೇಪದ್ಧಯಮ್ಲೋ"; // Kannada script output from Whisper
+    const resKannada = computeCer(ref, hypKannada);
+    expect(resKannada.hypCharCount).toBeGreaterThan(0);
+    expect(resKannada.cer).toBeGreaterThanOrEqual(1);
+  });
 });

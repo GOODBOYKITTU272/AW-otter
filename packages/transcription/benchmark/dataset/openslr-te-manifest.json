@@ -8,7 +8,7 @@
       "audioPath": "m8-audio/benchmark/openslr_te_01.wav",
       "durationSeconds": 14.51,
       "language": "te",
-      "speakerRole": "candidate",
+      "speakerRole": "dataset_speaker",
       "groundTruth": "ఒక రోజుకు ఇరవై నాలుగు హవర్లుంటాయి"
     },
     {
@@ -16,7 +16,7 @@
       "audioPath": "m8-audio/benchmark/openslr_te_02.wav",
       "durationSeconds": 11.70,
       "language": "te",
-      "speakerRole": "candidate",
+      "speakerRole": "dataset_speaker",
       "groundTruth": "ఈ సమయంలో దాసరి నారాయణరావు కె.రాఘవేంద్రరావు కోడిరామి రెడ్డి అగ్రస్థానంలో ఉన్న దర్శకులు"
     },
     {
@@ -24,7 +24,7 @@
       "audioPath": "m8-audio/benchmark/openslr_te_03.wav",
       "durationSeconds": 11.01,
       "language": "te",
-      "speakerRole": "candidate",
+      "speakerRole": "dataset_speaker",
       "groundTruth": "ఆంధ్రప్రదేశ్ రాష్ట్ర మాజీ ముఖ్యమంత్రి నందమూరి తారక రామారావు రెండవ భార్య నందమూరి లక్ష్మీపార్వతి"
     },
     {
@@ -32,7 +32,7 @@
       "audioPath": "m8-audio/benchmark/openslr_te_04.wav",
       "durationSeconds": 10.76,
       "language": "te",
-      "speakerRole": "candidate",
+      "speakerRole": "dataset_speaker",
       "groundTruth": "ఈ ప్రమాదం జరిగిన కొన్ని నెలల తర్వాత దీన్ని గురించి కొన్ని మూల గ్రంథాలు కూడా రాయడం జరిగింది"
     },
     {
@@ -40,7 +40,7 @@
       "audioPath": "m8-audio/benchmark/openslr_te_05.wav",
       "durationSeconds": 12.81,
       "language": "te",
-      "speakerRole": "candidate",
+      "speakerRole": "dataset_speaker",
       "groundTruth": "వందేమాతరం శ్రీనివాస్ ప్రసిద్ది చెందిన తెలుగు సినిమా గాయకుడు గీత రచయిత మరియు సంగీత దర్శకుడు"
     },
     {
@@ -48,7 +48,7 @@
       "audioPath": "m8-audio/benchmark/openslr_te_06.wav",
       "durationSeconds": 12.55,
       "language": "te",
-      "speakerRole": "candidate",
+      "speakerRole": "dataset_speaker",
       "groundTruth": "ఈ నేపథ్యంలో వెయ్యి ఏడు వందలు నలభై తొమ్మిదిలో షాహూజీ మరణించాడు"
     }
   ]

@@ -1,5 +1,5 @@
 export type BenchmarkLanguage = "en" | "hi" | "te" | "en-hi" | "en-te";
-export type BenchmarkSpeakerRole = "am" | "candidate" | "other";
+export type BenchmarkSpeakerRole = "am" | "candidate" | "other" | "dataset_speaker";
 
 export interface BenchmarkWord {
   word: string;

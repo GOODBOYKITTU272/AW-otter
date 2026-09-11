@@ -6,10 +6,14 @@
     "category": "conversational_te",
     "primaryLanguage": "te",
     "speakers": [
-      { "id": "tef_05181", "role": "candidate", "nameHint": "Telugu Speaker 05181" }
+      {
+        "id": "tef_05181",
+        "role": "dataset_speaker",
+        "nameHint": "Telugu Speaker 05181"
+      }
     ],
     "audioCharacteristics": {
-      "snrCategory": "high",
+      "snrCategory": "not_measured",
       "backgroundNoise": false,
       "crosstalkPresent": false
     }
@@ -19,12 +23,12 @@
       "id": "openslr-te-04-seg-1",
       "startMs": 0,
       "endMs": 10760,
-      "speakerRole": "candidate",
+      "speakerRole": "dataset_speaker",
       "speakerId": "tef_05181",
       "language": "te",
       "text": "ఈ ప్రమాదం జరిగిన కొన్ని నెలల తర్వాత దీన్ని గురించి కొన్ని మూల గ్రంథాలు కూడా రాయడం జరిగింది",
       "isCodeSwitched": false,
-      "notes": "Human verified from OpenSLR SLR66 official orthographic transcript"
+      "notes": "OpenSLR SLR66 official dataset orthographic transcript (human annotated dataset reference)"
     }
   ]
 }

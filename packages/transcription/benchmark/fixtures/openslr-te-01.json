@@ -6,10 +6,14 @@
     "category": "conversational_te",
     "primaryLanguage": "te",
     "speakers": [
-      { "id": "tef_05691", "role": "candidate", "nameHint": "Telugu Speaker 05691" }
+      {
+        "id": "tef_05691",
+        "role": "dataset_speaker",
+        "nameHint": "Telugu Speaker 05691"
+      }
     ],
     "audioCharacteristics": {
-      "snrCategory": "high",
+      "snrCategory": "not_measured",
       "backgroundNoise": false,
       "crosstalkPresent": false
     }
@@ -19,12 +23,12 @@
       "id": "openslr-te-01-seg-1",
       "startMs": 0,
       "endMs": 14510,
-      "speakerRole": "candidate",
+      "speakerRole": "dataset_speaker",
       "speakerId": "tef_05691",
       "language": "te",
       "text": "ఒక రోజుకు ఇరవై నాలుగు హవర్లుంటాయి",
       "isCodeSwitched": false,
-      "notes": "Human verified from OpenSLR SLR66 official orthographic transcript"
+      "notes": "OpenSLR SLR66 official dataset orthographic transcript (human annotated dataset reference)"
     }
   ]
 }

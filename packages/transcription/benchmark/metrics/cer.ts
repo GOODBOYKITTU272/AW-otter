@@ -1,13 +1,14 @@
 /**
  * Standardized Character Error Rate (CER) computation using dynamic programming Levenshtein distance.
- * Crucial for phonetic & Indic script evaluation (Hindi, Telugu) where word boundaries can vary.
+ * Preserves all Unicode Letters (\p{L}), Marks (\p{M}), and Numbers (\p{N}), including Latin,
+ * Devanagari, Telugu, Tamil, Kannada, and other scripts, while stripping punctuation and whitespace.
  */
 
 export function normalizeTextForCer(text: string): string[] {
-  // Strip whitespace, keep alphanumeric and Indic Unicode scripts
   return text
+    .normalize("NFC")
     .toLowerCase()
-    .replace(/[^\w\u0900-\u097F\u0C00-\u0C7F]/g, "")
+    .replace(/[^\p{L}\p{M}\p{N}]/gu, "")
     .split("");
 }
 

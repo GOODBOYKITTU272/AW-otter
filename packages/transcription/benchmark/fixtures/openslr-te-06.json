@@ -6,10 +6,14 @@
     "category": "conversational_te",
     "primaryLanguage": "te",
     "speakers": [
-      { "id": "tem_00682", "role": "candidate", "nameHint": "Telugu Speaker 00682" }
+      {
+        "id": "tem_00682",
+        "role": "dataset_speaker",
+        "nameHint": "Telugu Speaker 00682"
+      }
     ],
     "audioCharacteristics": {
-      "snrCategory": "high",
+      "snrCategory": "not_measured",
       "backgroundNoise": false,
       "crosstalkPresent": false
     }
@@ -19,12 +23,12 @@
       "id": "openslr-te-06-seg-1",
       "startMs": 0,
       "endMs": 12550,
-      "speakerRole": "candidate",
+      "speakerRole": "dataset_speaker",
       "speakerId": "tem_00682",
       "language": "te",
       "text": "ఈ నేపథ్యంలో వెయ్యి ఏడు వందలు నలభై తొమ్మిదిలో షాహూజీ మరణించాడు",
       "isCodeSwitched": false,
-      "notes": "Human verified from OpenSLR SLR66 official orthographic transcript"
+      "notes": "OpenSLR SLR66 official dataset orthographic transcript (human annotated dataset reference)"
     }
   ]
 }

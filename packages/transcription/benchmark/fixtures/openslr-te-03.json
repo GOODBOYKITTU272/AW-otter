@@ -6,10 +6,14 @@
     "category": "conversational_te",
     "primaryLanguage": "te",
     "speakers": [
-      { "id": "tef_08664", "role": "candidate", "nameHint": "Telugu Speaker 08664" }
+      {
+        "id": "tef_08664",
+        "role": "dataset_speaker",
+        "nameHint": "Telugu Speaker 08664"
+      }
     ],
     "audioCharacteristics": {
-      "snrCategory": "high",
+      "snrCategory": "not_measured",
       "backgroundNoise": false,
       "crosstalkPresent": false
     }
@@ -19,12 +23,12 @@
       "id": "openslr-te-03-seg-1",
       "startMs": 0,
       "endMs": 11010,
-      "speakerRole": "candidate",
+      "speakerRole": "dataset_speaker",
       "speakerId": "tef_08664",
       "language": "te",
       "text": "ఆంధ్రప్రదేశ్ రాష్ట్ర మాజీ ముఖ్యమంత్రి నందమూరి తారక రామారావు రెండవ భార్య నందమూరి లక్ష్మీపార్వతి",
       "isCodeSwitched": false,
-      "notes": "Human verified from OpenSLR SLR66 official orthographic transcript"
+      "notes": "OpenSLR SLR66 official dataset orthographic transcript (human annotated dataset reference)"
     }
   ]
 }
