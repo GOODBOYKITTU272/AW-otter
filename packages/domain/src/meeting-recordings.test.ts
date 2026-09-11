@@ -4,7 +4,9 @@ import {
   getMeetingRecordingStoragePath,
   getOwnedMeetingRecording,
   MEETING_RECORDINGS_BUCKET,
+  RecordingAlreadyExistsError,
   RecordingStorageMismatchError,
+  storeOwnedRecording,
   type RecordingStorageClient,
 } from "./meeting-recordings";
 
@@ -330,5 +332,112 @@ describe("ensureOwnedRecording — concurrent DB insert race", () => {
     });
 
     expect(result.recordingRef.id).toBe("rec-1");
+  });
+});
+
+describe("storeOwnedRecording — immutable recording regression guard", () => {
+  it("allows first upload, rejects second upload, and keeps original bytes/checksum unchanged without upsert: true", async () => {
+    const orgId = "org-1";
+    const meetingId = "meeting-immutable-1";
+    const firstBytes = new TextEncoder().encode("original-recording-content").buffer;
+    const secondBytes = new TextEncoder().encode("malicious-or-dummy-replacement").buffer;
+
+    let storedRow: Record<string, unknown> | null = null;
+    let storedObject: { bytes: ArrayBuffer; contentType: string } | null = null;
+
+    const supabase = {
+      from(table: string) {
+        if (table !== "meeting_recordings") throw new Error(`unexpected table: ${table}`);
+        const builder = {
+          select() {
+            return builder;
+          },
+          eq(_col: string, _val: string) {
+            return builder;
+          },
+          async maybeSingle() {
+            return { data: storedRow, error: null };
+          },
+          insert(payload: Record<string, unknown>) {
+            builder._payload = payload;
+            return builder;
+          },
+          async single() {
+            storedRow = {
+              id: "rec-guard-1",
+              organization_id: builder._payload?.organization_id,
+              meeting_id: builder._payload?.meeting_id,
+              storage_bucket: builder._payload?.storage_bucket,
+              storage_path: builder._payload?.storage_path,
+              content_type: builder._payload?.content_type,
+              byte_size: builder._payload?.byte_size,
+              duration_seconds: null,
+              checksum_sha256: builder._payload?.checksum_sha256,
+              captured_at: null,
+            };
+            return { data: storedRow, error: null };
+          },
+          _payload: undefined as Record<string, unknown> | undefined,
+        };
+        return builder;
+      },
+    } as unknown as Parameters<typeof getOwnedMeetingRecording>[0];
+
+    const uploadSpy = vi.fn(async (path: string, body: ArrayBuffer, opts: { contentType: string; upsert: boolean }) => {
+      if (opts.upsert) {
+        throw new Error("Disallowed: upsert: true is forbidden for immutable recordings");
+      }
+      storedObject = { bytes: body, contentType: opts.contentType };
+      return { error: null };
+    });
+
+    const infoSpy = vi.fn(async (_path: string) => {
+      if (!storedObject) return { data: null, error: { message: "not found" } };
+      return { data: { size: storedObject.bytes.byteLength, contentType: storedObject.contentType }, error: null };
+    });
+
+    const downloadSpy = vi.fn(async (_path: string) => {
+      if (!storedObject) return { data: null, error: new Error("not found") };
+      return { data: new Blob([storedObject.bytes]), error: null };
+    });
+
+    const storage: RecordingStorageClient = {
+      upload: uploadSpy,
+      download: downloadSpy,
+      info: infoSpy,
+    };
+
+    // 1. First upload: must SUCCEED
+    const firstResult = await storeOwnedRecording(supabase, storage, {
+      organizationId: orgId,
+      meetingId,
+      format: "webm",
+      bytes: firstBytes,
+    });
+
+    expect(firstResult.recordingRef.byteSize).toBe(firstBytes.byteLength);
+    expect(firstResult.recordingRef.checksumSha256).toBeTruthy();
+    const originalChecksum = firstResult.recordingRef.checksumSha256;
+    expect(uploadSpy).toHaveBeenCalledWith(
+      expect.stringContaining("original.webm"),
+      firstBytes,
+      { contentType: "audio/webm", upsert: false },
+    );
+
+    // 2. Second upload: must be REJECTED (disallow overwriting immutable recording)
+    await expect(
+      storeOwnedRecording(supabase, storage, {
+        organizationId: orgId,
+        meetingId,
+        format: "webm",
+        bytes: secondBytes,
+      }),
+    ).rejects.toThrow(RecordingAlreadyExistsError);
+
+    // 3. Verify original bytes and checksum remain UNTOUCHED
+    expect(storedRow.byte_size).toBe(firstBytes.byteLength);
+    expect(storedRow.checksum_sha256).toBe(originalChecksum);
+    expect(new Uint8Array(storedObject!.bytes)).toEqual(new Uint8Array(firstBytes));
+    expect(uploadSpy).toHaveBeenCalledTimes(1); // Second upload was blocked before hitting storage
   });
 });

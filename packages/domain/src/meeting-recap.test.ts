@@ -597,6 +597,61 @@ describe("getMeetingRecapData", () => {
     });
   });
 
+  it("allows evidence viewing when transcript is completed without an AI run", async () => {
+    const supabase = fakeSupabase({
+      meetings: [
+        {
+          id: "meeting-evidence-only",
+          organization_id: "org-1",
+          title: "Real Call Without AI Run",
+          customer_id: null,
+          call_type: null,
+          scheduled_start: "2026-09-10T14:25:00Z",
+          actual_start: "2026-09-10T14:25:00Z",
+          owner_membership_id: "mem-am-1",
+        },
+      ],
+      meeting_transcripts: [
+        {
+          id: "transcript-evidence",
+          meeting_id: "meeting-evidence-only",
+          processing_status: "completed",
+          error_code: null,
+        },
+      ],
+      ai_runs: [], // No AI run exists!
+      transcript_segments: [
+        {
+          id: "seg-1",
+          transcript_id: "transcript-evidence",
+          sequence_index: 0,
+          start_ms: 1000,
+          end_ms: 5000,
+          speaker_label: "Speaker 1",
+          original_text: "Hello, can you hear me?",
+          canonical_english_text: "Hello, can you hear me?",
+        },
+      ],
+      call_records: [],
+      meeting_recordings: [
+        {
+          meeting_id: "meeting-evidence-only",
+          storage_bucket: "meeting-recordings",
+          storage_path: "organizations/org-1/meetings/meeting-evidence-only/original.webm",
+        },
+      ],
+    });
+
+    const state = await getMeetingRecapData(supabase, "meeting-evidence-only");
+    expect(state?.status).toBe("ready");
+    if (state?.status === "ready") {
+      expect(state.recap.transcriptSegments).toHaveLength(1);
+      expect(state.recap.transcriptSegments[0]!.originalText).toBe("Hello, can you hear me?");
+      expect(state.recap.customer.id).toBeNull();
+      expect(state.recap.result.summary).toBe("");
+    }
+  });
+
   it("saves a draft meeting recap into meeting_recaps and appends revision", async () => {
     const supabase = fakeSupabase({
       meetings: [

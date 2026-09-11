@@ -109,6 +109,13 @@ export class RecordingStorageMismatchError extends Error {
   }
 }
 
+export class RecordingAlreadyExistsError extends Error {
+  constructor(message = "An owned recording already exists for this meeting and cannot be overwritten.") {
+    super(message);
+    this.name = "RecordingAlreadyExistsError";
+  }
+}
+
 // Re-exported from transcription.ts's own definition would create a
 // circular import (transcription.ts will import FROM this module in
 // Task 7) — this module owns its own copy of the same error shape,
@@ -208,6 +215,76 @@ export async function ensureOwnedRecording(
   });
 
   return { recordingRef: row, bytes };
+}
+
+export interface StoreOwnedRecordingInput {
+  organizationId: string;
+  meetingId: string;
+  format: string;
+  bytes: ArrayBuffer;
+  durationSeconds?: number | null;
+  sourceProvider?: string;
+  sourceMetadata?: Json;
+}
+
+/**
+  * Stores an owned recording, strictly enforcing immutability:
+  * 1. Rejects if a meeting_recordings row already exists for this meeting.
+  * 2. Rejects if a storage object already exists at the deterministic path.
+  * 3. Disallows upsert: true on storage uploads.
+  *
+  * Once stored, original recordings cannot be overwritten or mutated.
+  */
+export async function storeOwnedRecording(
+  supabase: AppSupabaseClient,
+  storage: RecordingStorageClient,
+  input: StoreOwnedRecordingInput,
+): Promise<{ recordingRef: OwnedRecordingRef; bytes: ArrayBuffer }> {
+  const existing = await getOwnedMeetingRecording(supabase, input.meetingId);
+  if (existing) {
+    throw new RecordingAlreadyExistsError(
+      `An owned recording already exists for meeting ${input.meetingId} — immutable recordings cannot be overwritten.`,
+    );
+  }
+
+  const path = getMeetingRecordingStoragePath(
+    input.organizationId,
+    input.meetingId,
+    input.format,
+  );
+  const contentType = `audio/${input.format}`;
+
+  const preexisting = await storage.info(path);
+  if (preexisting.data) {
+    throw new RecordingAlreadyExistsError(
+      `A storage object already exists at ${path} — immutable recordings cannot be overwritten.`,
+    );
+  }
+
+  const checksum = createHash("sha256").update(new Uint8Array(input.bytes)).digest("hex");
+
+  const uploadResult = await storage.upload(path, input.bytes, { contentType, upsert: false });
+  if (uploadResult.error) {
+    throw new RecordingAlreadyExistsError(
+      `Failed to store recording: ${uploadResult.error.message}`,
+    );
+  }
+
+  const row = await insertRecordingRow(supabase, {
+    organizationId: input.organizationId,
+    meetingId: input.meetingId,
+    bucket: MEETING_RECORDINGS_BUCKET,
+    path,
+    contentType,
+    byteSize: input.bytes.byteLength,
+    checksum,
+    sourceMetadata: input.sourceMetadata ?? {
+      sourceFormat: input.format,
+      sourceFileSizeBytes: input.bytes.byteLength,
+    },
+  });
+
+  return { recordingRef: row, bytes: input.bytes };
 }
 
 async function insertRecordingRow(

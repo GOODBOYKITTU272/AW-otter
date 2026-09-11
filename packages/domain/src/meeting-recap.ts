@@ -181,11 +181,21 @@ export async function getMeetingRecapData(
     if (aiRun?.status === "failed") {
       return { status: "intelligence_failed", errorCode: aiRun.error_code };
     }
-    return { status: "intelligence_not_ready" };
+    if (!aiRun && transcript.processing_status === "completed") {
+      // Allow raw evidence playback, transcript viewing, and integrity warnings
+      // even when an AI run has not been scheduled yet.
+    } else {
+      return { status: "intelligence_not_ready" };
+    }
   }
 
-  const validatedOutput =
-    aiRun.validated_output as unknown as MeetingIntelligenceResult;
+  const validatedOutput: MeetingIntelligenceResult =
+    (aiRun?.validated_output as unknown as MeetingIntelligenceResult) ?? {
+      summary: "",
+      callRecords: [],
+      callTypeSpecific: null,
+      customerTruthDeltas: [],
+    };
 
   const { data: segmentRows, error: segmentsError } = await supabase
     .from("transcript_segments")
@@ -434,7 +444,7 @@ export async function getMeetingRecapData(
     recordingUrl,
     integrityReport,
     result: {
-      summary: aiRun.summary ?? validatedOutput.summary,
+      summary: aiRun?.summary ?? validatedOutput.summary ?? "",
       callRecords,
       customerTruthDeltas,
       callTypeSpecific: validatedOutput.callTypeSpecific,

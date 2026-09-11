@@ -66,7 +66,25 @@ export function MediaPlayer({
 
   const handleLoadedMetadata = () => {
     if (!audioRef.current) return;
-    setDuration(audioRef.current.duration);
+    const d = audioRef.current.duration;
+    if (d === Infinity || isNaN(d)) {
+      const audio = audioRef.current;
+      audio.currentTime = 1e6;
+      audio.addEventListener(
+        "seeked",
+        () => {
+          const realDuration =
+            audio.duration && audio.duration !== Infinity
+              ? audio.duration
+              : audio.currentTime;
+          setDuration(realDuration);
+          audio.currentTime = 0;
+        },
+        { once: true },
+      );
+    } else {
+      setDuration(d);
+    }
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
