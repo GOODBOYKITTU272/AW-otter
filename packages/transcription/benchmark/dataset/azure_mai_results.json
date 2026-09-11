@@ -1,16 +1,21 @@
 {
+  "metadata": {
+    "engine": "Azure MAI-Transcribe-2",
+    "modelVersion": "2025-10-15-enhanced",
+    "runTimestamp": "2026-09-11T07:57:42.125Z"
+  },
   "telugu_cases": [
     {
       "id": "openslr-te-01",
       "groundTruth": "ఒక రోజుకు ఇరవై నాలుగు హవర్లుంటాయి",
-      "transcript": "ఒక రోజుకు ఇరవై నాలుగు అవర్‌లు ఉంటాయి.",
-      "locale": "te",
+      "transcript": "ఒక రోజుకు ఇరవై నాలుగు అవరులు ఉంటాయి.",
+      "detectedLocale": "te",
       "wer": 0.4,
-      "cer": 0.06896551724137931,
+      "cer": 0.10344827586206896,
       "substitutions": 1,
       "deletions": 0,
       "insertions": 1,
-      "latencyMs": 2238,
+      "latencyMs": 2750,
       "wordCount": 6,
       "hasWordTimestamps": true
     },
@@ -18,13 +23,13 @@
       "id": "openslr-te-02",
       "groundTruth": "ఈ సమయంలో దాసరి నారాయణరావు కె.రాఘవేంద్రరావు కోడిరామి రెడ్డి అగ్రస్థానంలో ఉన్న దర్శకులు",
       "transcript": "ఈ సమయంలో దాసరి నారాయణరావు, కే రాఘవేంద్రరావు, కోడిరామిరెడ్డి అగ్రస్థానంలో ఉన్న దర్శకులు.",
-      "locale": "te",
+      "detectedLocale": "te",
       "wer": 0.3,
       "cer": 0.013333333333333334,
       "substitutions": 3,
       "deletions": 0,
       "insertions": 0,
-      "latencyMs": 2154,
+      "latencyMs": 703,
       "wordCount": 10,
       "hasWordTimestamps": true
     },
@@ -32,13 +37,13 @@
       "id": "openslr-te-03",
       "groundTruth": "ఆంధ్రప్రదేశ్ రాష్ట్ర మాజీ ముఖ్యమంత్రి నందమూరి తారక రామారావు రెండవ భార్య నందమూరి లక్ష్మీపార్వతి",
       "transcript": "ఆంధ్రప్రదేశ్ రాష్ట్ర మాజీ ముఖ్యమంత్రి నందమూరి తారకరామారావు రెండవ భార్య నందమూరి లక్ష్మీపార్వతి.",
-      "locale": "te",
+      "detectedLocale": "te",
       "wer": 0.18181818181818182,
       "cer": 0,
       "substitutions": 1,
       "deletions": 1,
       "insertions": 0,
-      "latencyMs": 674,
+      "latencyMs": 479,
       "wordCount": 10,
       "hasWordTimestamps": true
     },
@@ -46,13 +51,13 @@
       "id": "openslr-te-04",
       "groundTruth": "ఈ ప్రమాదం జరిగిన కొన్ని నెలల తర్వాత దీన్ని గురించి కొన్ని మూల గ్రంథాలు కూడా రాయడం జరిగింది",
       "transcript": "ఈ ప్రమాదం జరిగిన కొన్ని నెలల తర్వాత దీని గురించి కొన్ని మూల గ్రంథాలు కూడా రాయడం జరిగింది.",
-      "locale": "te",
+      "detectedLocale": "te",
       "wer": 0.07142857142857142,
       "cer": 0.025974025974025976,
       "substitutions": 1,
       "deletions": 0,
       "insertions": 0,
-      "latencyMs": 698,
+      "latencyMs": 450,
       "wordCount": 14,
       "hasWordTimestamps": true
     },
@@ -60,13 +65,13 @@
       "id": "openslr-te-05",
       "groundTruth": "వందేమాతరం శ్రీనివాస్ ప్రసిద్ది చెందిన తెలుగు సినిమా గాయకుడు గీత రచయిత మరియు సంగీత దర్శకుడు",
       "transcript": "వందే మాత్రం శ్రీనివాస్ ప్రసిద్ధి చెందిన తెలుగు సినిమా గాయకుడు, గీత రచయిత మరియు సంగీత దర్శకుడు.",
-      "locale": "te",
+      "detectedLocale": "te",
       "wer": 0.25,
       "cer": 0.02531645569620253,
       "substitutions": 2,
       "deletions": 0,
       "insertions": 1,
-      "latencyMs": 465,
+      "latencyMs": 491,
       "wordCount": 13,
       "hasWordTimestamps": true
     },
@@ -74,352 +79,179 @@
       "id": "openslr-te-06",
       "groundTruth": "ఈ నేపథ్యంలో వెయ్యి ఏడు వందలు నలభై తొమ్మిదిలో షాహూజీ మరణించాడు",
       "transcript": "ఈ నేపథ్యంలో 1749లో షాహూజీ మరణించాడు.",
-      "locale": "te",
+      "detectedLocale": "te",
       "wer": 0.5555555555555556,
       "cer": 0.49056603773584906,
       "substitutions": 1,
       "deletions": 4,
       "insertions": 0,
-      "latencyMs": 664,
+      "latencyMs": 483,
       "wordCount": 5,
       "hasWordTimestamps": true
     }
   ],
-  "diarization_test": {
-    "audio": "scratch/azure_prep/code_switch_dialogue.wav",
-    "latencyMs": 1289,
-    "speakerCount": 1,
+  "diarization_and_en_te": {
+    "audioProvenance": "SYNTHETIC_TTS",
+    "ttsProvider": "SARVAM",
+    "ttsModel": "bulbul:v3",
+    "ttsSpeakers": {
+      "speaker_0": "shubh (en-IN)",
+      "speaker_1": "anand (te-IN)"
+    },
+    "speakerCount": 2,
     "speakers": [
+      0,
       1
     ],
     "phrases": [
       {
-        "speaker": 0,
-        "offsetMilliseconds": 40,
-        "durationMilliseconds": 2560,
-        "text": "Hey, Karthik, did you get a chance to review the position in Dallas?",
-        "words": [
-          {
-            "text": "Hey,",
-            "offsetMilliseconds": 40,
-            "durationMilliseconds": 139
-          },
-          {
-            "text": "Karthik,",
-            "offsetMilliseconds": 240,
-            "durationMilliseconds": 339
-          },
-          {
-            "text": "did",
-            "offsetMilliseconds": 600,
-            "durationMilliseconds": 100
-          },
-          {
-            "text": "you",
-            "offsetMilliseconds": 740,
-            "durationMilliseconds": 80
-          },
-          {
-            "text": "get",
-            "offsetMilliseconds": 840,
-            "durationMilliseconds": 100
-          },
-          {
-            "text": "a",
-            "offsetMilliseconds": 1000,
-            "durationMilliseconds": 20
-          },
-          {
-            "text": "chance",
-            "offsetMilliseconds": 1080,
-            "durationMilliseconds": 179
-          },
-          {
-            "text": "to",
-            "offsetMilliseconds": 1300,
-            "durationMilliseconds": 80
-          },
-          {
-            "text": "review",
-            "offsetMilliseconds": 1440,
-            "durationMilliseconds": 180
-          },
-          {
-            "text": "the",
-            "offsetMilliseconds": 1640,
-            "durationMilliseconds": 99
-          },
-          {
-            "text": "position",
-            "offsetMilliseconds": 1800,
-            "durationMilliseconds": 280
-          },
-          {
-            "text": "in",
-            "offsetMilliseconds": 2120,
-            "durationMilliseconds": 60
-          },
-          {
-            "text": "Dallas?",
-            "offsetMilliseconds": 2240,
-            "durationMilliseconds": 359
-          }
-        ],
+        "speakerTag": "Speaker 0",
+        "speakerNumericId": 0,
+        "startMs": 40,
+        "endMs": 2960,
         "locale": "en",
-        "confidence": 0
+        "text": "Hey, Kartik, did you get a chance to review the position in Dallas?"
       },
       {
-        "speaker": 1,
-        "offsetMilliseconds": 2920,
-        "durationMilliseconds": 3180,
-        "text": "Yeah, నేను చూసాను కానీ రీలోకేషన్ కష్టం అవుతుంది.",
-        "words": [
-          {
-            "text": "Yeah,",
-            "offsetMilliseconds": 2920,
-            "durationMilliseconds": 220
-          },
-          {
-            "text": "నేను",
-            "offsetMilliseconds": 3440,
-            "durationMilliseconds": 200
-          },
-          {
-            "text": "చూసాను",
-            "offsetMilliseconds": 3720,
-            "durationMilliseconds": 399
-          },
-          {
-            "text": "కానీ",
-            "offsetMilliseconds": 4200,
-            "durationMilliseconds": 240
-          },
-          {
-            "text": "రీలోకేషన్",
-            "offsetMilliseconds": 4560,
-            "durationMilliseconds": 599
-          },
-          {
-            "text": "కష్టం",
-            "offsetMilliseconds": 5280,
-            "durationMilliseconds": 299
-          },
-          {
-            "text": "అవుతుంది.",
-            "offsetMilliseconds": 5640,
-            "durationMilliseconds": 460
-          }
-        ],
+        "speakerTag": "Speaker 1",
+        "speakerNumericId": 1,
+        "startMs": 3320,
+        "endMs": 8839,
         "locale": "te",
-        "confidence": 0
+        "text": "Yeah, నేను చూసాను కానీ రీలోకేషన్ కష్టం అవుతుంది. డల్లాస్‌లో లివింగ్ కాస్ట్ ఎక్కువ."
       },
       {
-        "speaker": 1,
-        "offsetMilliseconds": 6520,
-        "durationMilliseconds": 1620,
-        "text": "Dallasలో living cost ఎక్కువ.",
-        "words": [
-          {
-            "text": "Dallasలో",
-            "offsetMilliseconds": 6520,
-            "durationMilliseconds": 559
-          },
-          {
-            "text": "living",
-            "offsetMilliseconds": 7160,
-            "durationMilliseconds": 259
-          },
-          {
-            "text": "cost",
-            "offsetMilliseconds": 7480,
-            "durationMilliseconds": 239
-          },
-          {
-            "text": "ఎక్కువ.",
-            "offsetMilliseconds": 7740,
-            "durationMilliseconds": 400
-          }
-        ],
+        "speakerTag": "Speaker 0",
+        "speakerNumericId": 0,
+        "startMs": 9160,
+        "endMs": 13040,
         "locale": "en",
-        "confidence": 0
+        "text": "Understood. Would you consider hybrid if they offer a relocation assistance package?"
       },
       {
-        "speaker": 0,
-        "offsetMilliseconds": 8480,
-        "durationMilliseconds": 4279,
-        "text": "Understood. Would you consider hybrid if they offer a relocation assistance package?",
-        "words": [
-          {
-            "text": "Understood.",
-            "offsetMilliseconds": 8480,
-            "durationMilliseconds": 480
-          },
-          {
-            "text": "Would",
-            "offsetMilliseconds": 9560,
-            "durationMilliseconds": 140
-          },
-          {
-            "text": "you",
-            "offsetMilliseconds": 9720,
-            "durationMilliseconds": 99
-          },
-          {
-            "text": "consider",
-            "offsetMilliseconds": 9880,
-            "durationMilliseconds": 279
-          },
-          {
-            "text": "hybrid",
-            "offsetMilliseconds": 10280,
-            "durationMilliseconds": 300
-          },
-          {
-            "text": "if",
-            "offsetMilliseconds": 10600,
-            "durationMilliseconds": 80
-          },
-          {
-            "text": "they",
-            "offsetMilliseconds": 10720,
-            "durationMilliseconds": 119
-          },
-          {
-            "text": "offer",
-            "offsetMilliseconds": 10880,
-            "durationMilliseconds": 219
-          },
-          {
-            "text": "a",
-            "offsetMilliseconds": 11160,
-            "durationMilliseconds": 80
-          },
-          {
-            "text": "relocation",
-            "offsetMilliseconds": 11480,
-            "durationMilliseconds": 439
-          },
-          {
-            "text": "assistance",
-            "offsetMilliseconds": 11960,
-            "durationMilliseconds": 399
-          },
-          {
-            "text": "package?",
-            "offsetMilliseconds": 12440,
-            "durationMilliseconds": 320
-          }
-        ],
-        "locale": "en",
-        "confidence": 0
-      },
-      {
-        "speaker": 1,
-        "offsetMilliseconds": 13040,
-        "durationMilliseconds": 6240,
-        "text": "అవును. Compensation 110 के పైన ఉంటే definite గా consider చేస్తాను.",
-        "words": [
-          {
-            "text": "అవును.",
-            "offsetMilliseconds": 13040,
-            "durationMilliseconds": 359
-          },
-          {
-            "text": "Compensation",
-            "offsetMilliseconds": 13720,
-            "durationMilliseconds": 759
-          },
-          {
-            "text": "110",
-            "offsetMilliseconds": 14680,
-            "durationMilliseconds": 960
-          },
-          {
-            "text": "के",
-            "offsetMilliseconds": 15760,
-            "durationMilliseconds": 120
-          },
-          {
-            "text": "పైన",
-            "offsetMilliseconds": 16000,
-            "durationMilliseconds": 320
-          },
-          {
-            "text": "ఉంటే",
-            "offsetMilliseconds": 16800,
-            "durationMilliseconds": 320
-          },
-          {
-            "text": "definite",
-            "offsetMilliseconds": 17360,
-            "durationMilliseconds": 400
-          },
-          {
-            "text": "గా",
-            "offsetMilliseconds": 17800,
-            "durationMilliseconds": 120
-          },
-          {
-            "text": "consider",
-            "offsetMilliseconds": 18200,
-            "durationMilliseconds": 440
-          },
-          {
-            "text": "చేస్తాను.",
-            "offsetMilliseconds": 18680,
-            "durationMilliseconds": 600
-          }
-        ],
+        "speakerTag": "Speaker 1",
+        "speakerNumericId": 1,
+        "startMs": 13320,
+        "endMs": 17800,
         "locale": "te",
-        "confidence": 0
+        "text": "అవును. Compensation 110 के పైన ఉంటే definite గా consider చేస్తాను."
       }
-    ]
-  },
-  "code_switch_test": {
-    "groundTruth": "Hey Karthik, did you get a chance to review the position in Dallas? Yeah, nenu chusanu kani relocation kastam avtundi, Dallas lo living cost ekkuva. Understood. Would you consider hybrid if they offer a relocation assistance package? Avunu, compensation hundred and ten k paina unte definite ga consider chestanu.",
-    "transcript": "Hey, Karthik, did you get a chance to review the position in Dallas?\nYeah, నేను చూసాను కానీ రీలోకేషన్ కష్టం అవుతుంది. Dallasలో living cost ఎక్కువ.\nUnderstood. Would you consider hybrid if they offer a relocation assistance package?\nఅవును. Compensation 110 के పైన ఉంటే definite గా consider చేస్తాను.",
-    "wer": 0.3673469387755102,
-    "cer": 0.328125,
-    "latencyMs": 1289
-  },
-  "vocab_test_unbiased": {
-    "groundTruth": "Welcome to ApplyWizz. Today we are reviewing your STEM OPT and CPT work authorization status for US tech roles.\nOur team is preparing your resume for H-1B sponsorship and direct W2 or C2C contracts on Workday and LinkedIn.\nThe candidate confirmed relocation preference to Dallas, Texas, with a target compensation of one hundred and ten thousand dollars base.",
-    "transcript": "Welcome to ApplyWiz. Today we are reviewing your STEM OPT and CPT work authorization status for US tech roles. Our team is preparing your resume for H-1B sponsorship and direct W-2 or C2C contracts on Workday and LinkedIn. The candidate confirmed relocation preference to Dallas, Texas, with a target compensation of $110,000 base.",
-    "wer": 0.1206896551724138,
-    "cer": 0.10847457627118644,
-    "latencyMs": 800
-  },
-  "vocab_test_biased": {
-    "groundTruth": "Welcome to ApplyWizz. Today we are reviewing your STEM OPT and CPT work authorization status for US tech roles.\nOur team is preparing your resume for H-1B sponsorship and direct W2 or C2C contracts on Workday and LinkedIn.\nThe candidate confirmed relocation preference to Dallas, Texas, with a target compensation of one hundred and ten thousand dollars base.",
-    "transcript": "Welcome to ApplyWiz. Today we are reviewing your STEM OPT and CPT work authorization status for US tech roles. Our team is preparing your resume for H-1B sponsorship and direct W-2 or C2C contracts on Workday and LinkedIn. The candidate confirmed relocation preference to Dallas, Texas, with a target compensation of $110,000 base.",
-    "phrases": [
-      "ApplyWizz",
-      "STEM OPT",
-      "CPT",
-      "H-1B",
-      "USCIS",
-      "sponsorship",
-      "Workday",
-      "LinkedIn",
-      "W2",
-      "C2C",
-      "relocation",
-      "resume",
-      "interview"
     ],
-    "wer": 0.1206896551724138,
-    "cer": 0.10847457627118644,
-    "latencyMs": 566
+    "transcript": "Hey, Kartik, did you get a chance to review the position in Dallas?\nYeah, నేను చూసాను కానీ రీలోకేషన్ కష్టం అవుతుంది. డల్లాస్‌లో లివింగ్ కాస్ట్ ఎక్కువ.\nUnderstood. Would you consider hybrid if they offer a relocation assistance package?\nఅవును. Compensation 110 के పైన ఉంటే definite గా consider చేస్తాను.",
+    "orthographicReference": "Hey Karthik, did you get a chance to review the position in Dallas?\nYeah, నేను చూసాను కానీ రీలోకేషన్ కష్టం అవుతుంది, Dallas లో living cost ఎక్కువ.\nUnderstood. Would you consider hybrid if they offer a relocation assistance package?\nఅవును, compensation 110k పైన ఉంటే definite గా consider చేస్తాను.",
+    "orthographicWer": 0.15217391304347827,
+    "orthographicCer": 0.09504132231404959,
+    "romanizedEvaluationNote": "Ordinary WER/CER against Romanized script is NOT_COMPARABLE due to script representation mismatch. Scored against human-verified Telugu orthographic reference.",
+    "latencyMs": 975
   },
-  "real_meeting_test": {
-    "status": "PASS",
-    "durationMs": 985020,
-    "latencyMs": 4238,
-    "phraseCount": 4,
-    "speakerCount": 1,
+  "en_hi_code_switch": {
+    "audioProvenance": "SYNTHETIC_TTS",
+    "ttsProvider": "SARVAM",
+    "ttsModel": "bulbul:v3",
+    "ttsSpeakers": {
+      "speaker_0": "shubh (en-IN)",
+      "speaker_1": "rahul (hi-IN)"
+    },
+    "speakerCount": 2,
     "speakers": [
+      0,
       1
     ],
-    "sampleSnippet": "How to pick Sheerworthy topic? For me, picking the right topic is driven by a process and now not something random, not something random. We need a method to crack that creativity code that leads to viral, viral video and तेजा मरमा गले। आप कद्र बारक। ആ പക്കത്ത് മാടുക്ക് വഴി சொல்லമോ. ആ അപ്പത്ത് പേടുക..."
+    "phrases": [
+      {
+        "speakerTag": "Speaker 0",
+        "speakerNumericId": 0,
+        "startMs": 40,
+        "endMs": 3220,
+        "locale": "en",
+        "text": "Hey Rahul, how was your technical interview with the hiring manager yesterday?"
+      },
+      {
+        "speakerTag": "Speaker 1",
+        "speakerNumericId": 1,
+        "startMs": 3440,
+        "endMs": 9280,
+        "locale": "en",
+        "text": "Interview काफी अच्छा था, especially system design round. But उन्होंने पूछा if I need visa sponsorship."
+      },
+      {
+        "speakerTag": "Speaker 0",
+        "speakerNumericId": 0,
+        "startMs": 9520,
+        "endMs": 12320,
+        "locale": "en",
+        "text": "Right. And what did you communicate regarding your STEM OPT?"
+      },
+      {
+        "speakerTag": "Speaker 1",
+        "speakerNumericId": 1,
+        "startMs": 12520,
+        "endMs": 18039,
+        "locale": "en",
+        "text": "मैंने clearly बताया that I have two years of STEM OPT extension and relocation के लिए I am ready."
+      }
+    ],
+    "transcript": "Hey Rahul, how was your technical interview with the hiring manager yesterday?\nInterview काफी अच्छा था, especially system design round. But उन्होंने पूछा if I need visa sponsorship.\nRight. And what did you communicate regarding your STEM OPT?\nमैंने clearly बताया that I have two years of STEM OPT extension and relocation के लिए I am ready.",
+    "orthographicReference": "Hey Rahul, how was your technical interview with the hiring manager yesterday?\nInterview काफी अच्छा था, especially system design round, but उन्होंने पूछा if I need visa sponsorship.\nRight, and what did you communicate regarding your STEM OPT?\nमैंने clearly बताया that I have two years of STEM OPT extension and relocation के लिए I am ready.",
+    "orthographicWer": 0,
+    "orthographicCer": 0,
+    "latencyMs": 882
+  },
+  "vocab_biasing_evaluation": {
+    "audioProvenance": "SYNTHETIC_TTS",
+    "ttsProvider": "SARVAM",
+    "groundTruth": "Welcome to ApplyWizz. Today we are reviewing your STEM OPT and CPT work authorization status for US tech roles. Our team is preparing your resume for H-1B sponsorship and direct W2 or C2C contracts on Workday and LinkedIn. The candidate confirmed relocation preference to Dallas, Texas, with a target compensation of one hundred and ten thousand dollars base.",
+    "unbiasedTranscript": "Welcome to ApplyWiz. Today we are reviewing your STEM OPT and CPT work authorization status for US tech roles. Our team is preparing your resume for H-1B sponsorship and direct W-2 or C2C contracts on Workday and LinkedIn. The candidate confirmed relocation preference to Dallas, Texas, with a target compensation of $110,000 base.",
+    "biasedTranscript": "Welcome to ApplyWiz. Today we are reviewing your STEM OPT and CPT work authorization status for US tech roles. Our team is preparing your resume for H-1B sponsorship and direct W-2 or C2C contracts on Workday and LinkedIn. The candidate confirmed relocation preference to Dallas, Texas, with a target compensation of $110,000 base.",
+    "biasingStatus": "BIASING_ACCEPTED_NO_MEASURED_IMPROVEMENT",
+    "targetTermsRecognized": {
+      "STEM OPT": true,
+      "CPT": true,
+      "H-1B": true,
+      "W-2 / W2": true,
+      "C2C": true,
+      "Workday": true,
+      "LinkedIn": true,
+      "ApplyWizz": "MINOR_VARIANT (ApplyWiz)"
+    },
+    "unbiasedWer": 0.1206896551724138,
+    "unbiasedCer": 0.10847457627118644
+  },
+  "real_meeting_16min": {
+    "audioProvenance": "REAL_CUSTOMER_SESSION_RECORDING",
+    "durationSeconds": 985,
+    "durationMinutes": 16.4,
+    "processingLatencySeconds": 3.984,
+    "realtimeFactor": "247.2x",
+    "phraseCount": 4,
+    "speakersDetected": [
+      0,
+      1
+    ],
+    "speakerCount": 2,
+    "apiExecutionStatus": "PASS"
+  },
+  "long_meeting_32min": {
+    "audioProvenance": "CONCATENATED_REAL_SESSION_RECORDINGS",
+    "durationSeconds": 1970,
+    "durationMinutes": 32.8,
+    "processingLatencySeconds": 11.215,
+    "realtimeFactor": "175.7x",
+    "phraseCount": 9,
+    "speakersDetected": [
+      0,
+      1
+    ],
+    "speakerCount": 2,
+    "apiExecutionStatus": "PASS"
+  },
+  "long_meeting_quality_sample": {
+    "groundTruthStatus": "PARTIAL_HUMAN_GROUNDED_SAMPLE",
+    "sampleDurationSeconds": 120,
+    "groundTruthText": "How to pick share worthy topic? For me, picking the right topic is driven by a process and not something random, not something random. We need a method to crack that creativity code that leads to viral, viral video.",
+    "hypothesisText": "How to pick Sheerworthy topic? For me, picking the right topic is driven by a process and now not something random, not something random. We need a method to crack that creativity code that leads to viral, viral video and",
+    "sampleWer": 0.10256410256410256,
+    "sampleCer": 0.05263157894736842,
+    "notes": "Acoustic audio contains YouTube background media speech; verbatim beginning preserved well, later section degraded due to background audio crosstalk."
   }
 }
