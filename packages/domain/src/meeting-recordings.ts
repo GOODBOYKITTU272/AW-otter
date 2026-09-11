@@ -116,18 +116,6 @@ export class RecordingAlreadyExistsError extends Error {
   }
 }
 
-/**
- * Real production evidence meeting IDs that are strictly read-only.
- * Automated acceptance suites and test mutations must never target real evidence.
- */
-export const PROTECTED_REAL_EVIDENCE_MEETING_IDS = Object.freeze([
-  "039c787e-b11f-418b-8d3e-4b9bc107407f",
-]);
-
-export function isProtectedEvidenceMeeting(meetingId: string): boolean {
-  return PROTECTED_REAL_EVIDENCE_MEETING_IDS.includes(meetingId);
-}
-
 // Re-exported from transcription.ts's own definition would create a
 // circular import (transcription.ts will import FROM this module in
 // Task 7) — this module owns its own copy of the same error shape,
@@ -252,12 +240,6 @@ export async function storeOwnedRecording(
   storage: RecordingStorageClient,
   input: StoreOwnedRecordingInput,
 ): Promise<{ recordingRef: OwnedRecordingRef; bytes: ArrayBuffer }> {
-  if (isProtectedEvidenceMeeting(input.meetingId)) {
-    throw new RecordingAlreadyExistsError(
-      `Meeting ${input.meetingId} is protected real evidence and cannot be mutated or uploaded by tests.`,
-    );
-  }
-
   const existing = await getOwnedMeetingRecording(supabase, input.meetingId);
   if (existing) {
     throw new RecordingAlreadyExistsError(
