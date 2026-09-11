@@ -35,7 +35,8 @@
     "./operations-recovery": "./src/operations-recovery.ts",
     "./operational-incidents": "./src/operational-incidents.ts",
     "./microsoft-subscription-renewal": "./src/microsoft-subscription-renewal.ts",
-    "./meeting-integrity": "./src/meeting-integrity.ts"
+    "./meeting-integrity": "./src/meeting-integrity.ts",
+    "./speaker-identity": "./src/speaker-identity.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
