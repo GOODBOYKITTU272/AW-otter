@@ -6,13 +6,13 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 /**
- * Prefer absolute path to ffmpeg to avoid ENOENT errors when PATH is not
- * properly configured. Falls back to "ffmpeg" if the standard path doesn't exist.
+ * Prefers env var override, then absolute path (/usr/bin for Docker), 
+ * then bare command (relies on PATH for Mac Homebrew: /opt/homebrew/bin/ffmpeg).
  * The Dockerfile (workers/transcription-worker/Dockerfile) ensures ffmpeg is
- * installed via apt-get, which places it at /usr/bin/ffmpeg on Debian/Ubuntu.
+ * installed via apt-get at /usr/bin/ffmpeg on Debian/Ubuntu.
  */
-const FFMPEG_PATH = "/usr/bin/ffmpeg";
-const FFPROBE_PATH = "/usr/bin/ffprobe";
+const FFMPEG_PATH = process.env.FFMPEG_PATH || "/usr/bin/ffmpeg";
+const FFPROBE_PATH = process.env.FFPROBE_PATH || "/usr/bin/ffprobe";
 
 export class TranscodeError extends Error {}
 

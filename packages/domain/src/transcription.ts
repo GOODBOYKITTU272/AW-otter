@@ -33,6 +33,7 @@ import {
 } from "./meeting-recordings";
 import { evaluateAndPersistMeetingIntegrity } from "./meeting-integrity";
 import { inferAndPersistSpeakerInterpretations } from "./speaker-identity";
+import { detectLanguage, routeByLanguage } from "./language-routing";
 
 export type AppSupabaseClient = SupabaseClient<Database>;
 
@@ -112,6 +113,11 @@ export interface TranscriptionDeps {
   fallbackProvider?: TranscriptionProvider;
   /** Phase 3: Ordered provider chain for three-provider fallback (Azure → Sarvam → Whisper). If present, takes precedence over transcriptionProvider+fallbackProvider. */
   providers?: TranscriptionProvider[];
+  /** New: Enable language-based routing (English→Whisper, non-English→Sarvam) */
+  useLanguageRouting?: boolean;
+  whisperProvider?: TranscriptionProvider;
+  sarvamProvider?: TranscriptionProvider;
+  azureProvider?: TranscriptionProvider;
   normalizationProvider: EnglishNormalizationProvider;
   storage: RecordingStorageClient;
   fetchImpl?: typeof fetch;
@@ -339,6 +345,59 @@ export async function processTranscriptionJob(
     const derivedSha256 = await computeFileSha256(cleanPath);
     const preprocessingVersion = isAzure ? "v1-pcm16k-wav" : "v1-opus16k-ogg";
 
+    let primaryProvider = deps.transcriptionProvider;
+    let fallbackProvider = deps.fallbackProvider;
+    let routingReason: string | undefined;
+
+    // Language-based routing: detect language first, then route to appropriate provider
+    if (deps.useLanguageRouting && deps.whisperProvider) {
+      try {
+        const languageDetection = await detectLanguage(
+          cleanPath,
+          deps.whisperProvider,
+          workDir,
+        );
+        
+        const routingDecision = routeByLanguage(
+          languageDetection.detectedLanguage,
+          deps.whisperProvider,
+          deps.sarvamProvider,
+          deps.azureProvider,
+        );
+        
+        primaryProvider = routingDecision.provider;
+        fallbackProvider = routingDecision.fallbackProvider;
+        routingReason = routingDecision.reason;
+        
+        await logLifecycleEvent(serviceRoleClient, {
+          meetingId: transcript.meeting_id,
+          organizationId: transcript.organization_id,
+          eventType: "transcript.language_detected",
+          source: "worker",
+          payload: {
+            detectedLanguage: languageDetection.detectedLanguage,
+            routingDecision: routingReason,
+            primaryProvider: primaryProvider.name,
+            fallbackProvider: fallbackProvider?.name,
+          },
+        });
+      } catch (langDetectError) {
+        // Language detection failed - fall back to default provider
+        await logLifecycleEvent(serviceRoleClient, {
+          meetingId: transcript.meeting_id,
+          organizationId: transcript.organization_id,
+          eventType: "transcript.language_detection_failed",
+          source: "worker",
+          payload: {
+            error: langDetectError instanceof Error 
+              ? { name: langDetectError.name, message: langDetectError.message }
+              : { message: String(langDetectError) },
+            fallbackProvider: primaryProvider.name,
+          },
+        });
+      }
+    }
+
     const {
       result,
       acceptedProvider,
@@ -346,8 +405,8 @@ export async function processTranscriptionJob(
       fallbackReason,
     } = await executeTranscriptionWithFallback({
       providers: deps.providers,
-      primaryProvider: deps.transcriptionProvider,
-      fallbackProvider: deps.fallbackProvider,
+      primaryProvider,
+      fallbackProvider,
       filePath: cleanPath,
     });
     const detectedLanguage = result.detectedLanguage;
@@ -465,6 +524,8 @@ export async function processTranscriptionJob(
           preprocessingVersion,
           attempts,
           ...(fallbackReason ? { fallbackReason } : {}),
+          ...(routingReason ? { routingReason } : {}),
+          ...(deps.useLanguageRouting ? { languageRoutingEnabled: true } : {}),
         } as unknown as Json,
         p_usage_seconds: result.usage.seconds,
         p_usage_cost: result.usage.cost,
