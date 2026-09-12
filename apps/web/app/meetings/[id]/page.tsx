@@ -12,6 +12,7 @@ import { ConfirmRejectActions } from "@/components/customer-truth/confirm-reject
 import { ResolveAction } from "@/components/actions/resolve-action";
 import { requireRole } from "@/lib/require-role";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { MediaPlayer } from "@/components/recap/media-player";
 
 import styles from "./meeting-detail.module.css";
 import { MeetingDetailTabs } from "./meeting-detail-tabs";
@@ -478,12 +479,14 @@ function OverviewTab({
           </div>
         </div>
 
-        <div className={styles.card}>
-          <div className={styles.cardHead}><span className={styles.cardTitle}>Recording</span></div>
-          <div className={styles.cardBody}>
-            {botJob?.status === "completed" ? "Available" : botJob ? "Not available yet" : "Not requested for this meeting"}
+        {botJob?.status === "completed" && (
+          <div className={styles.card}>
+            <div className={styles.cardHead}><span className={styles.cardTitle}>Recording</span></div>
+            <div style={{ padding: 0, overflow: "hidden" }}>
+              <MediaPlayer meetingId={meetingId} />
+            </div>
           </div>
-        </div>
+        )}
 
         {isAdmin ? (
           <div className={styles.card}>

@@ -11,21 +11,30 @@ import {
 } from "./meeting-recordings";
 
 describe("getMeetingRecordingStoragePath", () => {
-  it("builds the exact deterministic path from the spec", () => {
+  it("builds the exact deterministic path from the spec with media_kind", () => {
     const path = getMeetingRecordingStoragePath(
       "98000000-0000-0000-0000-0000000000c1",
       "98300000-0000-0000-0000-0000000000c1",
+      "audio",
       "webm",
     );
     expect(path).toBe(
-      "organizations/98000000-0000-0000-0000-0000000000c1/meetings/98300000-0000-0000-0000-0000000000c1/original.webm",
+      "organizations/98000000-0000-0000-0000-0000000000c1/meetings/98300000-0000-0000-0000-0000000000c1/audio.original.webm",
     );
   });
 
   it("is the ONLY place path construction happens — same inputs always produce the same path", () => {
-    const a = getMeetingRecordingStoragePath("org-1", "meeting-1", "webm");
-    const b = getMeetingRecordingStoragePath("org-1", "meeting-1", "webm");
+    const a = getMeetingRecordingStoragePath("org-1", "meeting-1", "audio", "webm");
+    const b = getMeetingRecordingStoragePath("org-1", "meeting-1", "audio", "webm");
     expect(a).toBe(b);
+  });
+
+  it("produces different paths for audio vs video", () => {
+    const audio = getMeetingRecordingStoragePath("org-1", "meeting-1", "audio", "webm");
+    const video = getMeetingRecordingStoragePath("org-1", "meeting-1", "video", "mp4");
+    expect(audio).toBe("organizations/org-1/meetings/meeting-1/audio.original.webm");
+    expect(video).toBe("organizations/org-1/meetings/meeting-1/video.original.mp4");
+    expect(audio).not.toBe(video);
   });
 });
 
@@ -56,7 +65,7 @@ function fakeSupabase(row: unknown) {
 
 describe("getOwnedMeetingRecording", () => {
   it("returns null when no recording is owned yet", async () => {
-    const result = await getOwnedMeetingRecording(fakeSupabase(null), "meeting-1");
+    const result = await getOwnedMeetingRecording(fakeSupabase(null), "meeting-1", "audio");
     expect(result).toBeNull();
   });
 
@@ -66,8 +75,9 @@ describe("getOwnedMeetingRecording", () => {
         id: "rec-1",
         organization_id: "org-1",
         meeting_id: "meeting-1",
+        media_kind: "audio",
         storage_bucket: "meeting-recordings",
-        storage_path: "organizations/org-1/meetings/meeting-1/original.webm",
+        storage_path: "organizations/org-1/meetings/meeting-1/audio.original.webm",
         content_type: "audio/webm",
         byte_size: 474476,
         duration_seconds: null,
@@ -75,13 +85,15 @@ describe("getOwnedMeetingRecording", () => {
         captured_at: null,
       }),
       "meeting-1",
+      "audio",
     );
     expect(result).toEqual({
       id: "rec-1",
       organizationId: "org-1",
       meetingId: "meeting-1",
+      mediaKind: "audio",
       storageBucket: "meeting-recordings",
-      storagePath: "organizations/org-1/meetings/meeting-1/original.webm",
+      storagePath: "organizations/org-1/meetings/meeting-1/audio.original.webm",
       contentType: "audio/webm",
       byteSize: 474476,
       durationSeconds: null,
@@ -151,8 +163,9 @@ describe("ensureOwnedRecording — fresh ingestion", () => {
         id: "rec-1",
         organization_id: "org-1",
         meeting_id: "meeting-1",
+        media_kind: "audio",
         storage_bucket: "meeting-recordings",
-        storage_path: "organizations/org-1/meetings/meeting-1/original.webm",
+        storage_path: "organizations/org-1/meetings/meeting-1/audio.original.webm",
         content_type: "audio/webm",
         byte_size: mediaBytes.byteLength,
         duration_seconds: null,
@@ -174,19 +187,20 @@ describe("ensureOwnedRecording — fresh ingestion", () => {
     const result = await ensureOwnedRecording(supabase, storage, {
       organizationId: "org-1",
       meetingId: "meeting-1",
+      mediaKind: "audio",
       vexaMeetingId: 28075,
       vexaEnv: { baseUrl: "https://vexa.test", apiKey: "test-key" },
       fetchImpl: fakeVexaFetch(mediaBytes),
     });
 
-    expect(infoSpy).toHaveBeenCalledWith("organizations/org-1/meetings/meeting-1/original.webm");
+    expect(infoSpy).toHaveBeenCalledWith("organizations/org-1/meetings/meeting-1/audio.original.webm");
     expect(uploadSpy).toHaveBeenCalledWith(
-      "organizations/org-1/meetings/meeting-1/original.webm",
+      "organizations/org-1/meetings/meeting-1/audio.original.webm",
       expect.anything(),
       { contentType: "audio/webm", upsert: false },
     );
     expect(insertSpy).toHaveBeenCalled();
-    expect(result.recordingRef.storagePath).toBe("organizations/org-1/meetings/meeting-1/original.webm");
+    expect(result.recordingRef.storagePath).toBe("organizations/org-1/meetings/meeting-1/audio.original.webm");
     expect(new Uint8Array(result.bytes)).toEqual(new Uint8Array(mediaBytes));
   });
 
@@ -204,6 +218,7 @@ describe("ensureOwnedRecording — fresh ingestion", () => {
       ensureOwnedRecording(supabase, storage, {
         organizationId: "org-1",
         meetingId: "meeting-1",
+        mediaKind: "audio",
         vexaMeetingId: 28075,
         vexaEnv: { baseUrl: "https://vexa.test", apiKey: "test-key" },
         fetchImpl: noRecordingFetch,
@@ -241,6 +256,7 @@ describe("ensureOwnedRecording — crash recovery (object exists, no DB row)", (
     const result = await ensureOwnedRecording(supabase, storage, {
       organizationId: "org-1",
       meetingId: "meeting-1",
+      mediaKind: "audio",
       vexaMeetingId: 28075,
       vexaEnv: { baseUrl: "https://vexa.test", apiKey: "test-key" },
       fetchImpl: fakeVexaFetch(new ArrayBuffer(expectedSize)),
@@ -263,6 +279,7 @@ describe("ensureOwnedRecording — crash recovery (object exists, no DB row)", (
       ensureOwnedRecording(supabase, storage, {
         organizationId: "org-1",
         meetingId: "meeting-1",
+        mediaKind: "audio",
         vexaMeetingId: 28075,
         vexaEnv: { baseUrl: "https://vexa.test", apiKey: "test-key" },
         fetchImpl: fakeVexaFetch(new ArrayBuffer(474476)), // Vexa says 474476, Storage has 999
@@ -280,8 +297,9 @@ describe("ensureOwnedRecording — concurrent DB insert race", () => {
       id: "rec-1",
       organization_id: "org-1",
       meeting_id: "meeting-1",
+      media_kind: "audio",
       storage_bucket: "meeting-recordings",
-      storage_path: "organizations/org-1/meetings/meeting-1/original.webm",
+      storage_path: "organizations/org-1/meetings/meeting-1/audio.original.webm",
       content_type: "audio/webm",
       byte_size: 474476,
       duration_seconds: null,
@@ -326,6 +344,7 @@ describe("ensureOwnedRecording — concurrent DB insert race", () => {
     const result = await ensureOwnedRecording(supabase, storage, {
       organizationId: "org-1",
       meetingId: "meeting-1",
+      mediaKind: "audio",
       vexaMeetingId: 28075,
       vexaEnv: { baseUrl: "https://vexa.test", apiKey: "test-key" },
       fetchImpl: fakeVexaFetch(bytes),
@@ -411,6 +430,7 @@ describe("storeOwnedRecording — immutable recording regression guard", () => {
     const firstResult = await storeOwnedRecording(supabase, storage, {
       organizationId: orgId,
       meetingId,
+      mediaKind: "audio",
       format: "webm",
       bytes: firstBytes,
     });
@@ -419,7 +439,7 @@ describe("storeOwnedRecording — immutable recording regression guard", () => {
     expect(firstResult.recordingRef.checksumSha256).toBeTruthy();
     const originalChecksum = firstResult.recordingRef.checksumSha256;
     expect(uploadSpy).toHaveBeenCalledWith(
-      expect.stringContaining("original.webm"),
+      expect.stringContaining("audio.original.webm"),
       firstBytes,
       { contentType: "audio/webm", upsert: false },
     );
@@ -429,6 +449,7 @@ describe("storeOwnedRecording — immutable recording regression guard", () => {
       storeOwnedRecording(supabase, storage, {
         organizationId: orgId,
         meetingId,
+        mediaKind: "audio",
         format: "webm",
         bytes: secondBytes,
       }),

@@ -87,11 +87,14 @@ export function LandingPage() {
                   </svg>
                 </div>
                 <h3 className="text-xl font-semibold text-white">
-                  Audio-only recording
+                  {process.env.NEXT_PUBLIC_ENABLE_VIDEO_RECORDING === "true"
+                    ? "Meeting recording"
+                    : "Audio-only recording"}
                 </h3>
                 <p className="mt-2 text-sm text-[#F5F5F5]/70">
-                  Captures high-quality audio from every meeting. No screen or
-                  video recording—privacy-first by design.
+                  {process.env.NEXT_PUBLIC_ENABLE_VIDEO_RECORDING === "true"
+                    ? "Captures audio and screen share from every meeting. Full context without intrusive camera recording."
+                    : "Captures high-quality audio from every meeting. No screen or video recording—privacy-first by design."}
                 </p>
               </div>
 

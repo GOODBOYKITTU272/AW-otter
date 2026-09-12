@@ -1452,6 +1452,7 @@ export type Database = {
           created_at: string
           duration_seconds: number | null
           id: string
+          media_kind: string
           meeting_id: string
           organization_id: string
           source_metadata: Json
@@ -1468,6 +1469,7 @@ export type Database = {
           created_at?: string
           duration_seconds?: number | null
           id?: string
+          media_kind: string
           meeting_id: string
           organization_id: string
           source_metadata?: Json
@@ -1484,6 +1486,7 @@ export type Database = {
           created_at?: string
           duration_seconds?: number | null
           id?: string
+          media_kind?: string
           meeting_id?: string
           organization_id?: string
           source_metadata?: Json
