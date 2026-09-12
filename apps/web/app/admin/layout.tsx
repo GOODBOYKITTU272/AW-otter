@@ -8,10 +8,10 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   return (
     <div className="flex flex-1 bg-[#0B1D33]">
       <AdminSidebar />
-      <div className="flex flex-1 flex-col">
-        <header className="flex items-center justify-end gap-4 border-b border-[#F5F5F5]/10 bg-[#1E1E1E] px-8 py-3">
-          <span className="text-sm text-[#F5F5F5]/90">
-            {membership.displayName} <span className="text-[#F5F5F5]/50">· Admin</span>
+      <div className="flex flex-1 flex-col bg-[#F5F5F5] min-h-screen">
+        <header className="flex items-center justify-end gap-4 border-b border-zinc-200 bg-white px-8 py-3">
+          <span className="text-sm text-zinc-700">
+            {membership.displayName} <span className="text-zinc-500">· Admin</span>
           </span>
           <SignOutButton />
         </header>

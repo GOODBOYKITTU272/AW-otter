@@ -74,24 +74,24 @@ export function ExceptionQueue({ requests }: { requests: ExceptionRequestRow[] }
       ) : null}
 
       <section className="flex flex-col gap-2">
-        <h2 className="font-medium">Pending review ({pending.length})</h2>
+        <h2 className="font-medium text-[#1E1E1E]">Pending review ({pending.length})</h2>
         {pending.length === 0 ? (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">No requests waiting for review.</p>
+          <p className="text-sm text-zinc-500">No requests waiting for review.</p>
         ) : (
           <ul className="flex flex-col gap-3">
             {pending.map((request) => (
-              <li key={request.id} className="rounded-lg border border-zinc-200 p-4 text-sm dark:border-zinc-800">
+              <li key={request.id} className="rounded-lg border border-zinc-200 bg-white p-4 text-sm shadow-sm">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <div className="font-medium">{request.meetingTitle}</div>
-                    <div className="text-zinc-500 dark:text-zinc-400">
+                    <div className="font-medium text-[#1E1E1E]">{request.meetingTitle}</div>
+                    <div className="text-zinc-500">
                       {request.meetingScheduledStart ? formatDateTime(request.meetingScheduledStart) : "—"} · Requested by{" "}
                       {request.requestedByName} on {formatDateTime(request.requestedAt)}
                     </div>
                   </div>
                   <StatusBadge tone={STATUS_TONE[request.status] ?? "neutral"}>{request.status}</StatusBadge>
                 </div>
-                <p className="mt-2 rounded-md bg-zinc-50 p-2 text-zinc-700 dark:bg-zinc-900/50 dark:text-zinc-300">
+                <p className="mt-2 rounded-md bg-zinc-50 p-2 text-zinc-700">
                   &ldquo;{request.reason}&rdquo;
                 </p>
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -102,14 +102,14 @@ export function ExceptionQueue({ requests }: { requests: ExceptionRequestRow[] }
                     onChange={(event) =>
                       setNotesByRequest((prev) => ({ ...prev, [request.id]: event.target.value }))
                     }
-                    className="flex-1 rounded-md border border-zinc-300 px-3 py-1.5 dark:border-zinc-700 dark:bg-zinc-900"
+                    className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-[#1E1E1E]"
                   />
                   <div className="flex gap-2">
                     <button
                       type="button"
                       onClick={() => review(request.id, "approved")}
                       disabled={actingOn === request.id}
-                      className="rounded-md bg-green-700 px-3 py-1.5 font-medium text-white disabled:opacity-50"
+                      className="rounded-md bg-[#29FE29] px-3 py-1.5 font-medium text-[#0B1D33] hover:bg-[#29FE29]/90 disabled:opacity-50"
                     >
                       Approve
                     </button>
@@ -117,7 +117,7 @@ export function ExceptionQueue({ requests }: { requests: ExceptionRequestRow[] }
                       type="button"
                       onClick={() => review(request.id, "rejected")}
                       disabled={actingOn === request.id}
-                      className="rounded-md bg-red-700 px-3 py-1.5 font-medium text-white disabled:opacity-50"
+                      className="rounded-md bg-[#FF5C5C] px-3 py-1.5 font-medium text-white hover:bg-[#FF5C5C]/90 disabled:opacity-50"
                     >
                       Reject
                     </button>
@@ -130,30 +130,30 @@ export function ExceptionQueue({ requests }: { requests: ExceptionRequestRow[] }
       </section>
 
       <section className="flex flex-col gap-2">
-        <h2 className="font-medium">Decided</h2>
-        <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
+        <h2 className="font-medium text-[#1E1E1E]">Decided</h2>
+        <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white shadow-sm">
           <table className="w-full min-w-[900px] text-left text-sm">
             <thead>
-              <tr className="border-b border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/50">
-                <th className="px-4 py-2.5">Meeting</th>
-                <th className="px-4 py-2.5">Requested by</th>
-                <th className="px-4 py-2.5">Status</th>
-                <th className="px-4 py-2.5">Reviewed by</th>
-                <th className="px-4 py-2.5">Notes</th>
-                <th className="px-4 py-2.5">Decided</th>
+              <tr className="border-b border-zinc-200 bg-zinc-50">
+                <th className="px-4 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Meeting</th>
+                <th className="px-4 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Requested by</th>
+                <th className="px-4 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Status</th>
+                <th className="px-4 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Reviewed by</th>
+                <th className="px-4 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Notes</th>
+                <th className="px-4 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Decided</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-zinc-100">
               {decided.map((request) => (
-                <tr key={request.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
-                  <td className="px-4 py-2.5">{request.meetingTitle}</td>
-                  <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400">{request.requestedByName}</td>
-                  <td className="px-4 py-2.5">
+                <tr key={request.id} className="hover:bg-zinc-50 transition-colors">
+                  <td className="px-4 py-3 text-[#1E1E1E]">{request.meetingTitle}</td>
+                  <td className="px-4 py-3 text-zinc-600">{request.requestedByName}</td>
+                  <td className="px-4 py-3">
                     <StatusBadge tone={STATUS_TONE[request.status] ?? "neutral"}>{request.status}</StatusBadge>
                   </td>
-                  <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400">{request.reviewedByName ?? "—"}</td>
-                  <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400">{request.reviewNotes ?? "—"}</td>
-                  <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400">
+                  <td className="px-4 py-3 text-zinc-600">{request.reviewedByName ?? "—"}</td>
+                  <td className="px-4 py-3 text-zinc-600">{request.reviewNotes ?? "—"}</td>
+                  <td className="px-4 py-3 text-zinc-600">
                     {request.reviewedAt ? formatDateTime(request.reviewedAt) : "—"}
                   </td>
                 </tr>
