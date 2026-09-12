@@ -6,7 +6,6 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 /**
-<<<<<<< HEAD
  * ffmpeg/ffprobe path resolution:
  * 1. Environment variable override (FFMPEG_PATH / FFPROBE_PATH)
  * 2. Docker worker standard path (/usr/bin/ffmpeg)
@@ -47,15 +46,6 @@ function resolveBinaryPath(
 
 const FFMPEG_PATH = resolveBinaryPath("FFMPEG_PATH", "ffmpeg", "/usr/bin/ffmpeg");
 const FFPROBE_PATH = resolveBinaryPath("FFPROBE_PATH", "ffprobe", "/usr/bin/ffprobe");
-=======
- * Prefers env var override, then absolute path (/usr/bin for Docker), 
- * then bare command (relies on PATH for Mac Homebrew: /opt/homebrew/bin/ffmpeg).
- * The Dockerfile (workers/transcription-worker/Dockerfile) ensures ffmpeg is
- * installed via apt-get at /usr/bin/ffmpeg on Debian/Ubuntu.
- */
-const FFMPEG_PATH = process.env.FFMPEG_PATH || "/usr/bin/ffmpeg";
-const FFPROBE_PATH = process.env.FFPROBE_PATH || "/usr/bin/ffprobe";
->>>>>>> origin/p3-production-readiness
 
 export class TranscodeError extends Error {}
 
