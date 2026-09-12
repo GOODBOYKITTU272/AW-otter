@@ -40,17 +40,17 @@ export default async function PersonDetailPage({
   return (
     <main className="flex flex-1 flex-col gap-8 p-8">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">
+        <h1 className="text-xl font-semibold tracking-tight text-[#F5F5F5]">
           {person.displayName}
         </h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="text-sm text-[#F5F5F5]/60">
           {person.workEmail}
         </p>
       </div>
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-semibold text-zinc-500">Account</h2>
-        <p className="text-sm">
+        <h2 className="text-sm font-semibold text-[#F5F5F5]/60">Account</h2>
+        <p className="text-sm text-[#F5F5F5]">
           Membership status:{" "}
           <span className="font-medium">{person.status}</span>
           {" · "}
@@ -59,26 +59,26 @@ export default async function PersonDetailPage({
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold text-zinc-500">
+        <h2 className="text-sm font-semibold text-[#F5F5F5]/60">
           Role &amp; Reporting
         </h2>
         <EditPersonForm person={person} reference={reference} />
       </section>
 
       <section className="flex flex-col gap-1">
-        <h2 className="text-sm font-semibold text-zinc-500">
+        <h2 className="text-sm font-semibold text-[#F5F5F5]/60">
           Microsoft Calendar
         </h2>
-        <p className="text-sm">
+        <p className="text-sm text-[#F5F5F5]">
           {MICROSOFT_STATUS_LABEL[microsoftStatus.status]}
         </p>
         {microsoftStatus.status !== "active" ? (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          <p className="text-sm text-[#F5F5F5]/60">
             This person must connect their own Microsoft account from their
             Integrations page — an Admin cannot do this on their behalf.
           </p>
         ) : (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          <p className="text-sm text-[#F5F5F5]/60">
             Last sync:{" "}
             {microsoftStatus.lastSyncAt
               ? new Date(microsoftStatus.lastSyncAt).toLocaleString()
@@ -88,15 +88,15 @@ export default async function PersonDetailPage({
       </section>
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-semibold text-zinc-500">Recent Activity</h2>
+        <h2 className="text-sm font-semibold text-[#F5F5F5]/60">Recent Activity</h2>
         {activity.length === 0 ? (
-          <p className="text-sm text-zinc-500">No recorded activity yet.</p>
+          <p className="text-sm text-[#F5F5F5]/60">No recorded activity yet.</p>
         ) : (
           <ul className="flex flex-col gap-2 text-sm">
             {activity.map((event) => (
               <li
                 key={event.id}
-                className="border-b border-zinc-100 pb-2 dark:border-zinc-900"
+                className="border-b border-[#F5F5F5]/5 pb-2 text-[#F5F5F5]"
               >
                 <span className="font-medium">{event.action}</span>
                 {" — "}

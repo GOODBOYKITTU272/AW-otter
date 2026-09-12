@@ -15,7 +15,7 @@ export default async function AddPersonPage() {
 
   return (
     <main className="flex flex-1 flex-col gap-6 p-8">
-      <h1 className="text-xl font-semibold tracking-tight">Add Person</h1>
+      <h1 className="text-xl font-semibold tracking-tight text-[#F5F5F5]">Add Person</h1>
       <AddPersonForm reference={reference} />
     </main>
   );
