@@ -132,8 +132,18 @@ function normalizeGraphRecording(raw: RawGraphRecording): GraphCloudRecording {
     createdDateTime: raw.createdDateTime ?? new Date().toISOString(),
     recordingContentUrl: raw.recordingContentUrl,
     meetingOrganizer: {
-      application: raw.meetingOrganizer?.application ?? null,
-      device: raw.meetingOrganizer?.device ?? null,
+      application: raw.meetingOrganizer?.application
+        ? {
+            id: raw.meetingOrganizer.application.id ?? "unknown",
+            displayName: raw.meetingOrganizer.application.displayName ?? null,
+          }
+        : null,
+      device: raw.meetingOrganizer?.device
+        ? {
+            id: raw.meetingOrganizer.device.id ?? "unknown",
+            displayName: raw.meetingOrganizer.device.displayName ?? null,
+          }
+        : null,
       user: raw.meetingOrganizer?.user
         ? {
             id: raw.meetingOrganizer.user.id ?? "unknown",
