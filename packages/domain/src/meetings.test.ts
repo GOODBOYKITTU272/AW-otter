@@ -107,6 +107,7 @@ const baseEvent: MicrosoftCalendarEvent = {
   seriesMasterId: null,
   originalStart: null,
   isOrganizer: true,
+  onlineMeetingId: null,
 };
 
 const microsoftEnv = { tenantId: "t", clientId: "c", clientSecret: "s", webhookClientState: "cs" };
