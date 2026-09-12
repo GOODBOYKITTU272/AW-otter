@@ -4,6 +4,7 @@ import {
   processPendingBotJobs,
   syncBotStatuses,
   syncMeetingBotIntent,
+  detectAndStopEndedMeetingBots,
   type AppSupabaseClient,
 } from "./meeting-bots";
 
@@ -1096,5 +1097,332 @@ describe("syncBotStatuses", () => {
 
     expect(result).toEqual({ updated: 0 });
     expect(updateSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("detectAndStopEndedMeetingBots", () => {
+  it("stops a bot when meeting has actual_end set", async () => {
+    const cancelSpy = vi.fn().mockResolvedValue(undefined);
+    const updateSpy = vi.fn((_payload?: unknown) => ok({ id: "job-1" }));
+    const eventSpy = vi.fn((_payload?: unknown) => ok(null));
+
+    const provider = {
+      name: "fake",
+      createBot: vi.fn(),
+      cancelBot: cancelSpy,
+      getBotStatus: vi.fn(),
+    };
+
+    const supabase = createFakeSupabase({
+      meeting_bot_jobs: (call) =>
+        call.op === "select"
+          ? ok([
+              {
+                id: "job-1",
+                meeting_id: "m1",
+                organization_id: "org-1",
+                provider_bot_id: "bot-1",
+                joined_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+              },
+            ])
+          : updateSpy(call.payload),
+      meetings: (_call) =>
+        ok([
+          {
+            id: "m1",
+            scheduled_end: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+            actual_end: new Date().toISOString(),
+            lifecycle_status: "completed",
+          },
+        ]),
+      meeting_attendees: (_call) => ok([]),
+      meeting_lifecycle_events: (call) => eventSpy(call.payload),
+    });
+
+    const result = await detectAndStopEndedMeetingBots(supabase, provider, 20);
+
+    expect(result.stopped).toBe(1);
+    expect(cancelSpy).toHaveBeenCalledWith({ providerBotId: "bot-1" });
+    expect(updateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "completed",
+        left_at: expect.any(String),
+      }),
+    );
+    expect(eventSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event_type: "bot.auto_leave",
+        source: "auto_leave",
+      }),
+    );
+  });
+
+  it("stops a bot when scheduled_end + grace period has passed with no active attendees", async () => {
+    const cancelSpy = vi.fn().mockResolvedValue(undefined);
+    const updateSpy = vi.fn((_payload?: unknown) => ok({ id: "job-1" }));
+
+    const provider = {
+      name: "fake",
+      createBot: vi.fn(),
+      cancelBot: cancelSpy,
+      getBotStatus: vi.fn(),
+    };
+
+    // Meeting ended 20 minutes ago (15 min grace period should have passed)
+    const scheduledEnd = new Date(Date.now() - 20 * 60 * 1000);
+
+    const supabase = createFakeSupabase({
+      meeting_bot_jobs: (call) =>
+        call.op === "select"
+          ? ok([
+              {
+                id: "job-1",
+                meeting_id: "m1",
+                organization_id: "org-1",
+                provider_bot_id: "bot-1",
+                joined_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+              },
+            ])
+          : updateSpy(call.payload),
+      meetings: (_call) =>
+        ok([
+          {
+            id: "m1",
+            scheduled_end: scheduledEnd.toISOString(),
+            actual_end: null,
+            lifecycle_status: "upcoming",
+          },
+        ]),
+      meeting_attendees: (_call) =>
+        ok([
+          {
+            meeting_id: "m1",
+            attended: true,
+            left_at: new Date(Date.now() - 18 * 60 * 1000).toISOString(),
+          },
+        ]),
+      meeting_lifecycle_events: (_call) => ok(null),
+    });
+
+    const result = await detectAndStopEndedMeetingBots(supabase, provider, 20);
+
+    expect(result.stopped).toBe(1);
+    expect(cancelSpy).toHaveBeenCalledWith({ providerBotId: "bot-1" });
+  });
+
+  it("stops a bot when it has been alone in call for 10+ minutes (no-show)", async () => {
+    const cancelSpy = vi.fn().mockResolvedValue(undefined);
+    const updateSpy = vi.fn((_payload?: unknown) => ok({ id: "job-1" }));
+
+    const provider = {
+      name: "fake",
+      createBot: vi.fn(),
+      cancelBot: cancelSpy,
+      getBotStatus: vi.fn(),
+    };
+
+    // Bot joined 12 minutes ago, no human attendees ever joined
+    const botJoinedAt = new Date(Date.now() - 12 * 60 * 1000);
+
+    const supabase = createFakeSupabase({
+      meeting_bot_jobs: (call) =>
+        call.op === "select"
+          ? ok([
+              {
+                id: "job-1",
+                meeting_id: "m1",
+                organization_id: "org-1",
+                provider_bot_id: "bot-1",
+                joined_at: botJoinedAt.toISOString(),
+              },
+            ])
+          : updateSpy(call.payload),
+      meetings: (_call) =>
+        ok([
+          {
+            id: "m1",
+            scheduled_end: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+            actual_end: null,
+            lifecycle_status: "upcoming",
+          },
+        ]),
+      meeting_attendees: (_call) => ok([]), // No attendees at all
+      meeting_lifecycle_events: (_call) => ok(null),
+    });
+
+    const result = await detectAndStopEndedMeetingBots(supabase, provider, 20);
+
+    expect(result.stopped).toBe(1);
+    expect(cancelSpy).toHaveBeenCalledWith({ providerBotId: "bot-1" });
+    expect(updateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "completed",
+        left_at: expect.any(String),
+      }),
+    );
+  });
+
+  it("does NOT stop a bot when meeting is ongoing with active attendees", async () => {
+    const cancelSpy = vi.fn().mockResolvedValue(undefined);
+    const updateSpy = vi.fn((_payload?: unknown) => ok(null));
+
+    const provider = {
+      name: "fake",
+      createBot: vi.fn(),
+      cancelBot: cancelSpy,
+      getBotStatus: vi.fn(),
+    };
+
+    const supabase = createFakeSupabase({
+      meeting_bot_jobs: (call) =>
+        call.op === "select"
+          ? ok([
+              {
+                id: "job-1",
+                meeting_id: "m1",
+                organization_id: "org-1",
+                provider_bot_id: "bot-1",
+                joined_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+              },
+            ])
+          : updateSpy(call.payload),
+      meetings: (_call) =>
+        ok([
+          {
+            id: "m1",
+            scheduled_end: new Date(Date.now() + 25 * 60 * 1000).toISOString(),
+            actual_end: null,
+            lifecycle_status: "upcoming",
+          },
+        ]),
+      meeting_attendees: (_call) =>
+        ok([
+          {
+            meeting_id: "m1",
+            attended: true,
+            left_at: null, // Still in call
+          },
+        ]),
+      meeting_lifecycle_events: (_call) => ok(null),
+    });
+
+    const result = await detectAndStopEndedMeetingBots(supabase, provider, 20);
+
+    expect(result.stopped).toBe(0);
+    expect(cancelSpy).not.toHaveBeenCalled();
+    expect(updateSpy).not.toHaveBeenCalled();
+  });
+
+  it("does NOT stop a bot that has been alone for only 5 minutes (below threshold)", async () => {
+    const cancelSpy = vi.fn().mockResolvedValue(undefined);
+    const updateSpy = vi.fn((_payload?: unknown) => ok(null));
+
+    const provider = {
+      name: "fake",
+      createBot: vi.fn(),
+      cancelBot: cancelSpy,
+      getBotStatus: vi.fn(),
+    };
+
+    // Bot joined only 5 minutes ago
+    const botJoinedAt = new Date(Date.now() - 5 * 60 * 1000);
+
+    const supabase = createFakeSupabase({
+      meeting_bot_jobs: (call) =>
+        call.op === "select"
+          ? ok([
+              {
+                id: "job-1",
+                meeting_id: "m1",
+                organization_id: "org-1",
+                provider_bot_id: "bot-1",
+                joined_at: botJoinedAt.toISOString(),
+              },
+            ])
+          : updateSpy(call.payload),
+      meetings: (_call) =>
+        ok([
+          {
+            id: "m1",
+            scheduled_end: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+            actual_end: null,
+            lifecycle_status: "upcoming",
+          },
+        ]),
+      meeting_attendees: (_call) => ok([]), // No attendees
+      meeting_lifecycle_events: (_call) => ok(null),
+    });
+
+    const result = await detectAndStopEndedMeetingBots(supabase, provider, 20);
+
+    expect(result.stopped).toBe(0);
+    expect(cancelSpy).not.toHaveBeenCalled();
+  });
+
+  it("continues processing other bots if one cancelBot call fails", async () => {
+    const cancelSpy = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Vexa API error"))
+      .mockResolvedValueOnce(undefined);
+    const updateSpy = vi.fn((_payload?: unknown) => ok({ id: "job-2" }));
+    const eventSpy = vi.fn((_payload?: unknown) => ok(null));
+
+    const provider = {
+      name: "fake",
+      createBot: vi.fn(),
+      cancelBot: cancelSpy,
+      getBotStatus: vi.fn(),
+    };
+
+    const supabase = createFakeSupabase({
+      meeting_bot_jobs: (call) =>
+        call.op === "select"
+          ? ok([
+              {
+                id: "job-1",
+                meeting_id: "m1",
+                organization_id: "org-1",
+                provider_bot_id: "bot-1",
+                joined_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+              },
+              {
+                id: "job-2",
+                meeting_id: "m2",
+                organization_id: "org-1",
+                provider_bot_id: "bot-2",
+                joined_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+              },
+            ])
+          : updateSpy(call.payload),
+      meetings: (_call) =>
+        ok([
+          {
+            id: "m1",
+            scheduled_end: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+            actual_end: new Date().toISOString(),
+            lifecycle_status: "completed",
+          },
+          {
+            id: "m2",
+            scheduled_end: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+            actual_end: new Date().toISOString(),
+            lifecycle_status: "completed",
+          },
+        ]),
+      meeting_attendees: (_call) => ok([]),
+      meeting_lifecycle_events: (call) => eventSpy(call.payload),
+    });
+
+    const result = await detectAndStopEndedMeetingBots(supabase, provider, 20);
+
+    // First one failed, second one should succeed
+    expect(result.stopped).toBe(1);
+    expect(cancelSpy).toHaveBeenCalledTimes(2);
+    // Should log the failure for job-1
+    expect(eventSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event_type: "bot.auto_leave_failed",
+      }),
+    );
   });
 });
