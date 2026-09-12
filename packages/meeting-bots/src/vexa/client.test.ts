@@ -59,6 +59,7 @@ describe("VexaMeetingBotProvider", () => {
       meetingUrl: teamsUrl,
       idempotencyKey: "idem-1",
       botName: "AW Echo · Test",
+      // botAvatarUrl: "https://echo.applywizz.ai/logo.png", // PREPARED: Infrastructure ready for when Vexa enables avatar API
     });
 
     const [url, init] = fetchImpl.mock.calls[0] ?? [];
@@ -72,6 +73,7 @@ describe("VexaMeetingBotProvider", () => {
       meeting_url: teamsUrl,
       bot_name: "AW Echo · Test",
       transcribe_enabled: false,
+      // Avatar URL not included until Vexa API supports it (currently 404)
     });
     expect(result).toEqual({
       providerBotId,

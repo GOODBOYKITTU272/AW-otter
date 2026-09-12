@@ -23,6 +23,15 @@ export interface CreateBotInput {
   idempotencyKey: string;
   /** Display name the bot shows as inside the meeting — "AW Echo · {FirstName}" or "AW Echo" if no owner. */
   botName: string;
+  /**
+   * INFRASTRUCTURE PREPARED: Avatar URL for bot profile picture (not yet active).
+   * When Vexa enables PUT /bots/{platform}/{id}/avatar (currently returns 404 in v0.12),
+   * this field will pass the logo URL for Teams meeting presence.
+   * Target: Apply Wizz logo at stable HTTPS URL (e.g., https://echo.applywizz.ai/logo.png).
+   * Status: Field defined but not passed to Vexa client until API is available.
+   * See: docs/product/bot-branding-investigation.md
+   */
+  botAvatarUrl?: string;
 }
 
 export interface CreateBotResult {
