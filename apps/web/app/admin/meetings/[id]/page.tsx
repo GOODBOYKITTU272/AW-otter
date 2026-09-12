@@ -101,25 +101,25 @@ export default async function MeetingDetailPage({
       <div>
         <Link
           href="/admin/meetings"
-          className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
+          className="text-sm text-zinc-500 hover:underline"
         >
           ← All meetings
         </Link>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight">
+        <h1 className="mt-1 text-xl font-semibold tracking-tight text-[#1E1E1E]">
           {meeting.title}
         </h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="text-sm text-zinc-500">
           {meeting.organizer_name ?? meeting.organizer_email ?? "—"} ·{" "}
           {formatDateTime(meeting.scheduled_start)} –{" "}
           {formatDateTime(meeting.scheduled_end)}
         </p>
       </div>
 
-      <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
-        <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+      <section className="rounded-lg border border-zinc-200 bg-white">
+        <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3">
           <div>
-            <h2 className="text-sm font-medium">Transcript</h2>
-            <p className="text-xs text-zinc-400">
+            <h2 className="text-sm font-medium text-[#1E1E1E]">Transcript</h2>
+            <p className="text-xs text-zinc-500">
               English transcription (V1). Other languages may be flagged for
               review.
             </p>
@@ -145,16 +145,16 @@ export default async function MeetingDetailPage({
           </p>
         ) : (
           <>
-            <div className="flex flex-wrap gap-4 border-b border-zinc-200 px-4 py-3 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+            <div className="flex flex-wrap gap-4 border-b border-zinc-200 px-4 py-3 text-xs text-zinc-500">
               <span>
                 Detected language:{" "}
-                <span className="font-medium text-zinc-700 dark:text-zinc-300">
+                <span className="font-medium text-zinc-700">
                   {transcript.detected_language ?? "—"}
                 </span>
               </span>
               <span>
                 Canonical English:{" "}
-                <span className="font-medium text-zinc-700 dark:text-zinc-300">
+                <span className="font-medium text-zinc-700">
                   {transcript.has_canonical_english
                     ? "Available"
                     : "Not available"}
@@ -163,13 +163,13 @@ export default async function MeetingDetailPage({
               {transcript.model && (
                 <span>
                   Model:{" "}
-                  <span className="font-mono text-zinc-700 dark:text-zinc-300">
+                  <span className="font-mono text-zinc-700">
                     {transcript.model}
                   </span>
                 </span>
               )}
               {transcript.error_code && (
-                <span className="text-red-600 dark:text-red-400">
+                <span className="text-red-600">
                   Error: {transcript.error_code}
                 </span>
               )}
@@ -182,13 +182,13 @@ export default async function MeetingDetailPage({
                   : "Segments will appear once processing completes."}
               </p>
             ) : (
-              <ol className="divide-y divide-zinc-100 dark:divide-zinc-900">
+              <ol className="divide-y divide-zinc-100">
                 {(segments ?? []).map((segment) => (
                   <li
                     key={segment.id}
                     className="flex flex-col gap-1.5 px-4 py-3"
                   >
-                    <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    <div className="flex items-center gap-2 text-xs text-zinc-500">
                       <span className="font-mono">
                         {formatTimestamp(segment.start_ms)}–
                         {formatTimestamp(segment.end_ms)}
@@ -207,11 +207,11 @@ export default async function MeetingDetailPage({
                         <StatusBadge tone="warning">Needs review</StatusBadge>
                       )}
                     </div>
-                    <p className="text-sm">{segment.original_text}</p>
+                    <p className="text-sm text-[#1E1E1E]">{segment.original_text}</p>
                     {segment.canonical_english_text &&
                       segment.canonical_english_text !==
                         segment.original_text && (
-                        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                        <p className="text-sm text-zinc-500">
                           <span className="font-medium">English:</span>{" "}
                           {segment.canonical_english_text}
                         </p>
@@ -226,24 +226,24 @@ export default async function MeetingDetailPage({
 
       {((callRecords ?? []).length > 0 ||
         (truthProposals ?? []).length > 0) && (
-        <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
-          <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-            <h2 className="text-sm font-medium">
+        <section className="rounded-lg border border-zinc-200 bg-white">
+          <div className="border-b border-zinc-200 px-4 py-3">
+            <h2 className="text-sm font-medium text-[#1E1E1E]">
               Call records &amp; truth proposals from this meeting
             </h2>
-            <p className="text-xs text-zinc-400">
+            <p className="text-xs text-zinc-500">
               Review and confirm/reject on{" "}
-              <Link href="/customers" className="hover:underline">
+              <Link href="/customers" className="text-[#2C76FF] hover:underline">
                 Customers
               </Link>{" "}
               or{" "}
-              <Link href="/actions" className="hover:underline">
+              <Link href="/actions" className="text-[#2C76FF] hover:underline">
                 Actions
               </Link>
               .
             </p>
           </div>
-          <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
+          <ul className="divide-y divide-zinc-100">
             {(callRecords ?? []).map((record) => (
               <li
                 key={record.id}

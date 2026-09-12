@@ -295,14 +295,14 @@ export default async function AdminMeetingsPage() {
   ).length;
 
   return (
-    <main className="flex flex-1 flex-col gap-6 p-8 bg-[#F5F5F5] dark:bg-[#0B1D33] min-h-screen">
+    <main className="flex flex-1 flex-col gap-6 p-8">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[#1E1E1E] dark:text-white">
+          <h1 className="text-2xl font-bold tracking-tight text-[#1E1E1E]">
             Meetings
           </h1>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
+          <p className="text-sm text-zinc-600 mt-1">
             Track customer meetings, recordings, and transcripts
           </p>
         </div>
@@ -325,9 +325,9 @@ export default async function AdminMeetingsPage() {
       </section>
 
       {/* Main Meetings Table */}
-      <section className="flex flex-col gap-3 bg-white dark:bg-[#1E1E1E] rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
-        <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
-          <h2 className="font-semibold text-[#1E1E1E] dark:text-white">
+      <section className="flex flex-col gap-3 bg-white rounded-xl border border-zinc-200 shadow-sm">
+        <div className="px-6 py-4 border-b border-zinc-200">
+          <h2 className="font-semibold text-[#1E1E1E]">
             Recent meetings
           </h2>
         </div>
@@ -335,7 +335,7 @@ export default async function AdminMeetingsPage() {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1100px] text-left text-sm">
             <thead>
-              <tr className="border-b border-zinc-200 bg-zinc-50 text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900/50 dark:text-zinc-300">
+              <tr className="border-b border-zinc-200 bg-zinc-50 text-zinc-700">
                 <th className="px-6 py-3 font-medium">Status</th>
                 <th className="px-6 py-3 font-medium">Meeting</th>
                 <th className="px-6 py-3 font-medium">When</th>
@@ -355,7 +355,7 @@ export default async function AdminMeetingsPage() {
                 return (
                   <tr
                     key={meeting.id}
-                    className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50 dark:border-zinc-900 dark:hover:bg-zinc-900/30 transition-colors"
+                    className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50 transition-colors"
                   >
                     <td className="px-6 py-4">
                       {meetingStatusBadge(meeting.lifecycle_status, botJob?.status)}
@@ -368,10 +368,10 @@ export default async function AdminMeetingsPage() {
                         {meeting.title}
                       </Link>
                     </td>
-                    <td className="px-6 py-4 text-zinc-600 dark:text-zinc-400">
+                    <td className="px-6 py-4 text-zinc-600">
                       {formatDateTime(meeting.scheduled_start)}
                     </td>
-                    <td className="px-6 py-4 text-zinc-600 dark:text-zinc-400">
+                    <td className="px-6 py-4 text-zinc-600">
                       {meeting.owner_membership_id
                         ? membershipNameById.get(meeting.owner_membership_id) ?? "—"
                         : "—"}
@@ -407,13 +407,13 @@ export default async function AdminMeetingsPage() {
       </section>
 
       {/* Technical Details - Optional Disclosure */}
-      <details className="group bg-white dark:bg-[#1E1E1E] rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
-        <summary className="cursor-pointer px-6 py-4 font-medium text-zinc-700 hover:text-[#2C76FF] dark:text-zinc-300 dark:hover:text-[#29FE29] transition-colors">
+      <details className="group bg-white rounded-xl border border-zinc-200 shadow-sm">
+        <summary className="cursor-pointer px-6 py-4 font-medium text-zinc-700 hover:text-[#2C76FF] transition-colors">
           🔧 Technical details (for admins)
         </summary>
         <div className="px-6 pb-6 pt-2 space-y-6">
-          <div className="text-sm text-zinc-600 dark:text-zinc-400 space-y-2">
-            <p className="font-medium text-zinc-700 dark:text-zinc-300">Debug Information</p>
+          <div className="text-sm text-zinc-600 space-y-2">
+            <p className="font-medium text-zinc-700">Debug Information</p>
             <div className="grid grid-cols-2 gap-4 text-xs">
               <div>
                 <span className="font-mono text-zinc-500">Total meetings loaded:</span>{" "}
@@ -434,9 +434,9 @@ export default async function AdminMeetingsPage() {
             </div>
           </div>
           
-          <div className="rounded-lg bg-zinc-50 dark:bg-zinc-900/50 p-4 text-xs font-mono space-y-1">
+          <div className="rounded-lg bg-zinc-50 p-4 text-xs font-mono space-y-1">
             <p className="text-zinc-500">Raw database queries returning real data from:</p>
-            <ul className="list-disc list-inside text-zinc-600 dark:text-zinc-400 space-y-0.5 ml-2">
+            <ul className="list-disc list-inside text-zinc-600 space-y-0.5 ml-2">
               <li>meetings (lifecycle, scheduling)</li>
               <li>meeting_bot_jobs (Echo bot status)</li>
               <li>meeting_transcripts (transcription pipeline)</li>
