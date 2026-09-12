@@ -688,21 +688,36 @@ describe("processTranscriptionJob", () => {
     };
     tables.meeting_transcripts.rows.push(transcript);
 
-    // meeting_recordings already has a row — owned, per Task 6's shape.
-    const ownedRow = {
+    // meeting_recordings already has rows for both audio and video — owned.
+    const ownedAudioRow = {
       id: "rec-1",
       organization_id: "org-1",
       meeting_id: "meeting-1",
+      media_kind: "audio",
       storage_bucket: "meeting-recordings",
-      storage_path: "organizations/org-1/meetings/meeting-1/original.webm",
+      storage_path: "organizations/org-1/meetings/meeting-1/audio.original.webm",
       content_type: "audio/webm",
       byte_size: syntheticAudioBytes.byteLength,
       duration_seconds: null,
       checksum_sha256: "abc123",
       captured_at: null,
     };
+    const ownedVideoRow = {
+      id: "rec-2",
+      organization_id: "org-1",
+      meeting_id: "meeting-1",
+      media_kind: "video",
+      storage_bucket: "meeting-recordings",
+      storage_path: "organizations/org-1/meetings/meeting-1/video.original.mp4",
+      content_type: "video/mp4",
+      byte_size: 1024,
+      duration_seconds: null,
+      checksum_sha256: "def456",
+      captured_at: null,
+    };
+    tables.meeting_recordings.rows.push(ownedAudioRow, ownedVideoRow);
 
-    const supabase = createFakeSupabase(tables, { meeting_recordings: ownedRow });
+    const supabase = createFakeSupabase(tables);
 
     let vexaEndpointCalled = false;
     const vexaCallDetectingFetch = (async (url: string | URL) => {
@@ -721,7 +736,7 @@ describe("processTranscriptionJob", () => {
     });
 
     expect(vexaEndpointCalled).toBe(false);
-    expect(storageDownloadSpy).toHaveBeenCalledWith("organizations/org-1/meetings/meeting-1/original.webm");
+    expect(storageDownloadSpy).toHaveBeenCalledWith("organizations/org-1/meetings/meeting-1/audio.original.webm");
     expect(tables.meeting_transcripts.rows[0]?.processing_status).toBe("completed");
   });
 
