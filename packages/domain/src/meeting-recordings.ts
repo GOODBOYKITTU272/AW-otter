@@ -9,7 +9,6 @@ import {
 import {
   downloadGraphRecording,
   pollForCloudRecording,
-  type GraphCloudRecording,
 } from "@applywizz/microsoft";
 
 export type AppSupabaseClient = SupabaseClient<Database>;
