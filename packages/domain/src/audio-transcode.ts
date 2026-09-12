@@ -6,13 +6,46 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 /**
- * Prefers env var override, then absolute path (/usr/bin for Docker), 
- * then bare command (relies on PATH for Mac Homebrew: /opt/homebrew/bin/ffmpeg).
+ * ffmpeg/ffprobe path resolution:
+ * 1. Environment variable override (FFMPEG_PATH / FFPROBE_PATH)
+ * 2. Docker worker standard path (/usr/bin/ffmpeg)
+ * 3. Homebrew path for local development (/opt/homebrew/bin/ffmpeg)
+ * 4. Fallback to PATH lookup ("ffmpeg")
+ *
  * The Dockerfile (workers/transcription-worker/Dockerfile) ensures ffmpeg is
- * installed via apt-get at /usr/bin/ffmpeg on Debian/Ubuntu.
+ * installed via apt-get, which places it at /usr/bin/ffmpeg on Debian/Ubuntu.
+ * Local macOS development with Homebrew installs to /opt/homebrew/bin.
  */
-const FFMPEG_PATH = process.env.FFMPEG_PATH || "/usr/bin/ffmpeg";
-const FFPROBE_PATH = process.env.FFPROBE_PATH || "/usr/bin/ffprobe";
+import { existsSync } from "node:fs";
+
+function resolveBinaryPath(
+  envVar: string,
+  binaryName: string,
+  defaultPath: string,
+): string {
+  // 1. Check environment variable override
+  const envPath = process.env[envVar];
+  if (envPath) {
+    return envPath;
+  }
+
+  // 2. Check Docker worker standard path
+  if (existsSync(defaultPath)) {
+    return defaultPath;
+  }
+
+  // 3. Check Homebrew path (macOS local development)
+  const homebrewPath = `/opt/homebrew/bin/${binaryName}`;
+  if (existsSync(homebrewPath)) {
+    return homebrewPath;
+  }
+
+  // 4. Fallback to PATH lookup
+  return binaryName;
+}
+
+const FFMPEG_PATH = resolveBinaryPath("FFMPEG_PATH", "ffmpeg", "/usr/bin/ffmpeg");
+const FFPROBE_PATH = resolveBinaryPath("FFPROBE_PATH", "ffprobe", "/usr/bin/ffprobe");
 
 export class TranscodeError extends Error {}
 

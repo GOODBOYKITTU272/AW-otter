@@ -648,7 +648,10 @@ describe("getMeetingRecapData", () => {
       expect(state.recap.transcriptSegments).toHaveLength(1);
       expect(state.recap.transcriptSegments[0]!.originalText).toBe("Hello, can you hear me?");
       expect(state.recap.customer.id).toBeNull();
-      expect(state.recap.result.summary).toBe("");
+      // With fallback overview generation, summary should no longer be empty
+      expect(state.recap.result.summary).not.toBe("");
+      expect(state.recap.result.summary).toContain("Conversation Overview");
+      expect(state.recap.result.summary).toContain("Hello, can you hear me?");
     }
   });
 
