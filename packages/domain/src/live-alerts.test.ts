@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
   detectLobbyAlerts,
   detectCustomerMissingAlerts,
@@ -8,176 +8,143 @@ import {
   LOBBY_ALERT_THRESHOLD_SECONDS,
   CUSTOMER_MISSING_WARN_MINUTES,
   CUSTOMER_MISSING_ESCALATE_MINUTES,
+  type AppSupabaseClient,
 } from "./live-alerts";
 
-// Mock Supabase client builder (same pattern as no-customer-policy.test.ts)
-type Row = Record<string, unknown>;
-type Table = { [key: string]: Row[] };
-
-function ok(data: Row | Row[]) {
-  return { data, error: null };
+interface Row {
+  [key: string]: unknown;
 }
 
-function err(message: string) {
-  return { data: null, error: { message } };
-}
+// Minimal fake Supabase client matching operational-incidents.test.ts pattern
+function fakeSupabase(tables: Record<string, Row[]>) {
+  function from(table: string) {
+    const rows = tables[table] ?? (tables[table] = []);
+    let mode: "select" | "update" | "insert" = "select";
+    let patch: Row = {};
+    let insertRow: Row = {};
+    let filtered = rows;
+    let selectCols: string | null = null;
 
-function createFakeClient(tables: Record<string, Table>) {
-  const seenCalls: string[] = [];
-
-  return {
-    from: (tableName: string) => {
-      const table = tables[tableName] ?? {};
-      let filters: Record<string, unknown> = {};
-      let selectColumns = "*";
-      let singleMode = false;
-      let maybeSingleMode = false;
-      let orderBy: { column: string; ascending: boolean } | null = null;
-      let limitValue: number | null = null;
-
-      const builder: any = {
-        select: (cols?: string) => {
-          selectColumns = cols ?? "*";
-          return builder;
-        },
-        insert: (row: Row) => {
-          seenCalls.push(`insert:${tableName}`);
-          const id = String(Object.keys(table).length + 1);
-          table[id] = { ...row, id };
-          return builder;
-        },
-        update: (patch: Row) => {
-          seenCalls.push(`update:${tableName}`);
-          const matching = Object.values(table).filter((r) => {
-            return Object.entries(filters).every(
-              ([k, v]) => r[k as keyof Row] === v,
-            );
-          });
-          for (const row of matching) {
-            Object.assign(row, patch);
+    const builder = {
+      select(cols?: string) {
+        selectCols = cols ?? null;
+        return builder;
+      },
+      update(p: Row) {
+        mode = "update";
+        patch = p;
+        return builder;
+      },
+      insert(p: Row) {
+        mode = "insert";
+        insertRow = p;
+        return builder;
+      },
+      eq(col: string, val: unknown) {
+        filtered = filtered.filter((r) => r[col] === val);
+        return builder;
+      },
+      in(col: string, vals: unknown[]) {
+        filtered = filtered.filter((r) => vals.includes(r[col]));
+        return builder;
+      },
+      not(col: string, _op: string, val: unknown) {
+        if (val === null) {
+          filtered = filtered.filter((r) => r[col] != null);
+        }
+        return builder;
+      },
+      lt(col: string, val: unknown) {
+        filtered = filtered.filter((r) => {
+          const v = r[col];
+          if (typeof v === "string" && typeof val === "string") {
+            return v < val;
           }
-          return builder;
-        },
-        eq: (col: string, val: unknown) => {
-          filters[col] = val;
-          return builder;
-        },
-        in: (col: string, vals: unknown[]) => {
-          filters[`${col}:in`] = vals;
-          return builder;
-        },
-        not: (col: string, op: string, val: unknown) => {
-          if (op === "is" && val === null) {
-            filters[`${col}:not_null`] = true;
-          }
-          return builder;
-        },
-        lt: (col: string, val: unknown) => {
-          filters[`${col}:lt`] = val;
-          return builder;
-        },
-        is: (col: string, val: unknown) => {
-          if (val === null) {
-            filters[`${col}:is_null`] = true;
-          }
-          return builder;
-        },
-        order: (col: string, opts?: { ascending?: boolean }) => {
-          orderBy = { column: col, ascending: opts?.ascending ?? true };
-          return builder;
-        },
-        limit: (n: number) => {
-          limitValue = n;
-          return builder;
-        },
-        single: () => {
-          singleMode = true;
-          return builder;
-        },
-        maybeSingle: () => {
-          maybeSingleMode = true;
-          return builder;
-        },
-        then: async (resolve: (result: unknown) => void) => {
-          seenCalls.push(`query:${tableName}:${selectColumns}`);
-          let results = Object.values(table);
+          return false;
+        });
+        return builder;
+      },
+      is(col: string, val: unknown) {
+        filtered = filtered.filter((r) => (r[col] ?? null) === val);
+        return builder;
+      },
+      order() {
+        return builder;
+      },
+      limit() {
+        return builder;
+      },
+      async maybeSingle() {
+        if (mode === "update") {
+          if (filtered.length === 0) return { data: null, error: null };
+          Object.assign(filtered[0]!, patch);
+          return { data: { ...filtered[0]! }, error: null };
+        }
+        return { data: filtered[0] ? { ...filtered[0] } : null, error: null };
+      },
+      async single() {
+        return { data: filtered[0] ? { ...filtered[0] } : null, error: null };
+      },
+      then(
+        onFulfilled: (v: { data: unknown; error: unknown }) => unknown,
+        onRejected?: (r: unknown) => unknown,
+      ) {
+        let result: { data: unknown; error: unknown };
+        if (mode === "update") {
+          for (const row of filtered) Object.assign(row, patch);
+          result = { data: filtered.map((r) => ({ ...r })), error: null };
+        } else if (mode === "insert") {
+          const created: Row = {
+            id: `gen-${rows.length + 1}`,
+            ...insertRow,
+          };
+          rows.push(created);
+          result = { data: created, error: null };
+        } else {
+          result = { data: filtered.map((r) => ({ ...r })), error: null };
+        }
+        return Promise.resolve(result).then(onFulfilled, onRejected);
+      },
+    };
+    return builder;
+  }
 
-          // Apply filters
-          results = results.filter((r) => {
-            return Object.entries(filters).every(([k, v]) => {
-              if (k.endsWith(":in")) {
-                const col = k.replace(":in", "");
-                return (v as unknown[]).includes(r[col as keyof Row]);
-              }
-              if (k.endsWith(":not_null")) {
-                const col = k.replace(":not_null", "");
-                return r[col as keyof Row] != null;
-              }
-              if (k.endsWith(":is_null")) {
-                const col = k.replace(":is_null", "");
-                return r[col as keyof Row] == null;
-              }
-              if (k.endsWith(":lt")) {
-                const col = k.replace(":lt", "");
-                return (r[col as keyof Row] as string) < (v as string);
-              }
-              return r[k as keyof Row] === v;
-            });
-          });
+  async function rpc(fn: string, args: Record<string, unknown>) {
+    if (fn !== "record_operational_incident") {
+      throw new Error(`fakeSupabase.rpc: unexpected function ${fn}`);
+    }
+    const table = tables.operational_incidents ?? (tables.operational_incidents = []);
+    const existing = table.find(
+      (r) =>
+        r.organization_id === args.p_organization_id &&
+        r.queue === args.p_queue &&
+        r.entity_id === args.p_entity_id &&
+        r.incident_type === args.p_incident_type &&
+        (r.resolved_at ?? null) === null,
+    );
+    if (existing) {
+      existing.occurrence_count = (existing.occurrence_count as number) + 1;
+      existing.last_seen_at = new Date().toISOString();
+    } else {
+      table.push({
+        id: `gen-incident-${table.length + 1}`,
+        organization_id: args.p_organization_id,
+        queue: args.p_queue,
+        entity_id: args.p_entity_id,
+        incident_type: args.p_incident_type,
+        severity: args.p_severity,
+        reason: args.p_reason,
+        meeting_id: args.p_meeting_id ?? null,
+        occurrence_count: 1,
+        first_seen_at: new Date().toISOString(),
+        last_seen_at: new Date().toISOString(),
+        resolved_at: null,
+      });
+    }
+    return { data: null, error: null };
+  }
 
-          // Apply ordering
-          if (orderBy) {
-            const { column, ascending } = orderBy;
-            results.sort((a, b) => {
-              const aVal = a[column as keyof Row];
-              const bVal = b[column as keyof Row];
-              if (aVal < bVal) return ascending ? -1 : 1;
-              if (aVal > bVal) return ascending ? 1 : -1;
-              return 0;
-            });
-          }
-
-          // Apply limit
-          if (limitValue !== null) {
-            results = results.slice(0, limitValue);
-          }
-
-          if (singleMode) {
-            resolve(ok(results[0] ?? null));
-          } else if (maybeSingleMode) {
-            resolve(ok(results[0] ?? null));
-          } else {
-            resolve(ok(results));
-          }
-        },
-      };
-
-      return builder;
-    },
-    rpc: (fn: string, params: Record<string, unknown>) => {
-      seenCalls.push(`rpc:${fn}`);
-      if (fn === "record_operational_incident") {
-        const table =
-          tables.operational_incidents ?? (tables.operational_incidents = {});
-        const id = String(Object.keys(table).length + 1);
-        table[id] = {
-          id,
-          organization_id: params.p_organization_id,
-          queue: params.p_queue,
-          entity_id: params.p_entity_id,
-          incident_type: params.p_incident_type,
-          severity: params.p_severity,
-          reason: params.p_reason,
-          meeting_id: params.p_meeting_id,
-          occurrence_count: 1,
-          first_seen_at: new Date().toISOString(),
-          last_seen_at: new Date().toISOString(),
-          resolved_at: null,
-        };
-      }
-      return { then: (resolve: (result: unknown) => void) => resolve(ok(null)) };
-    },
-  };
+  return { from, rpc } as unknown as AppSupabaseClient;
 }
 
 describe("detectLobbyAlerts", () => {
@@ -186,9 +153,9 @@ describe("detectLobbyAlerts", () => {
       Date.now() - (LOBBY_ALERT_THRESHOLD_SECONDS + 10) * 1000,
     );
 
-    const tables: Record<string, Table> = {
-      meeting_bot_jobs: {
-        job1: {
+    const tables: Record<string, Row[]> = {
+      meeting_bot_jobs: [
+        {
           id: "job1",
           meeting_id: "meeting1",
           organization_id: "org1",
@@ -196,27 +163,27 @@ describe("detectLobbyAlerts", () => {
           last_raw_status: "awaiting_admission",
           status: "joining",
         },
-      },
-      meetings: {
-        meeting1: {
+      ],
+      meetings: [
+        {
           id: "meeting1",
           organization_id: "org1",
           owner_membership_id: "am1",
           title: "Customer Discovery Call",
         },
-      },
-      organization_memberships: {
-        am1: {
+      ],
+      organization_memberships: [
+        {
           id: "am1",
           organization_id: "org1",
           work_email: "am@company.com",
           manager_membership_id: "manager1",
         },
-      },
+      ],
     };
 
-    const client = createFakeClient(tables);
-    const alerts = await detectLobbyAlerts(client as never);
+    const client = fakeSupabase(tables);
+    const alerts = await detectLobbyAlerts(client);
 
     expect(alerts).toHaveLength(1);
     expect(alerts[0]?.alertType).toBe("bot_lobby_stuck");
@@ -230,9 +197,9 @@ describe("detectLobbyAlerts", () => {
       Date.now() - (LOBBY_ALERT_THRESHOLD_SECONDS - 30) * 1000,
     );
 
-    const tables: Record<string, Table> = {
-      meeting_bot_jobs: {
-        job1: {
+    const tables: Record<string, Row[]> = {
+      meeting_bot_jobs: [
+        {
           id: "job1",
           meeting_id: "meeting1",
           organization_id: "org1",
@@ -240,21 +207,21 @@ describe("detectLobbyAlerts", () => {
           last_raw_status: "awaiting_admission",
           status: "joining",
         },
-      },
-      meetings: {},
-      organization_memberships: {},
+      ],
+      meetings: [],
+      organization_memberships: [],
     };
 
-    const client = createFakeClient(tables);
-    const alerts = await detectLobbyAlerts(client as never);
+    const client = fakeSupabase(tables);
+    const alerts = await detectLobbyAlerts(client);
 
     expect(alerts).toHaveLength(0);
   });
 
   it("returns no alerts if no bots are in lobby", async () => {
-    const tables: Record<string, Table> = {
-      meeting_bot_jobs: {
-        job1: {
+    const tables: Record<string, Row[]> = {
+      meeting_bot_jobs: [
+        {
           id: "job1",
           meeting_id: "meeting1",
           organization_id: "org1",
@@ -262,13 +229,13 @@ describe("detectLobbyAlerts", () => {
           last_raw_status: "joined",
           status: "joined",
         },
-      },
-      meetings: {},
-      organization_memberships: {},
+      ],
+      meetings: [],
+      organization_memberships: [],
     };
 
-    const client = createFakeClient(tables);
-    const alerts = await detectLobbyAlerts(client as never);
+    const client = fakeSupabase(tables);
+    const alerts = await detectLobbyAlerts(client);
 
     expect(alerts).toHaveLength(0);
   });
@@ -278,36 +245,36 @@ describe("detectLobbyAlerts", () => {
       Date.now() - (LOBBY_ALERT_THRESHOLD_SECONDS + 10) * 1000,
     );
 
-    const tables: Record<string, Table> = {
-      meeting_bot_jobs: {
-        job1: {
+    const tables: Record<string, Row[]> = {
+      meeting_bot_jobs: [
+        {
           id: "job1",
           meeting_id: "meeting1",
           organization_id: "org1",
           lobby_waiting_since: thresholdTime.toISOString(),
           status: "joining",
         },
-      },
-      meetings: {
-        meeting1: {
+      ],
+      meetings: [
+        {
           id: "meeting1",
           organization_id: "org1",
           owner_membership_id: "am1",
           title: "Meeting",
         },
-      },
-      organization_memberships: {
-        am1: {
+      ],
+      organization_memberships: [
+        {
           id: "am1",
           organization_id: "org1",
           work_email: "am@company.com",
           manager_membership_id: null,
         },
-      },
+      ],
     };
 
-    const client = createFakeClient(tables);
-    const alerts = await detectLobbyAlerts(client as never);
+    const client = fakeSupabase(tables);
+    const alerts = await detectLobbyAlerts(client);
 
     expect(alerts).toHaveLength(1);
     expect(alerts[0]?.managerMembershipId).toBeNull();
@@ -323,9 +290,9 @@ describe("detectCustomerMissingAlerts", () => {
       Date.now() - (CUSTOMER_MISSING_WARN_MINUTES + 1) * 60 * 1000,
     );
 
-    const tables: Record<string, Table> = {
-      meetings: {
-        meeting1: {
+    const tables: Record<string, Row[]> = {
+      meetings: [
+        {
           id: "meeting1",
           organization_id: "org1",
           owner_membership_id: "am1",
@@ -333,34 +300,34 @@ describe("detectCustomerMissingAlerts", () => {
           scheduled_start: meetingStartTime.toISOString(),
           lifecycle_status: "upcoming",
         },
-      },
-      meeting_bot_jobs: {
-        job1: {
+      ],
+      meeting_bot_jobs: [
+        {
           meeting_id: "meeting1",
           joined_at: botJoinedTime.toISOString(),
           status: "joined",
         },
-      },
-      meeting_attendees: {
-        attendee1: {
+      ],
+      meeting_attendees: [
+        {
           meeting_id: "meeting1",
           email: "am@company.com",
           participant_type: "organizer",
           attended: true,
         },
-      },
-      organization_memberships: {
-        am1: {
+      ],
+      organization_memberships: [
+        {
           id: "am1",
           organization_id: "org1",
           work_email: "am@company.com",
           manager_membership_id: "manager1",
         },
-      },
+      ],
     };
 
-    const client = createFakeClient(tables);
-    const alerts = await detectCustomerMissingAlerts(client as never);
+    const client = fakeSupabase(tables);
+    const alerts = await detectCustomerMissingAlerts(client);
 
     expect(alerts).toHaveLength(1);
     expect(alerts[0]?.alertType).toBe("customer_missing_warn");
@@ -376,9 +343,9 @@ describe("detectCustomerMissingAlerts", () => {
       Date.now() - (CUSTOMER_MISSING_ESCALATE_MINUTES + 1) * 60 * 1000,
     );
 
-    const tables: Record<string, Table> = {
-      meetings: {
-        meeting1: {
+    const tables: Record<string, Row[]> = {
+      meetings: [
+        {
           id: "meeting1",
           organization_id: "org1",
           owner_membership_id: "am1",
@@ -386,34 +353,34 @@ describe("detectCustomerMissingAlerts", () => {
           scheduled_start: meetingStartTime.toISOString(),
           lifecycle_status: "upcoming",
         },
-      },
-      meeting_bot_jobs: {
-        job1: {
+      ],
+      meeting_bot_jobs: [
+        {
           meeting_id: "meeting1",
           joined_at: botJoinedTime.toISOString(),
           status: "joined",
         },
-      },
-      meeting_attendees: {
-        attendee1: {
+      ],
+      meeting_attendees: [
+        {
           meeting_id: "meeting1",
           email: "am@company.com",
           participant_type: "organizer",
           attended: true,
         },
-      },
-      organization_memberships: {
-        am1: {
+      ],
+      organization_memberships: [
+        {
           id: "am1",
           organization_id: "org1",
           work_email: "am@company.com",
           manager_membership_id: "manager1",
         },
-      },
+      ],
     };
 
-    const client = createFakeClient(tables);
-    const alerts = await detectCustomerMissingAlerts(client as never);
+    const client = fakeSupabase(tables);
+    const alerts = await detectCustomerMissingAlerts(client);
 
     expect(alerts).toHaveLength(1);
     expect(alerts[0]?.alertType).toBe("customer_missing_escalate");
@@ -424,9 +391,9 @@ describe("detectCustomerMissingAlerts", () => {
       Date.now() - (CUSTOMER_MISSING_WARN_MINUTES + 1) * 60 * 1000,
     );
 
-    const tables: Record<string, Table> = {
-      meetings: {
-        meeting1: {
+    const tables: Record<string, Row[]> = {
+      meetings: [
+        {
           id: "meeting1",
           organization_id: "org1",
           owner_membership_id: "am1",
@@ -434,40 +401,40 @@ describe("detectCustomerMissingAlerts", () => {
           scheduled_start: meetingStartTime.toISOString(),
           lifecycle_status: "upcoming",
         },
-      },
-      meeting_bot_jobs: {
-        job1: {
+      ],
+      meeting_bot_jobs: [
+        {
           meeting_id: "meeting1",
           joined_at: meetingStartTime.toISOString(),
           status: "joined",
         },
-      },
-      meeting_attendees: {
-        attendee1: {
+      ],
+      meeting_attendees: [
+        {
           meeting_id: "meeting1",
           email: "am@company.com",
           participant_type: "organizer",
           attended: true,
         },
-        attendee2: {
+        {
           meeting_id: "meeting1",
           email: "customer@client.com",
           participant_type: "external",
           attended: true,
         },
-      },
-      organization_memberships: {
-        am1: {
+      ],
+      organization_memberships: [
+        {
           id: "am1",
           organization_id: "org1",
           work_email: "am@company.com",
           manager_membership_id: null,
         },
-      },
+      ],
     };
 
-    const client = createFakeClient(tables);
-    const alerts = await detectCustomerMissingAlerts(client as never);
+    const client = fakeSupabase(tables);
+    const alerts = await detectCustomerMissingAlerts(client);
 
     expect(alerts).toHaveLength(0);
   });
@@ -477,9 +444,9 @@ describe("detectCustomerMissingAlerts", () => {
       Date.now() - (CUSTOMER_MISSING_WARN_MINUTES - 2) * 60 * 1000,
     );
 
-    const tables: Record<string, Table> = {
-      meetings: {
-        meeting1: {
+    const tables: Record<string, Row[]> = {
+      meetings: [
+        {
           id: "meeting1",
           organization_id: "org1",
           owner_membership_id: "am1",
@@ -487,21 +454,21 @@ describe("detectCustomerMissingAlerts", () => {
           scheduled_start: recentStartTime.toISOString(),
           lifecycle_status: "upcoming",
         },
-      },
-      meeting_bot_jobs: {},
-      meeting_attendees: {},
-      organization_memberships: {
-        am1: {
+      ],
+      meeting_bot_jobs: [],
+      meeting_attendees: [],
+      organization_memberships: [
+        {
           id: "am1",
           organization_id: "org1",
           work_email: "am@company.com",
           manager_membership_id: null,
         },
-      },
+      ],
     };
 
-    const client = createFakeClient(tables);
-    const alerts = await detectCustomerMissingAlerts(client as never);
+    const client = fakeSupabase(tables);
+    const alerts = await detectCustomerMissingAlerts(client);
 
     expect(alerts).toHaveLength(0);
   });
@@ -513,44 +480,44 @@ describe("processLiveAlerts", () => {
       Date.now() - (LOBBY_ALERT_THRESHOLD_SECONDS + 10) * 1000,
     );
 
-    const tables: Record<string, Table> = {
-      meeting_bot_jobs: {
-        job1: {
+    const tables: Record<string, Row[]> = {
+      meeting_bot_jobs: [
+        {
           id: "job1",
           meeting_id: "meeting1",
           organization_id: "org1",
           lobby_waiting_since: thresholdTime.toISOString(),
           status: "joining",
         },
-      },
-      meetings: {
-        meeting1: {
+      ],
+      meetings: [
+        {
           id: "meeting1",
           organization_id: "org1",
           owner_membership_id: "am1",
           title: "Meeting",
         },
-      },
-      organization_memberships: {
-        am1: {
+      ],
+      organization_memberships: [
+        {
           id: "am1",
           organization_id: "org1",
           work_email: "am@company.com",
           manager_membership_id: null,
         },
-      },
-      operational_incidents: {},
+      ],
+      operational_incidents: [],
     };
 
-    const client = createFakeClient(tables);
+    const client = fakeSupabase(tables);
 
     // First run: should send alert
-    const result1 = await processLiveAlerts(client as never);
+    const result1 = await processLiveAlerts(client);
     expect(result1.lobbyAlerts).toBe(1);
     expect(result1.totalSent).toBe(1);
 
     // Second run: should not send duplicate alert (incident already open)
-    const result2 = await processLiveAlerts(client as never);
+    const result2 = await processLiveAlerts(client);
     expect(result2.lobbyAlerts).toBe(1);
     expect(result2.totalSent).toBe(0); // Deduplicated
   });
@@ -563,29 +530,30 @@ describe("processLiveAlerts", () => {
       Date.now() - (CUSTOMER_MISSING_WARN_MINUTES + 1) * 60 * 1000,
     );
 
-    const tables: Record<string, Table> = {
-      meeting_bot_jobs: {
-        job1: {
+    const tables: Record<string, Row[]> = {
+      meeting_bot_jobs: [
+        {
           id: "job1",
           meeting_id: "meeting1",
           organization_id: "org1",
           lobby_waiting_since: lobbyThresholdTime.toISOString(),
           status: "joining",
         },
-        job2: {
+        {
           meeting_id: "meeting2",
           joined_at: customerMissingTime.toISOString(),
           status: "joined",
         },
-      },
-      meetings: {
-        meeting1: {
+      ],
+      meetings: [
+        {
           id: "meeting1",
           organization_id: "org1",
           owner_membership_id: "am1",
           title: "Lobby Meeting",
+          lifecycle_status: "upcoming",
         },
-        meeting2: {
+        {
           id: "meeting2",
           organization_id: "org1",
           owner_membership_id: "am1",
@@ -593,28 +561,28 @@ describe("processLiveAlerts", () => {
           scheduled_start: customerMissingTime.toISOString(),
           lifecycle_status: "upcoming",
         },
-      },
-      meeting_attendees: {
-        attendee1: {
+      ],
+      meeting_attendees: [
+        {
           meeting_id: "meeting2",
           email: "am@company.com",
           participant_type: "organizer",
           attended: true,
         },
-      },
-      organization_memberships: {
-        am1: {
+      ],
+      organization_memberships: [
+        {
           id: "am1",
           organization_id: "org1",
           work_email: "am@company.com",
           manager_membership_id: null,
         },
-      },
-      operational_incidents: {},
+      ],
+      operational_incidents: [],
     };
 
-    const client = createFakeClient(tables);
-    const result = await processLiveAlerts(client as never);
+    const client = fakeSupabase(tables);
+    const result = await processLiveAlerts(client);
 
     expect(result.lobbyAlerts).toBe(1);
     expect(result.customerMissingAlerts).toBe(1);
@@ -624,21 +592,21 @@ describe("processLiveAlerts", () => {
 
 describe("getAMLiveAlerts", () => {
   it("returns open alerts for meetings owned by the AM", async () => {
-    const tables: Record<string, Table> = {
-      meetings: {
-        meeting1: {
+    const tables: Record<string, Row[]> = {
+      meetings: [
+        {
           id: "meeting1",
           owner_membership_id: "am1",
           title: "Customer Call",
         },
-        meeting2: {
+        {
           id: "meeting2",
           owner_membership_id: "am2",
           title: "Other Call",
         },
-      },
-      operational_incidents: {
-        incident1: {
+      ],
+      operational_incidents: [
+        {
           id: "incident1",
           organization_id: "org1",
           queue: "live_alerts",
@@ -651,7 +619,7 @@ describe("getAMLiveAlerts", () => {
           last_seen_at: new Date().toISOString(),
           resolved_at: null,
         },
-        incident2: {
+        {
           id: "incident2",
           organization_id: "org1",
           queue: "live_alerts",
@@ -664,11 +632,11 @@ describe("getAMLiveAlerts", () => {
           last_seen_at: new Date().toISOString(),
           resolved_at: null,
         },
-      },
+      ],
     };
 
-    const client = createFakeClient(tables);
-    const alerts = await getAMLiveAlerts(client as never, "am1");
+    const client = fakeSupabase(tables);
+    const alerts = await getAMLiveAlerts(client, "am1");
 
     expect(alerts).toHaveLength(1);
     expect(alerts[0]?.alertType).toBe("bot_lobby_stuck");
@@ -677,28 +645,28 @@ describe("getAMLiveAlerts", () => {
   });
 
   it("returns empty array if AM has no meetings", async () => {
-    const tables: Record<string, Table> = {
-      meetings: {},
-      operational_incidents: {},
+    const tables: Record<string, Row[]> = {
+      meetings: [],
+      operational_incidents: [],
     };
 
-    const client = createFakeClient(tables);
-    const alerts = await getAMLiveAlerts(client as never, "am1");
+    const client = fakeSupabase(tables);
+    const alerts = await getAMLiveAlerts(client, "am1");
 
     expect(alerts).toHaveLength(0);
   });
 
   it("excludes resolved incidents", async () => {
-    const tables: Record<string, Table> = {
-      meetings: {
-        meeting1: {
+    const tables: Record<string, Row[]> = {
+      meetings: [
+        {
           id: "meeting1",
           owner_membership_id: "am1",
           title: "Customer Call",
         },
-      },
-      operational_incidents: {
-        incident1: {
+      ],
+      operational_incidents: [
+        {
           id: "incident1",
           queue: "live_alerts",
           meeting_id: "meeting1",
@@ -709,11 +677,11 @@ describe("getAMLiveAlerts", () => {
           last_seen_at: new Date().toISOString(),
           resolved_at: new Date().toISOString(), // Resolved
         },
-      },
+      ],
     };
 
-    const client = createFakeClient(tables);
-    const alerts = await getAMLiveAlerts(client as never, "am1");
+    const client = fakeSupabase(tables);
+    const alerts = await getAMLiveAlerts(client, "am1");
 
     expect(alerts).toHaveLength(0);
   });
@@ -721,33 +689,33 @@ describe("getAMLiveAlerts", () => {
 
 describe("getManagerLiveAlerts", () => {
   it("returns open alerts for meetings owned by direct reports", async () => {
-    const tables: Record<string, Table> = {
-      organization_memberships: {
-        am1: {
+    const tables: Record<string, Row[]> = {
+      organization_memberships: [
+        {
           id: "am1",
           manager_membership_id: "manager1",
           display_name: "Alice AM",
         },
-        am2: {
+        {
           id: "am2",
           manager_membership_id: "manager1",
           display_name: "Bob AM",
         },
-      },
-      meetings: {
-        meeting1: {
+      ],
+      meetings: [
+        {
           id: "meeting1",
           owner_membership_id: "am1",
           title: "Alice's Call",
         },
-        meeting2: {
+        {
           id: "meeting2",
           owner_membership_id: "am2",
           title: "Bob's Call",
         },
-      },
-      operational_incidents: {
-        incident1: {
+      ],
+      operational_incidents: [
+        {
           id: "incident1",
           queue: "live_alerts",
           meeting_id: "meeting1",
@@ -758,11 +726,11 @@ describe("getManagerLiveAlerts", () => {
           last_seen_at: new Date().toISOString(),
           resolved_at: null,
         },
-      },
+      ],
     };
 
-    const client = createFakeClient(tables);
-    const alerts = await getManagerLiveAlerts(client as never, "manager1");
+    const client = fakeSupabase(tables);
+    const alerts = await getManagerLiveAlerts(client, "manager1");
 
     expect(alerts).toHaveLength(1);
     expect(alerts[0]?.alertType).toBe("customer_missing_escalate");
@@ -771,14 +739,14 @@ describe("getManagerLiveAlerts", () => {
   });
 
   it("returns empty array if manager has no direct reports", async () => {
-    const tables: Record<string, Table> = {
-      organization_memberships: {},
-      meetings: {},
-      operational_incidents: {},
+    const tables: Record<string, Row[]> = {
+      organization_memberships: [],
+      meetings: [],
+      operational_incidents: [],
     };
 
-    const client = createFakeClient(tables);
-    const alerts = await getManagerLiveAlerts(client as never, "manager1");
+    const client = fakeSupabase(tables);
+    const alerts = await getManagerLiveAlerts(client, "manager1");
 
     expect(alerts).toHaveLength(0);
   });
