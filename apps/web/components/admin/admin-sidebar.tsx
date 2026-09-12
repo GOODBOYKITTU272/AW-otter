@@ -18,7 +18,7 @@ const NAV_ITEMS = [
   { href: "/admin/people", label: "Team", icon: PeopleIcon },
   { href: "/admin/exceptions", label: "Review Queue", icon: ExceptionsIcon },
   { href: "/admin/customer-truth", label: "Customer Truth", icon: CustomerTruthIcon },
-  { href: "/integrations", label: "Integrations", icon: IntegrationsIcon },
+  { href: "/admin/integrations", label: "Integrations", icon: IntegrationsIcon },
   { href: "/admin/policies", label: "Settings", icon: SettingsIcon },
 ];
 

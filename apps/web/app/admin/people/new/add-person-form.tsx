@@ -60,35 +60,35 @@ export function AddPersonForm({ reference }: { reference: OrgReferenceData }) {
       onSubmit={handleSubmit}
       className="flex max-w-lg flex-col gap-4 text-sm"
     >
-      <label className="flex flex-col gap-1 text-[#F5F5F5]">
+      <label className="flex flex-col gap-1 text-zinc-900">
         Work Email
         <input
           type="email"
           required
           value={workEmail}
           onChange={(event) => setWorkEmail(event.target.value)}
-          className="rounded-md border border-[#F5F5F5]/10 bg-[#1E1E1E] px-3 py-2 text-[#F5F5F5] placeholder:text-[#F5F5F5]/40"
+          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 placeholder:text-zinc-400"
         />
       </label>
 
-      <label className="flex flex-col gap-1 text-[#F5F5F5]">
+      <label className="flex flex-col gap-1 text-zinc-900">
         Display Name
         <input
           type="text"
           required
           value={displayName}
           onChange={(event) => setDisplayName(event.target.value)}
-          className="rounded-md border border-[#F5F5F5]/10 bg-[#1E1E1E] px-3 py-2 text-[#F5F5F5] placeholder:text-[#F5F5F5]/40"
+          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 placeholder:text-zinc-400"
         />
       </label>
 
-      <label className="flex flex-col gap-1 text-[#F5F5F5]">
+      <label className="flex flex-col gap-1 text-zinc-900">
         Role
         <select
           required
           value={roleId}
           onChange={(event) => setRoleId(event.target.value)}
-          className="rounded-md border border-[#F5F5F5]/10 bg-[#1E1E1E] px-3 py-2 text-[#F5F5F5]"
+          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900"
         >
           <option value="" disabled>
             Select a role
@@ -101,12 +101,12 @@ export function AddPersonForm({ reference }: { reference: OrgReferenceData }) {
         </select>
       </label>
 
-      <label className="flex flex-col gap-1 text-[#F5F5F5]">
+      <label className="flex flex-col gap-1 text-zinc-900">
         Manager
         <select
           value={managerId}
           onChange={(event) => setManagerId(event.target.value)}
-          className="rounded-md border border-[#F5F5F5]/10 bg-[#1E1E1E] px-3 py-2 text-[#F5F5F5]"
+          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900"
         >
           <option value="">No manager</option>
           {reference.activeMembers.map((member) => (
@@ -117,7 +117,7 @@ export function AddPersonForm({ reference }: { reference: OrgReferenceData }) {
         </select>
       </label>
 
-      <label className="flex flex-col gap-1 text-[#F5F5F5]">
+      <label className="flex flex-col gap-1 text-zinc-900">
         Department
         <select
           value={departmentId}
@@ -125,7 +125,7 @@ export function AddPersonForm({ reference }: { reference: OrgReferenceData }) {
             setDepartmentId(event.target.value);
             setTeamId("");
           }}
-          className="rounded-md border border-[#F5F5F5]/10 bg-[#1E1E1E] px-3 py-2 text-[#F5F5F5]"
+          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900"
         >
           <option value="">No department</option>
           {reference.departments.map((department) => (
@@ -136,12 +136,12 @@ export function AddPersonForm({ reference }: { reference: OrgReferenceData }) {
         </select>
       </label>
 
-      <label className="flex flex-col gap-1 text-[#F5F5F5]">
+      <label className="flex flex-col gap-1 text-zinc-900">
         Team
         <select
           value={teamId}
           onChange={(event) => setTeamId(event.target.value)}
-          className="rounded-md border border-[#F5F5F5]/10 bg-[#1E1E1E] px-3 py-2 text-[#F5F5F5]"
+          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900"
         >
           <option value="">No team</option>
           {visibleTeams.map((team) => (
@@ -152,7 +152,7 @@ export function AddPersonForm({ reference }: { reference: OrgReferenceData }) {
         </select>
       </label>
 
-      <label className="flex items-start gap-2 text-[#F5F5F5]">
+      <label className="flex items-start gap-2 text-zinc-900">
         <input
           type="checkbox"
           checked={meetingAiEnabled}
@@ -161,7 +161,7 @@ export function AddPersonForm({ reference }: { reference: OrgReferenceData }) {
         />
         <span>
           <span className="block font-medium">Meeting Intelligence</span>
-          <span className="block text-[#F5F5F5]/60">
+          <span className="block text-zinc-600">
             When enabled, eligible meetings for this person can later be
             automatically processed by ApplyWizz Signal according to company
             policy.
@@ -175,13 +175,23 @@ export function AddPersonForm({ reference }: { reference: OrgReferenceData }) {
         </p>
       ) : null}
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className="w-fit rounded-md bg-[#29FE29] px-4 py-2 font-medium text-[#0B1D33] disabled:opacity-50"
-      >
-        {submitting ? "Saving…" : "Save"}
-      </button>
+      <div className="flex items-center gap-3">
+        <button
+          type="submit"
+          disabled={submitting}
+          className="w-fit rounded-md bg-[#29FE29] px-4 py-2 font-medium text-[#0B1D33] disabled:opacity-50"
+        >
+          {submitting ? "Saving…" : "Save"}
+        </button>
+        <button
+          type="button"
+          onClick={() => router.push("/admin/people")}
+          disabled={submitting}
+          className="w-fit rounded-md border border-zinc-300 px-4 py-2 font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+        >
+          Cancel
+        </button>
+      </div>
     </form>
   );
 }
