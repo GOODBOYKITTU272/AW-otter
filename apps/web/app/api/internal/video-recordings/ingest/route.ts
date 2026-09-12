@@ -5,6 +5,7 @@ import {
   RecordingNotReadyError,
   RecordingAlreadyExistsError,
   MEETING_RECORDINGS_BUCKET,
+  type RecordingStorageClient,
 } from "@applywizz/domain/meeting-recordings";
 import { evaluateMeetingPolicy } from "@applywizz/domain/meeting-policy";
 import { logAuditEvent } from "@applywizz/domain/audit";
@@ -74,8 +75,8 @@ async function ingestVideoForMeeting(
     return { meetingId, status: "skipped_dnr", message: "DNR participant detected" };
   }
 
-  // Get storage client
-  const storage = serviceRoleClient.storage.from(MEETING_RECORDINGS_BUCKET) as any;
+  // Get storage client (cast to expected interface - actual Supabase storage is compatible)
+  const storage = serviceRoleClient.storage.from(MEETING_RECORDINGS_BUCKET) as unknown as RecordingStorageClient;
 
   try {
     await ensureGraphCloudRecording(serviceRoleClient, storage, {
