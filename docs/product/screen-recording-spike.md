@@ -243,11 +243,13 @@ body: JSON.stringify({
 - M8/M17C investigations only confirmed audio recording works
 - Bot creation response does NOT echo recording settings
 
-## Alternative: Microsoft Graph Cloud Recording
+## ✅ DECISION: Microsoft Graph Cloud Recording (Owner-Approved)
 
-**FALLBACK OPTION** if Vexa video cannot be enabled:
+**UPDATE (2026-09-12):** Owner green-lit Microsoft Graph Teams cloud recording as the **production video path** for Apply Wizz Echo. This is NO LONGER a fallback — it is the **chosen implementation**.
 
-Microsoft Teams native cloud recording via Graph API provides composite video (gallery + screen share + audio).
+**Status:** Spike complete. See `docs/product/graph-cloud-recording-spike.md` for full design.
+
+**Summary:** Microsoft Teams native cloud recording via Graph API provides composite video (gallery + screen share + audio).
 
 ### Prerequisites
 
@@ -326,7 +328,7 @@ export async function downloadCloudRecording(
 2. Customer demand for screen recordings is high
 3. Tenant admin approves Graph recording permissions
 
-**Document** as known alternative for product roadmap.
+**UPDATE (2026-09-12):** Graph cloud recording is now the APPROVED video path (not a fallback). Full design: `docs/product/graph-cloud-recording-spike.md`.
 
 ## Next Steps
 
@@ -381,9 +383,9 @@ All tranches implemented with video support ready:
 - Feature flag: ✅ Default OFF (honest about capabilities)
 
 **Owner determines:**
-- GO: Keep flag OFF until Vexa video confirmed, merge PR for audio improvements
-- INVESTIGATE: Contact Vexa support about video recording
-- FALLBACK: Pursue Microsoft Graph cloud recording path if needed
+- ✅ **APPROVED (2026-09-12):** Microsoft Graph cloud recording for video (see `graph-cloud-recording-spike.md`)
+- ✅ **CONFIRMED:** Vexa remains audio-only bot (no video investigation needed)
+- ✅ **REJECTED:** Screenpipe and Meetily (not suitable for hosted Teams meetings)
 
 ## Appendix: Vexa Documentation References
 

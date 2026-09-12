@@ -6,6 +6,10 @@ import {
   getMeetingRecordingRef,
   type VexaEnv,
 } from "@applywizz/meeting-bots";
+import {
+  downloadGraphRecording,
+  pollForCloudRecording,
+} from "@applywizz/microsoft";
 
 export type AppSupabaseClient = SupabaseClient<Database>;
 
@@ -336,6 +340,89 @@ export async function storeOwnedRecording(
   });
 
   return { recordingRef: row, bytes: input.bytes };
+}
+
+/**
+ * Graph cloud recording ingest input parameters
+ */
+export interface EnsureGraphCloudRecordingInput {
+  organizationId: string;
+  meetingId: string;
+  onlineMeetingId: string;
+  graphAccessToken: string;
+  fetchImpl?: typeof fetch;
+}
+
+/**
+ * Ensure a Graph Teams cloud recording exists in owned storage.
+ * 
+ * Flow:
+ * 1. Check if video recording already exists (idempotency)
+ * 2. Poll Graph API for recording availability (max 12 min)
+ * 3. Download MP4 from signed URL
+ * 4. Store in meeting_recordings with media_kind='video'
+ * 
+ * Behind feature flag: ENABLE_VIDEO_RECORDING
+ * Requires admin consent: OnlineMeetingRecording.Read.All
+ * 
+ * @throws RecordingNotReadyError if no recording found after polling (not an error - manual recording may not have been started)
+ * @throws RecordingAlreadyExistsError if video recording already exists (idempotency)
+ * @throws Error for download failures, API errors
+ */
+export async function ensureGraphCloudRecording(
+  supabase: AppSupabaseClient,
+  storage: RecordingStorageClient,
+  input: EnsureGraphCloudRecordingInput,
+): Promise<{ recordingRef: OwnedRecordingRef; bytes: ArrayBuffer }> {
+  // Idempotency: check if video recording already exists
+  const existing = await getOwnedMeetingRecording(
+    supabase,
+    input.meetingId,
+    "video",
+  );
+  if (existing) {
+    const { data, error } = await storage.download(existing.storagePath);
+    if (error || !data) throw error ?? new Error("Owned recording download returned no data.");
+    const bytes = await data.arrayBuffer();
+    return { recordingRef: existing, bytes };
+  }
+
+  // Poll for recording availability (Graph processing takes ~5-10 min after meeting ends)
+  const graphRecording = await pollForCloudRecording(
+    input.graphAccessToken,
+    input.onlineMeetingId,
+    input.fetchImpl,
+  );
+
+  if (!graphRecording) {
+    // No recording found after polling - this is NOT an error
+    // (organizer may not have clicked Record, or auto-record policy not enabled)
+    throw new RecordingNotReadyError();
+  }
+
+  // Download MP4 from Graph signed URL
+  const bytes = await downloadGraphRecording(
+    graphRecording.recordingContentUrl,
+    input.fetchImpl,
+  );
+
+  // Store in meeting_recordings
+  const result = await storeOwnedRecording(supabase, storage, {
+    organizationId: input.organizationId,
+    meetingId: input.meetingId,
+    mediaKind: "video",
+    format: "mp4",
+    bytes,
+    durationSeconds: null, // TODO: Extract from MP4 metadata if needed
+    sourceProvider: "microsoft-graph",
+    sourceMetadata: {
+      graphRecordingId: graphRecording.id,
+      graphOnlineMeetingId: graphRecording.meetingId,
+      recordedAt: graphRecording.createdDateTime,
+    },
+  });
+
+  return result;
 }
 
 async function insertRecordingRow(
