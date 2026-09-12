@@ -5,6 +5,7 @@ import {
   reconcileOrganizationMeetingBots,
   syncBotStatuses,
 } from "@applywizz/domain/meeting-bots";
+import { processLiveAlerts } from "@applywizz/domain";
 import { VexaMeetingBotProvider } from "@applywizz/meeting-bots";
 import {
   getSupabaseServiceRoleKey,
@@ -80,8 +81,11 @@ export async function POST(request: NextRequest) {
   );
   const statusResult = await syncBotStatuses(serviceRoleClient, provider);
 
+  // Phase-1: Process live alerts for lobby stuck and customer missing
+  const alertsResult = await processLiveAlerts(serviceRoleClient);
+
   return NextResponse.json(
-    { reconcileResults, processResult, statusResult },
+    { reconcileResults, processResult, statusResult, alertsResult },
     { status: 200 },
   );
 }

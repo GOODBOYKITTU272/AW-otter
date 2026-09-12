@@ -11,6 +11,7 @@ import {
   getPortfolioActionQueue,
   relativeDayLabel,
 } from "@applywizz/domain/am-portfolio";
+import { getAMLiveAlerts } from "@applywizz/domain";
 
 const CALL_TYPE_LABEL: Record<string, string> = {
   discovery: "Discovery",
@@ -64,7 +65,7 @@ export default async function AccountManagerHomePage() {
 
   const nowDate = new Date();
 
-  const [portfolio, org, recentMeetings] = await Promise.all([
+  const [portfolio, org, recentMeetings, liveAlerts] = await Promise.all([
     getPortfolioOverview(supabase, membership.organizationId),
     supabase
       .from("organizations")
@@ -72,6 +73,7 @@ export default async function AccountManagerHomePage() {
       .eq("id", membership.organizationId)
       .maybeSingle(),
     listRecentMeetingSummaries(supabase, { limit: 5 }),
+    getAMLiveAlerts(supabase, membership.membershipId),
   ]);
   if (org.error) throw org.error;
   const timezone = org.data?.timezone ?? "UTC";
@@ -247,6 +249,59 @@ export default async function AccountManagerHomePage() {
             thing{needsAttention.length === 1 ? "" : "s"} need your attention
           </p>
         </div>
+
+      {/* Live Alerts - Phase 1 */}
+      {liveAlerts.length > 0 ? (
+        <section className="rounded-xl border-2 border-[#FF5C5C] bg-gradient-to-br from-[#FF5C5C]/10 to-[#FFDE59]/5 shadow-xl">
+          <div className="border-b-2 border-[#FF5C5C]/30 bg-[#FF5C5C]/5 px-5 py-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🚨</span>
+              <h2 className="text-base font-bold text-[#FF5C5C]">
+                URGENT: {liveAlerts.length} Live Alert{liveAlerts.length === 1 ? "" : "s"}
+              </h2>
+            </div>
+          </div>
+          <ul className="divide-y divide-[#FF5C5C]/20">
+            {liveAlerts.map((alert) => (
+              <li key={alert.id} className="px-5 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <StatusBadge tone={alert.severity === "critical" ? "critical" : "warning"}>
+                        {alert.alertType === "bot_lobby_stuck" 
+                          ? "Bot Stuck in Lobby" 
+                          : alert.alertType === "customer_missing_warn"
+                            ? "Customer Missing 10min"
+                            : "Customer Missing 15min"}
+                      </StatusBadge>
+                      {alert.occurrenceCount > 1 ? (
+                        <span className="text-xs text-[#1E1E1E]/60">
+                          × {alert.occurrenceCount}
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="text-sm font-medium text-[#1E1E1E] mb-1">
+                      {alert.message}
+                    </p>
+                    <p className="text-xs text-[#1E1E1E]/70">
+                      First detected: {new Date(alert.firstSeenAt).toLocaleTimeString()}
+                      {alert.lastSeenAt !== alert.firstSeenAt && (
+                        <> · Last seen: {new Date(alert.lastSeenAt).toLocaleTimeString()}</>
+                      )}
+                    </p>
+                  </div>
+                  <Link
+                    href={`/admin/meetings/${alert.meetingId}`}
+                    className="rounded-lg bg-[#FF5C5C] px-4 py-2 text-sm font-semibold text-white hover:bg-[#FF5C5C]/90 transition-all shadow-md"
+                  >
+                    Take Action →
+                  </Link>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {nextCall ? (
         <section className="rounded-xl border border-[#2C76FF]/20 bg-gradient-to-br from-[#2C76FF]/10 to-[#29FE29]/5 p-6 shadow-lg">

@@ -4,16 +4,17 @@ import { StatusBadge } from "@/components/admin/status-badge";
 import { requireRole } from "@/lib/require-role";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getPortfolioOverview } from "@applywizz/domain/am-portfolio";
+import { getManagerLiveAlerts } from "@applywizz/domain";
 
 export default async function ManagerOverviewPage() {
   const membership = await requireRole(["manager", "senior_manager"]);
   const supabase = await getSupabaseServerClient();
   const isSenior = membership.roleKey === "senior_manager";
 
-  const portfolio = await getPortfolioOverview(
-    supabase,
-    membership.organizationId,
-  );
+  const [portfolio, liveAlerts] = await Promise.all([
+    getPortfolioOverview(supabase, membership.organizationId),
+    getManagerLiveAlerts(supabase, membership.membershipId),
+  ]);
 
   const ownerIds = Array.from(
     new Set(portfolio.map((c) => c.ownerMembershipId)),
@@ -98,6 +99,62 @@ export default async function ManagerOverviewPage() {
             {isSenior ? "Senior Leadership Pulse" : "Team Pulse"}
           </h1>
         </div>
+
+      {/* Live Alerts - Phase 1 */}
+      {liveAlerts.length > 0 ? (
+        <section className="rounded-xl border-2 border-[#FF5C5C] bg-gradient-to-br from-[#FF5C5C]/20 to-[#FFDE59]/10 shadow-xl">
+          <div className="border-b-2 border-[#FF5C5C]/30 bg-[#FF5C5C]/10 px-6 py-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🚨</span>
+              <h2 className="text-lg font-bold text-white">
+                URGENT: {liveAlerts.length} Team Alert{liveAlerts.length === 1 ? "" : "s"} Require Action
+              </h2>
+            </div>
+          </div>
+          <ul className="divide-y divide-[#FF5C5C]/20">
+            {liveAlerts.map((alert) => (
+              <li key={alert.id} className="px-6 py-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-[#2C76FF] bg-[#2C76FF]/10 px-2 py-1 rounded">
+                        {alert.amName}
+                      </span>
+                      <StatusBadge tone={alert.severity === "critical" ? "critical" : "warning"}>
+                        {alert.alertType === "bot_lobby_stuck" 
+                          ? "Bot Stuck in Lobby" 
+                          : alert.alertType === "customer_missing_warn"
+                            ? "Customer Missing 10min"
+                            : "Customer Missing 15min"}
+                      </StatusBadge>
+                      {alert.occurrenceCount > 1 ? (
+                        <span className="text-xs text-white/60">
+                          × {alert.occurrenceCount}
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="text-sm font-medium text-white mb-1">
+                      {alert.message}
+                    </p>
+                    <p className="text-xs text-[#F5F5F5]/70">
+                      First detected: {new Date(alert.firstSeenAt).toLocaleTimeString()}
+                      {alert.lastSeenAt !== alert.firstSeenAt && (
+                        <> · Last seen: {new Date(alert.lastSeenAt).toLocaleTimeString()}</>
+                      )}
+                    </p>
+                  </div>
+                  <Link
+                    href={`/admin/meetings/${alert.meetingId}`}
+                    className="rounded-lg bg-[#FF5C5C] px-4 py-2 text-sm font-semibold text-white hover:bg-[#FF5C5C]/90 transition-all shadow-md"
+                  >
+                    Review →
+                  </Link>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {isSenior ? (
