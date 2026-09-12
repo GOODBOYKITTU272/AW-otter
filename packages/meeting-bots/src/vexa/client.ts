@@ -116,6 +116,7 @@ export class VexaMeetingBotProvider implements MeetingBotProvider {
       joinedAt: bot.start_time ?? undefined,
       leftAt: bot.end_time ?? undefined,
       failureReason: bot.completion_reason ?? bot.failure_stage ?? undefined,
+      rawStatus: typeof bot.status === "string" ? bot.status : undefined,
       raw: bot,
     };
   }

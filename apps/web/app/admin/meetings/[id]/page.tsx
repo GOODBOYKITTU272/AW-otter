@@ -43,6 +43,26 @@ const TRANSCRIPT_STATUS_LABEL: Record<string, string> = {
   failed: "Failed",
 };
 
+const BOT_STATUS_TONE: Record<string, BadgeTone> = {
+  pending: "neutral",
+  scheduled: "info",
+  joining: "warning",
+  joined: "success",
+  completed: "success",
+  cancelled: "neutral",
+  failed: "critical",
+};
+
+const BOT_STATUS_LABEL: Record<string, string> = {
+  pending: "Preparing",
+  scheduled: "Ready to join",
+  joining: "Joining now",
+  joined: "Recording",
+  completed: "Recorded",
+  cancelled: "Cancelled",
+  failed: "Failed to join",
+};
+
 export default async function MeetingDetailPage({
   params,
 }: {
@@ -62,6 +82,17 @@ export default async function MeetingDetailPage({
   // RLS naturally returns null for a meeting this caller can't see — a
   // plain not-found page, never a distinguishable "exists but denied".
   if (!meeting) notFound();
+
+  const { data: botJob, error: botJobError } = await supabase
+    .from("meeting_bot_jobs")
+    .select(
+      "id, status, scheduled_at, joined_at, left_at, failed_at, last_error, lobby_waiting_since, last_raw_status",
+    )
+    .eq("meeting_id", id)
+    .order("generation", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (botJobError) throw botJobError;
 
   const { data: transcript, error: transcriptError } = await supabase
     .from("meeting_transcripts")
@@ -110,6 +141,88 @@ export default async function MeetingDetailPage({
           {formatDateTime(meeting.scheduled_end)}
         </p>
       </div>
+
+      {/* Bot Status Section - Phase-1 P0: Show lobby waiting prominently */}
+      <section className="rounded-lg border border-zinc-200 bg-white">
+        <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3">
+          <div>
+            <h2 className="text-sm font-medium text-[#1E1E1E]">Echo Bot Status</h2>
+            <p className="text-xs text-zinc-500">
+              Automatic recording bot for this meeting
+            </p>
+          </div>
+          {botJob ? (
+            <StatusBadge tone={BOT_STATUS_TONE[botJob.status] ?? "neutral"}>
+              {BOT_STATUS_LABEL[botJob.status] ?? botJob.status}
+            </StatusBadge>
+          ) : (
+            <StatusBadge tone="neutral">Not scheduled</StatusBadge>
+          )}
+        </div>
+
+        {!botJob ? (
+          <p className="px-4 py-8 text-center text-sm text-zinc-500">
+            No bot scheduled for this meeting yet.
+          </p>
+        ) : (
+          <div className="px-4 py-3">
+            {botJob.lobby_waiting_since && (
+              <div className="mb-3 rounded-md bg-amber-50 border border-amber-200 px-4 py-3">
+                <div className="flex items-start gap-3">
+                  <span className="text-2xl">⚠️</span>
+                  <div className="flex-1">
+                    <p className="font-semibold text-amber-900">
+                      Action Required: Bot waiting in Teams lobby
+                    </p>
+                    <p className="mt-1 text-sm text-amber-800">
+                      The Echo bot is waiting to be admitted to the meeting.
+                      Open Teams and admit &ldquo;AW Echo&rdquo; from the lobby.
+                    </p>
+                    <p className="mt-2 text-xs text-amber-700">
+                      Waiting since: {formatDateTime(botJob.lobby_waiting_since)}
+                      {botJob.last_raw_status && (
+                        <span className="ml-2 font-mono">
+                          ({botJob.last_raw_status})
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-4 text-xs text-zinc-500">
+              {botJob.scheduled_at && (
+                <div>
+                  <span className="font-medium text-zinc-700">Scheduled:</span>{" "}
+                  {formatDateTime(botJob.scheduled_at)}
+                </div>
+              )}
+              {botJob.joined_at && (
+                <div>
+                  <span className="font-medium text-zinc-700">Joined:</span>{" "}
+                  {formatDateTime(botJob.joined_at)}
+                </div>
+              )}
+              {botJob.left_at && (
+                <div>
+                  <span className="font-medium text-zinc-700">Left:</span>{" "}
+                  {formatDateTime(botJob.left_at)}
+                </div>
+              )}
+              {botJob.failed_at && (
+                <div className="col-span-2">
+                  <span className="font-medium text-red-700">Failed:</span>{" "}
+                  {formatDateTime(botJob.failed_at)}
+                  {botJob.last_error && (
+                    <p className="mt-1 text-red-600">{botJob.last_error}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
 
       <section className="rounded-lg border border-zinc-200 bg-white">
         <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3">

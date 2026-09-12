@@ -41,6 +41,7 @@ export interface BotStatusResult {
   joinedAt?: string;
   leftAt?: string;
   failureReason?: string;
+  rawStatus?: string;
   raw: unknown;
 }
 

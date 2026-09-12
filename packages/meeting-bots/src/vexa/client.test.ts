@@ -152,6 +152,7 @@ describe("VexaMeetingBotProvider", () => {
       joinedAt: undefined,
       leftAt: undefined,
       failureReason: undefined,
+      rawStatus: "new_provider_state",
     });
   });
 

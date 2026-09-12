@@ -839,7 +839,9 @@ export type Database = {
           idempotency_key: string
           joined_at: string | null
           last_error: string | null
+          last_raw_status: string | null
           left_at: string | null
+          lobby_waiting_since: string | null
           meeting_id: string
           next_retry_at: string | null
           organization_id: string
@@ -860,7 +862,9 @@ export type Database = {
           idempotency_key: string
           joined_at?: string | null
           last_error?: string | null
+          last_raw_status?: string | null
           left_at?: string | null
+          lobby_waiting_since?: string | null
           meeting_id: string
           next_retry_at?: string | null
           organization_id: string
@@ -881,7 +885,9 @@ export type Database = {
           idempotency_key?: string
           joined_at?: string | null
           last_error?: string | null
+          last_raw_status?: string | null
           left_at?: string | null
+          lobby_waiting_since?: string | null
           meeting_id?: string
           next_retry_at?: string | null
           organization_id?: string
