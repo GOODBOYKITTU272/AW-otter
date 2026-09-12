@@ -10,8 +10,9 @@
  * 3. ENABLE_VIDEO_RECORDING=true in environment
  */
 
-import { GRAPH_BASE_URL } from "./config";
-import { normalizeGraphError } from "./errors";
+// TODO (Tranche 1): Uncomment imports when implementing
+// import { GRAPH_BASE_URL } from "./config";
+// import { normalizeGraphError } from "./errors";
 
 /** Graph API response shape for online meeting recording */
 export interface GraphCloudRecording {
@@ -35,51 +36,54 @@ export interface GraphCloudRecording {
   };
 }
 
-interface RawGraphRecording {
-  id?: string;
-  meetingId?: string;
-  createdDateTime?: string;
-  recordingContentUrl?: string;
-  meetingOrganizer?: {
-    application?: { id?: string; displayName?: string | null } | null;
-    device?: { id?: string; displayName?: string | null } | null;
-    user?: {
-      id?: string;
-      displayName?: string | null;
-      userIdentityType?: string;
-    } | null;
-  };
-}
+// TODO (Tranche 1): Uncomment when implementing real API calls
+// interface RawGraphRecording {
+//   id?: string;
+//   meetingId?: string;
+//   createdDateTime?: string;
+//   recordingContentUrl?: string;
+//   meetingOrganizer?: {
+//     application?: { id?: string; displayName?: string | null } | null;
+//     device?: { id?: string; displayName?: string | null } | null;
+//     user?: {
+//       id?: string;
+//       displayName?: string | null;
+//       userIdentityType?: string;
+//     } | null;
+//   };
+// }
 
-interface RawGraphRecordingsResponse {
-  "@odata.context"?: string;
-  value?: RawGraphRecording[];
-}
+// TODO (Tranche 1): Uncomment when implementing real API calls
+// interface RawGraphRecordingsResponse {
+//   "@odata.context"?: string;
+//   value?: RawGraphRecording[];
+// }
 
-async function graphRequest<T>(
-  path: string,
-  accessToken: string,
-  init: RequestInit = {},
-  fetchImpl: typeof fetch = fetch,
-): Promise<T> {
-  const response = await fetchImpl(`${GRAPH_BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      ...init.headers,
-    },
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw normalizeGraphError(
-      response.status,
-      body,
-      response.headers.get("retry-after"),
-    );
-  }
-  return body as T;
-}
+// TODO (Tranche 1): Uncomment when implementing real API calls
+// async function graphRequest<T>(
+//   path: string,
+//   accessToken: string,
+//   init: RequestInit = {},
+//   fetchImpl: typeof fetch = fetch,
+// ): Promise<T> {
+//   const response = await fetchImpl(`${GRAPH_BASE_URL}${path}`, {
+//     ...init,
+//     headers: {
+//       Authorization: `Bearer ${accessToken}`,
+//       "Content-Type": "application/json",
+//       ...init.headers,
+//     },
+//   });
+//   const body = await response.json().catch(() => ({}));
+//   if (!response.ok) {
+//     throw normalizeGraphError(
+//       response.status,
+//       body,
+//       response.headers.get("retry-after"),
+//     );
+//   }
+//   return body as T;
+// }
 
 /**
  * TODO (Tranche 1): Implement after admin consent granted
@@ -96,9 +100,9 @@ async function graphRequest<T>(
  * @throws GraphApiError if permissions denied or API error
  */
 export async function listCloudRecordings(
-  accessToken: string,
-  onlineMeetingId: string,
-  fetchImpl: typeof fetch = fetch,
+  _accessToken: string,
+  _onlineMeetingId: string,
+  _fetchImpl: typeof fetch = fetch,
 ): Promise<GraphCloudRecording[]> {
   // TODO: Remove this guard after admin consent + implementation
   throw new Error(
@@ -121,39 +125,40 @@ export async function listCloudRecordings(
  * 
  * Normalizes raw Graph API recording response to typed GraphCloudRecording.
  */
-function normalizeGraphRecording(raw: RawGraphRecording): GraphCloudRecording {
-  if (!raw.id) throw new Error("Graph recording missing required id field");
-  if (!raw.meetingId) throw new Error("Graph recording missing required meetingId field");
-  if (!raw.recordingContentUrl) throw new Error("Graph recording missing required recordingContentUrl field");
+// Commented out until Tranche 1 implementation (unused in stubs)
+// function normalizeGraphRecording(raw: RawGraphRecording): GraphCloudRecording {
+//   if (!raw.id) throw new Error("Graph recording missing required id field");
+//   if (!raw.meetingId) throw new Error("Graph recording missing required meetingId field");
+//   if (!raw.recordingContentUrl) throw new Error("Graph recording missing required recordingContentUrl field");
 
-  return {
-    id: raw.id,
-    meetingId: raw.meetingId,
-    createdDateTime: raw.createdDateTime ?? new Date().toISOString(),
-    recordingContentUrl: raw.recordingContentUrl,
-    meetingOrganizer: {
-      application: raw.meetingOrganizer?.application
-        ? {
-            id: raw.meetingOrganizer.application.id ?? "unknown",
-            displayName: raw.meetingOrganizer.application.displayName ?? null,
-          }
-        : null,
-      device: raw.meetingOrganizer?.device
-        ? {
-            id: raw.meetingOrganizer.device.id ?? "unknown",
-            displayName: raw.meetingOrganizer.device.displayName ?? null,
-          }
-        : null,
-      user: raw.meetingOrganizer?.user
-        ? {
-            id: raw.meetingOrganizer.user.id ?? "unknown",
-            displayName: raw.meetingOrganizer.user.displayName ?? null,
-            userIdentityType: (raw.meetingOrganizer.user.userIdentityType as any) ?? "aadUser",
-          }
-        : null,
-    },
-  };
-}
+//   return {
+//     id: raw.id,
+//     meetingId: raw.meetingId,
+//     createdDateTime: raw.createdDateTime ?? new Date().toISOString(),
+//     recordingContentUrl: raw.recordingContentUrl,
+//     meetingOrganizer: {
+//       application: raw.meetingOrganizer?.application
+//         ? {
+//             id: raw.meetingOrganizer.application.id ?? "unknown",
+//             displayName: raw.meetingOrganizer.application.displayName ?? null,
+//           }
+//         : null,
+//       device: raw.meetingOrganizer?.device
+//         ? {
+//             id: raw.meetingOrganizer.device.id ?? "unknown",
+//             displayName: raw.meetingOrganizer.device.displayName ?? null,
+//           }
+//         : null,
+//       user: raw.meetingOrganizer?.user
+//         ? {
+//             id: raw.meetingOrganizer.user.id ?? "unknown",
+//             displayName: raw.meetingOrganizer.user.displayName ?? null,
+//             userIdentityType: (raw.meetingOrganizer.user.userIdentityType ?? "aadUser") as "aadUser" | "guest" | "federated",
+//           }
+//         : null,
+//     },
+//   };
+// }
 
 /**
  * TODO (Tranche 2): Implement download after ingest flow designed
@@ -171,10 +176,10 @@ function normalizeGraphRecording(raw: RawGraphRecording): GraphCloudRecording {
  * @throws Error if download fails, times out, or exceeds size limit
  */
 export async function downloadGraphRecording(
-  recordingContentUrl: string,
-  fetchImpl: typeof fetch = fetch,
-  timeoutMs: number = 120_000,
-  maxBytes: number = 500 * 1024 * 1024, // 500MB for video
+  _recordingContentUrl: string,
+  _fetchImpl?: typeof fetch,
+  _timeoutMs?: number,
+  _maxBytes?: number,
 ): Promise<ArrayBuffer> {
   // TODO: Remove this guard after Tranche 2 implementation
   throw new Error(
@@ -250,11 +255,11 @@ export async function downloadGraphRecording(
  * @returns GraphCloudRecording if found, null if not available after max attempts
  */
 export async function pollForCloudRecording(
-  accessToken: string,
-  onlineMeetingId: string,
-  fetchImpl: typeof fetch = fetch,
-  maxAttempts: number = 6,
-  intervalMs: number = 2 * 60 * 1000, // 2 minutes
+  _accessToken: string,
+  _onlineMeetingId: string,
+  _fetchImpl?: typeof fetch,
+  _maxAttempts?: number,
+  _intervalMs?: number,
 ): Promise<GraphCloudRecording | null> {
   // TODO: Remove this guard after Tranche 2 implementation
   throw new Error(
