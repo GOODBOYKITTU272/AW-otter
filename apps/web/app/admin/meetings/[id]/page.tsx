@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { StatusBadge, type BadgeTone } from "@/components/admin/status-badge";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -99,13 +100,8 @@ export default async function MeetingDetailPage({
   return (
     <div className="flex flex-col gap-6 p-6">
       <div>
-        <Link
-          href="/admin/meetings"
-          className="text-sm text-zinc-500 hover:underline"
-        >
-          ← All meetings
-        </Link>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight text-[#1E1E1E]">
+        <AdminBackLink href="/admin/meetings" label="All meetings" />
+        <h1 className="mt-2 text-xl font-semibold tracking-tight text-[#1E1E1E]">
           {meeting.title}
         </h1>
         <p className="text-sm text-zinc-500">
