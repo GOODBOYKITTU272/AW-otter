@@ -75,7 +75,7 @@ async function ingestVideoForMeeting(
   }
 
   // Get storage client
-  const storage = serviceRoleClient.storage.from(MEETING_RECORDINGS_BUCKET);
+  const storage = serviceRoleClient.storage.from(MEETING_RECORDINGS_BUCKET) as any;
 
   try {
     await ensureGraphCloudRecording(serviceRoleClient, storage, {
@@ -144,9 +144,9 @@ export async function POST(request: NextRequest) {
   const microsoftEnv = getMicrosoftEnv();
   const { accessToken: graphAccessToken } = await getAppOnlyAccessToken(
     {
-      tenantId: microsoftEnv.tenantId,
-      clientId: microsoftEnv.clientId,
-      clientSecret: microsoftEnv.clientSecret,
+      tenantId: microsoftEnv.MICROSOFT_TENANT_ID,
+      clientId: microsoftEnv.MICROSOFT_CLIENT_ID,
+      clientSecret: microsoftEnv.MICROSOFT_CLIENT_SECRET,
     },
   );
 
