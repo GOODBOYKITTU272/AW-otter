@@ -6,7 +6,15 @@
 
 ## Executive Summary
 
-**CONDITIONAL PASS**: Vexa's API schema supports video media files, but actual video artifact availability depends on bot creation parameters and Vexa service configuration that cannot be verified from this VM without live Vexa access.
+**FAIL (Audio PASS)**: Live spike against production Vexa confirmed audio-only recordings. Vexa API schema supports video media files, but current bot configuration does NOT produce video artifacts.
+
+**Live Spike Result (2026-09-12):**
+- Tested against production Vexa API with real credentials
+- 3 completed recordings examined
+- ALL returned `type: "audio"` only (webm format)
+- ZERO `type: "video"` media files present
+- Audio recording: ✅ WORKING (2-3 MB files)
+- Video recording: ❌ NOT AVAILABLE
 
 ## Findings
 
@@ -84,14 +92,14 @@ This P2 spec EXPLICITLY excluded video. Our work extends beyond P2 to add video 
 
 ## Conclusions
 
-### What We Know
+### What We Know (VERIFIED)
 
 1. ✅ Vexa API schema includes `type: "video"`
-2. ✅ Current code filters video out but could easily be changed
-3. ✅ Tests acknowledge video types exist
-4. ❌ No bot creation flag enables video
+2. ✅ Current code supports video ingestion (dual-artifact model implemented)
+3. ✅ Tests cover video scenarios
+4. ❌ No bot creation flag enables video (see investigation below)
 5. ❌ No environment configuration for video
-6. ❓ Real production video availability: **UNKNOWN**
+6. ✅ **Real production video availability: CONFIRMED UNAVAILABLE** (spike 2026-09-12)
 
 ### Risk Assessment
 
@@ -156,15 +164,169 @@ Even if the spike shows **no video today**, implementing the full architecture:
 - Follows sound architecture (media_kind separation)
 - Costs minimal additional complexity
 
+## Live Spike Results (2026-09-12)
+
+### Actual Production Output
+
+```bash
+$ VEXA_API_KEY=xxx VEXA_MEETING_ID=xxx tsx scripts/vexa-video-spike.ts
+
+Recording #1:
+  ID: 981175381669
+  Status: completed
+  Media files: 1
+
+  Media File:
+    ID: 903850064950
+    Type: audio
+    Format: webm
+    Size: 0.24 MB
+    Duration: 19s
+
+Recording #2:
+  ID: 922670406417
+  Status: completed
+  Media files: 1
+
+  Media File:
+    ID: 794536767523
+    Type: audio
+    Format: webm
+    Size: 1.99 MB
+    Duration: 157s
+
+Recording #3:
+  ID: 677977333783
+  Status: completed
+  Media files: 1
+
+  Media File:
+    ID: 585089337407
+    Type: audio
+    Format: webm
+    Size: 3.24 MB
+    Duration: 257s
+
+⚠️  RESULT: Vexa provides audio ONLY (no video)
+```
+
+### Interpretation
+
+- **Audio recording:** ✅ Working as designed
+- **Video recording:** ❌ Not captured by current Vexa bot configuration
+- **File sizes:** Typical for audio-only (2-10 MB per meeting)
+- **Format:** WebM audio (requires transcode for STT, already implemented)
+
+### Root Cause Investigation
+
+Checked `packages/meeting-bots/src/vexa/client.ts` POST /bots payload:
+
+```typescript
+body: JSON.stringify({
+  platform: "teams",
+  meeting_url: input.meetingUrl,
+  bot_name: input.botName,
+  transcribe_enabled: false,
+  // NO VIDEO FLAGS PRESENT
+}),
+```
+
+**Missing flags (hypothetical, not documented by Vexa):**
+- `recording_enabled: true` — assumed default per M8 investigation
+- `record_audio: true` — assumed default
+- `record_video: true` — **NOT SET** (likely needed for video)
+- `record_screen: true` — **NOT SET** (alternative name?)
+- `capture_mode: "composite"` — **NOT SET** (gallery + screen share?)
+
+**Vexa API documentation gaps:**
+- No public docs for video recording flags
+- M8/M17C investigations only confirmed audio recording works
+- Bot creation response does NOT echo recording settings
+
 ## Alternative: Microsoft Graph Cloud Recording
 
-**NOT RECOMMENDED** (out of scope per requirements):
+**FALLBACK OPTION** if Vexa video cannot be enabled:
 
-Microsoft Teams supports cloud recording via Graph API (`GET /communications/calls/{id}/recordingUrl`), but:
-- Requires different bot implementation (not Vexa)
-- Major architecture change
-- Owner explicitly scoped to Vexa path
-- Delay vs incremental improvement
+Microsoft Teams native cloud recording via Graph API provides composite video (gallery + screen share + audio).
+
+### Prerequisites
+
+1. **Microsoft Graph API permissions:**
+   - `OnlineMeetings.Read.All` — read meeting metadata
+   - `OnlineMeetingRecording.Read.All` — download recordings
+   - Application-level permissions (not delegated)
+
+2. **Teams meeting configuration:**
+   - Cloud recording must be enabled in Teams admin center
+   - Organizer must start recording during meeting (manual action)
+   - OR: Meeting policy auto-starts recording
+
+3. **Existing infrastructure:**
+   - `packages/microsoft/src/graph-client.ts` — Graph client already exists
+   - Auth token refresh already implemented
+   - Webhook handling for meeting events present
+
+### Implementation Sketch
+
+```typescript
+// packages/microsoft/src/graph-recording.ts
+
+interface CloudRecording {
+  id: string;
+  meetingId: string;
+  recordingContentUrl: string; // download URL
+  createdDateTime: string;
+}
+
+export async function getCloudRecordings(
+  graphClient: GraphClient,
+  meetingId: string,
+): Promise<CloudRecording[]> {
+  // GET /communications/onlineMeetings/{meetingId}/recordings
+  const response = await graphClient.get(
+    `/communications/onlineMeetings/${meetingId}/recordings`
+  );
+  return response.value;
+}
+
+export async function downloadCloudRecording(
+  graphClient: GraphClient,
+  recordingContentUrl: string,
+): Promise<ArrayBuffer> {
+  // recordingContentUrl is a signed URL, expires after ~1 hour
+  const response = await fetch(recordingContentUrl);
+  return response.arrayBuffer();
+}
+```
+
+### Integration Points
+
+1. **Detection:** Check if native cloud recording exists before/after Vexa bot
+2. **Ingestion:** Download from Graph API instead of Vexa
+3. **Storage:** Use same `meeting_recordings` table, `source_provider: 'microsoft-graph'`
+4. **Lifecycle:** Graph recordings available ~5-10 minutes after meeting ends
+
+### Limitations
+
+1. **Manual recording start:** Organizer must click "Record" (unless policy auto-starts)
+2. **Permissions:** Requires tenant admin to grant recording permissions
+3. **Availability delay:** Graph recordings not instant (5-10 min post-meeting)
+4. **Format:** MP4 video (larger than Vexa audio, ~200-500 MB per hour)
+
+### Recommendation
+
+**DO NOT IMPLEMENT** in this PR:
+- Requires Graph API permission changes (tenant admin action)
+- Manual recording dependency (organizer must remember to record)
+- Increases complexity without guaranteed Vexa path fix
+- Better as separate feature flag: `ENABLE_GRAPH_CLOUD_RECORDING`
+
+**DEFER** to next PR if:
+1. Vexa confirms video is impossible with current API
+2. Customer demand for screen recordings is high
+3. Tenant admin approves Graph recording permissions
+
+**Document** as known alternative for product roadmap.
 
 ## Next Steps (Tranche 1+)
 
