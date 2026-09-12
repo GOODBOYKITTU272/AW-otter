@@ -297,33 +297,166 @@ async function recordAlertIncident(
 }
 
 /**
- * Sends alert notifications to AM and Manager.
- * This is a placeholder for the actual notification delivery mechanism.
- * TODO: Implement actual email/in-app notification delivery.
+ * Sends alert notifications to AM and Manager via operational_incidents.
+ * The incident record serves as a durable in-app notification - AM Home and
+ * Manager overview pages query open incidents for their meetings to display
+ * live alerts.
+ * 
+ * No email delivery yet - operational_incidents table is the single source of
+ * truth for alert visibility.
  */
 async function sendAlertNotifications(
   _serviceRoleClient: AppSupabaseClient,
-  alert: AlertNotification,
+  _alert: AlertNotification,
 ): Promise<void> {
-  // TODO: Implement actual notification delivery
-  // Options:
-  // 1. Email via existing notification path (Resend/noreply)
-  // 2. In-app notifications (store in a notifications table)
-  // 3. Both email + in-app
-  //
-  // For now, the operational_incidents table serves as the durable record
-  // and can be queried by AM home + Manager overview UIs.
-  console.log(
-    `[LIVE ALERT] ${alert.alertType} for meeting ${alert.meetingId}:`,
-    alert.message,
-    `AM: ${alert.amMembershipId}, Manager: ${alert.managerMembershipId}`,
-  );
+  // Notification delivery is handled by operational_incidents record creation
+  // in recordAlertIncident(). AM Home (/home) and Manager overview
+  // (/manager/overview) query operational_incidents to show live alerts.
+  // No additional action needed here.
 }
 
 export interface ProcessAlertsResult {
   lobbyAlerts: number;
   customerMissingAlerts: number;
   totalSent: number;
+}
+
+/**
+ * Live alert for display in AM/Manager UIs.
+ */
+export interface LiveAlert {
+  id: string;
+  alertType: AlertType;
+  meetingId: string;
+  meetingTitle: string | null;
+  message: string;
+  severity: "warning" | "critical";
+  firstSeenAt: string;
+  lastSeenAt: string;
+  occurrenceCount: number;
+}
+
+/**
+ * Fetches open live alerts for meetings owned by the given membership.
+ * Used by AM Home to show alerts for their own meetings.
+ */
+export async function getAMLiveAlerts(
+  supabase: AppSupabaseClient,
+  membershipId: string,
+): Promise<LiveAlert[]> {
+  // Get meetings owned by this AM
+  const { data: meetings, error: meetingsError } = await supabase
+    .from("meetings")
+    .select("id, title")
+    .eq("owner_membership_id", membershipId);
+
+  if (meetingsError) throw meetingsError;
+  if (!meetings || meetings.length === 0) return [];
+
+  const meetingIds = meetings.map((m) => m.id);
+  const meetingTitleById = new Map(meetings.map((m) => [m.id, m.title]));
+
+  // Get open live alert incidents for these meetings
+  const { data: incidents, error: incidentsError } = await supabase
+    .from("operational_incidents")
+    .select("id, meeting_id, incident_type, reason, severity, occurrence_count, first_seen_at, last_seen_at")
+    .eq("queue", "live_alerts")
+    .in("meeting_id", meetingIds)
+    .is("resolved_at", null)
+    .order("severity", { ascending: false })
+    .order("last_seen_at", { ascending: false });
+
+  if (incidentsError) throw incidentsError;
+
+  return (incidents ?? []).map((i) => ({
+    id: i.id,
+    alertType: i.incident_type as AlertType,
+    meetingId: i.meeting_id!,
+    meetingTitle: meetingTitleById.get(i.meeting_id!) ?? null,
+    message: formatAlertMessage(i.incident_type as AlertType, meetingTitleById.get(i.meeting_id!)),
+    severity: i.severity as "warning" | "critical",
+    firstSeenAt: i.first_seen_at,
+    lastSeenAt: i.last_seen_at,
+    occurrenceCount: i.occurrence_count,
+  }));
+}
+
+/**
+ * Fetches open live alerts for meetings owned by direct reports of the given manager.
+ * Used by Manager overview to show alerts across their team.
+ */
+export async function getManagerLiveAlerts(
+  supabase: AppSupabaseClient,
+  managerMembershipId: string,
+): Promise<Array<LiveAlert & { amName: string; amMembershipId: string }>> {
+  // Get direct reports
+  const { data: reports, error: reportsError } = await supabase
+    .from("organization_memberships")
+    .select("id, display_name")
+    .eq("manager_membership_id", managerMembershipId);
+
+  if (reportsError) throw reportsError;
+  if (!reports || reports.length === 0) return [];
+
+  const reportIds = reports.map((r) => r.id);
+  const reportNameById = new Map(reports.map((r) => [r.id, r.display_name]));
+
+  // Get meetings owned by these AMs
+  const { data: meetings, error: meetingsError } = await supabase
+    .from("meetings")
+    .select("id, title, owner_membership_id")
+    .in("owner_membership_id", reportIds);
+
+  if (meetingsError) throw meetingsError;
+  if (!meetings || meetings.length === 0) return [];
+
+  const meetingIds = meetings.map((m) => m.id);
+  const meetingById = new Map(meetings.map((m) => [m.id, m]));
+
+  // Get open live alert incidents for these meetings
+  const { data: incidents, error: incidentsError } = await supabase
+    .from("operational_incidents")
+    .select("id, meeting_id, incident_type, reason, severity, occurrence_count, first_seen_at, last_seen_at")
+    .eq("queue", "live_alerts")
+    .in("meeting_id", meetingIds)
+    .is("resolved_at", null)
+    .order("severity", { ascending: false })
+    .order("last_seen_at", { ascending: false });
+
+  if (incidentsError) throw incidentsError;
+
+  return (incidents ?? [])
+    .filter((i) => i.meeting_id && meetingById.has(i.meeting_id))
+    .map((i) => {
+      const meeting = meetingById.get(i.meeting_id!)!;
+      return {
+        id: i.id,
+        alertType: i.incident_type as AlertType,
+        meetingId: i.meeting_id!,
+        meetingTitle: meeting.title ?? null,
+        message: formatAlertMessage(i.incident_type as AlertType, meeting.title),
+        severity: i.severity as "warning" | "critical",
+        firstSeenAt: i.first_seen_at,
+        lastSeenAt: i.last_seen_at,
+        occurrenceCount: i.occurrence_count,
+        amName: reportNameById.get(meeting.owner_membership_id!) ?? "Unknown",
+        amMembershipId: meeting.owner_membership_id!,
+      };
+    });
+}
+
+function formatAlertMessage(alertType: AlertType, meetingTitle: string | null | undefined): string {
+  const title = meetingTitle ?? "Meeting";
+  switch (alertType) {
+    case "bot_lobby_stuck":
+      return `Echo bot stuck in Teams lobby for "${title}". Please admit the bot.`;
+    case "customer_missing_warn":
+      return `Customer missing for 10+ minutes in "${title}". No external attendee has joined.`;
+    case "customer_missing_escalate":
+      return `ESCALATION: Customer still missing after 15+ minutes in "${title}".`;
+    default:
+      return `Alert for "${title}"`;
+  }
 }
 
 /**

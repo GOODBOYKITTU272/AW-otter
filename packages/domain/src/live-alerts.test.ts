@@ -3,6 +3,8 @@ import {
   detectLobbyAlerts,
   detectCustomerMissingAlerts,
   processLiveAlerts,
+  getAMLiveAlerts,
+  getManagerLiveAlerts,
   LOBBY_ALERT_THRESHOLD_SECONDS,
   CUSTOMER_MISSING_WARN_MINUTES,
   CUSTOMER_MISSING_ESCALATE_MINUTES,
@@ -617,5 +619,167 @@ describe("processLiveAlerts", () => {
     expect(result.lobbyAlerts).toBe(1);
     expect(result.customerMissingAlerts).toBe(1);
     expect(result.totalSent).toBe(2);
+  });
+});
+
+describe("getAMLiveAlerts", () => {
+  it("returns open alerts for meetings owned by the AM", async () => {
+    const tables: Record<string, Table> = {
+      meetings: {
+        meeting1: {
+          id: "meeting1",
+          owner_membership_id: "am1",
+          title: "Customer Call",
+        },
+        meeting2: {
+          id: "meeting2",
+          owner_membership_id: "am2",
+          title: "Other Call",
+        },
+      },
+      operational_incidents: {
+        incident1: {
+          id: "incident1",
+          organization_id: "org1",
+          queue: "live_alerts",
+          meeting_id: "meeting1",
+          incident_type: "bot_lobby_stuck",
+          severity: "warning",
+          reason: "bot_lobby_stuck",
+          occurrence_count: 1,
+          first_seen_at: new Date().toISOString(),
+          last_seen_at: new Date().toISOString(),
+          resolved_at: null,
+        },
+        incident2: {
+          id: "incident2",
+          organization_id: "org1",
+          queue: "live_alerts",
+          meeting_id: "meeting2",
+          incident_type: "customer_missing_warn",
+          severity: "warning",
+          reason: "customer_missing_warn",
+          occurrence_count: 1,
+          first_seen_at: new Date().toISOString(),
+          last_seen_at: new Date().toISOString(),
+          resolved_at: null,
+        },
+      },
+    };
+
+    const client = createFakeClient(tables);
+    const alerts = await getAMLiveAlerts(client as never, "am1");
+
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]?.alertType).toBe("bot_lobby_stuck");
+    expect(alerts[0]?.meetingId).toBe("meeting1");
+    expect(alerts[0]?.meetingTitle).toBe("Customer Call");
+  });
+
+  it("returns empty array if AM has no meetings", async () => {
+    const tables: Record<string, Table> = {
+      meetings: {},
+      operational_incidents: {},
+    };
+
+    const client = createFakeClient(tables);
+    const alerts = await getAMLiveAlerts(client as never, "am1");
+
+    expect(alerts).toHaveLength(0);
+  });
+
+  it("excludes resolved incidents", async () => {
+    const tables: Record<string, Table> = {
+      meetings: {
+        meeting1: {
+          id: "meeting1",
+          owner_membership_id: "am1",
+          title: "Customer Call",
+        },
+      },
+      operational_incidents: {
+        incident1: {
+          id: "incident1",
+          queue: "live_alerts",
+          meeting_id: "meeting1",
+          incident_type: "bot_lobby_stuck",
+          severity: "warning",
+          occurrence_count: 1,
+          first_seen_at: new Date().toISOString(),
+          last_seen_at: new Date().toISOString(),
+          resolved_at: new Date().toISOString(), // Resolved
+        },
+      },
+    };
+
+    const client = createFakeClient(tables);
+    const alerts = await getAMLiveAlerts(client as never, "am1");
+
+    expect(alerts).toHaveLength(0);
+  });
+});
+
+describe("getManagerLiveAlerts", () => {
+  it("returns open alerts for meetings owned by direct reports", async () => {
+    const tables: Record<string, Table> = {
+      organization_memberships: {
+        am1: {
+          id: "am1",
+          manager_membership_id: "manager1",
+          display_name: "Alice AM",
+        },
+        am2: {
+          id: "am2",
+          manager_membership_id: "manager1",
+          display_name: "Bob AM",
+        },
+      },
+      meetings: {
+        meeting1: {
+          id: "meeting1",
+          owner_membership_id: "am1",
+          title: "Alice's Call",
+        },
+        meeting2: {
+          id: "meeting2",
+          owner_membership_id: "am2",
+          title: "Bob's Call",
+        },
+      },
+      operational_incidents: {
+        incident1: {
+          id: "incident1",
+          queue: "live_alerts",
+          meeting_id: "meeting1",
+          incident_type: "customer_missing_escalate",
+          severity: "critical",
+          occurrence_count: 2,
+          first_seen_at: new Date(Date.now() - 600000).toISOString(),
+          last_seen_at: new Date().toISOString(),
+          resolved_at: null,
+        },
+      },
+    };
+
+    const client = createFakeClient(tables);
+    const alerts = await getManagerLiveAlerts(client as never, "manager1");
+
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]?.alertType).toBe("customer_missing_escalate");
+    expect(alerts[0]?.amName).toBe("Alice AM");
+    expect(alerts[0]?.meetingTitle).toBe("Alice's Call");
+  });
+
+  it("returns empty array if manager has no direct reports", async () => {
+    const tables: Record<string, Table> = {
+      organization_memberships: {},
+      meetings: {},
+      operational_incidents: {},
+    };
+
+    const client = createFakeClient(tables);
+    const alerts = await getManagerLiveAlerts(client as never, "manager1");
+
+    expect(alerts).toHaveLength(0);
   });
 });
