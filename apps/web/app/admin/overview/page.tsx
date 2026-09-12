@@ -129,12 +129,12 @@ export default async function AdminOverviewPage() {
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1">
               <span className="text-sm font-medium text-[#1E1E1E]">
-                Azure MAI
+                Azure Speech (Primary Transcriber)
               </span>
-              <p className="text-xs text-zinc-500 mt-0.5">Primary transcriber</p>
+              <p className="text-xs text-zinc-500 mt-0.5">Azure MAI speech-to-text</p>
             </div>
             <StatusBadge tone={isAzureConfigured ? "neutral" : "warning"}>
-              {isAzureConfigured ? "Configured" : "Not configured"}
+              {isAzureConfigured ? "Configured (Not verified)" : "Not configured / Unknown"}
             </StatusBadge>
           </div>
 
@@ -146,19 +146,19 @@ export default async function AdminOverviewPage() {
               <p className="text-xs text-zinc-500 mt-0.5">Fallback STT #2</p>
             </div>
             <StatusBadge tone="neutral">
-              Configured
+              Configured (Not verified)
             </StatusBadge>
           </div>
 
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1">
               <span className="text-sm font-medium text-[#1E1E1E]">
-                Whisper
+                OpenRouter Whisper Fallback
               </span>
-              <p className="text-xs text-zinc-500 mt-0.5">Fallback STT #3</p>
+              <p className="text-xs text-zinc-500 mt-0.5">Fallback STT #3 via OpenRouter</p>
             </div>
             <StatusBadge tone={isOpenRouterConfigured ? "neutral" : "warning"}>
-              {isOpenRouterConfigured ? "Configured" : "Not configured"}
+              {isOpenRouterConfigured ? "Configured (Not verified)" : "Not configured / Unknown"}
             </StatusBadge>
           </div>
 
