@@ -1806,6 +1806,7 @@ export type Database = {
           organization_id?: string
           organizer_email?: string | null
           organizer_name?: string | null
+          online_meeting_id?: string | null
           original_start?: string | null
           owner_membership_id?: string | null
           provider?: string
