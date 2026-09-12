@@ -1126,7 +1126,7 @@ describe("detectAndStopEndedMeetingBots", () => {
               },
             ])
           : updateSpy(call.payload),
-      meetings: (call) =>
+      meetings: (_call) =>
         ok([
           {
             id: "m1",
@@ -1184,7 +1184,7 @@ describe("detectAndStopEndedMeetingBots", () => {
               },
             ])
           : updateSpy(call.payload),
-      meetings: (call) =>
+      meetings: (_call) =>
         ok([
           {
             id: "m1",
@@ -1193,7 +1193,7 @@ describe("detectAndStopEndedMeetingBots", () => {
             lifecycle_status: "upcoming",
           },
         ]),
-      meeting_attendees: (call) =>
+      meeting_attendees: (_call) =>
         ok([
           {
             meeting_id: "m1",
@@ -1237,7 +1237,7 @@ describe("detectAndStopEndedMeetingBots", () => {
               },
             ])
           : updateSpy(call.payload),
-      meetings: (call) =>
+      meetings: (_call) =>
         ok([
           {
             id: "m1",
@@ -1246,7 +1246,7 @@ describe("detectAndStopEndedMeetingBots", () => {
             lifecycle_status: "upcoming",
           },
         ]),
-      meeting_attendees: (call) => ok([]), // No attendees at all
+      meeting_attendees: (_call) => ok([]), // No attendees at all
       meeting_lifecycle_events: (_call) => ok(null),
     });
 
@@ -1286,7 +1286,7 @@ describe("detectAndStopEndedMeetingBots", () => {
               },
             ])
           : updateSpy(call.payload),
-      meetings: (call) =>
+      meetings: (_call) =>
         ok([
           {
             id: "m1",
@@ -1295,7 +1295,7 @@ describe("detectAndStopEndedMeetingBots", () => {
             lifecycle_status: "upcoming",
           },
         ]),
-      meeting_attendees: (call) =>
+      meeting_attendees: (_call) =>
         ok([
           {
             meeting_id: "m1",
@@ -1340,7 +1340,7 @@ describe("detectAndStopEndedMeetingBots", () => {
               },
             ])
           : updateSpy(call.payload),
-      meetings: (call) =>
+      meetings: (_call) =>
         ok([
           {
             id: "m1",
@@ -1349,7 +1349,7 @@ describe("detectAndStopEndedMeetingBots", () => {
             lifecycle_status: "upcoming",
           },
         ]),
-      meeting_attendees: (call) => ok([]), // No attendees
+      meeting_attendees: (_call) => ok([]), // No attendees
       meeting_lifecycle_events: (_call) => ok(null),
     });
 
@@ -1394,7 +1394,7 @@ describe("detectAndStopEndedMeetingBots", () => {
               },
             ])
           : updateSpy(call.payload),
-      meetings: (call) =>
+      meetings: (_call) =>
         ok([
           {
             id: "m1",
