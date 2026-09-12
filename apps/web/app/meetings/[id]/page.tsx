@@ -483,7 +483,7 @@ function OverviewTab({
           <div className={styles.card}>
             <div className={styles.cardHead}><span className={styles.cardTitle}>Recording</span></div>
             <div style={{ padding: 0, overflow: "hidden" }}>
-              <MediaPlayer meetingId={id} />
+              <MediaPlayer meetingId={meetingId} />
             </div>
           </div>
         )}

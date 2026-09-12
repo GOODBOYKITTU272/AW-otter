@@ -59,6 +59,15 @@ export class VexaMeetingBotProvider implements MeetingBotProvider {
     // PUT /bots/{platform}/{id}/avatar (currently 404 in v0.12), add:
     //   bot_avatar_url: input.botAvatarUrl,
     // to the payload below. See: docs/product/bot-branding-investigation.md
+    //
+    // P3 VIDEO INVESTIGATION (2026-09-12): Live spike confirmed Vexa returns
+    // audio-only recordings. Undocumented flags that MAY enable video:
+    //   record_video: true
+    //   record_screen: true
+    //   capture_mode: "composite"
+    // BUT: Vexa API docs do not specify these. recording_enabled: true is
+    // already default per M8 investigation. IF Vexa support confirms a flag
+    // exists, add it behind ENABLE_VIDEO_RECORDING feature flag and test.
     const raw = await this.request<RawVexaCreateResponse>("/bots", {
       method: "POST",
       headers: { "Idempotency-Key": input.idempotencyKey },
@@ -68,6 +77,7 @@ export class VexaMeetingBotProvider implements MeetingBotProvider {
         bot_name: input.botName,
         transcribe_enabled: false,
         // bot_avatar_url: input.botAvatarUrl, // PREPARED: Uncomment when Vexa v0.12.x enables avatar API
+        // record_video: true, // INVESTIGATE: Undocumented, may enable video if Vexa supports it
       }),
     });
 

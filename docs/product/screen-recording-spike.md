@@ -328,20 +328,62 @@ export async function downloadCloudRecording(
 
 **Document** as known alternative for product roadmap.
 
-## Next Steps (Tranche 1+)
+## Next Steps
 
-Proceed with implementation:
+### Immediate Actions (COMPLETED ✅)
 
-1. **Tranche 1**: Schema migration with `media_kind`
-2. **Tranche 2**: Update ingest to attempt both (video best-effort)
-3. **Tranche 3**: Build video/audio player UI
-4. **Tranche 4**: Feature flag (default OFF)
-5. **Tranche 5**: Ops documentation
-6. **Tranche 6**: Tests, spike script, PR checklist
+All tranches implemented with video support ready:
 
-Owner tests spike script against real production Vexa to determine:
-- GO: Enable video feature flag
-- NO-GO: Keep flag OFF, architecture ready for future
+1. ✅ **Tranche 1**: Schema migration with `media_kind` — DONE
+2. ✅ **Tranche 2**: Dual-artifact ingest (audio + video best-effort) — DONE
+3. ✅ **Tranche 3**: Video/audio player UI on Meeting Detail — DONE
+4. ✅ **Tranche 4**: Feature flag `ENABLE_VIDEO_RECORDING=false` — DONE
+5. ✅ **Tranche 5**: Ops documentation — DONE
+6. ✅ **Tranche 6**: Tests passing, PR open — DONE
+
+**Deliverable:** Meeting Detail playable **audio** player NOW + architecture ready for video
+
+### Investigation Actions (TODO)
+
+1. **Contact Vexa support:**
+   - Ask if video recording is available on current plan/tier
+   - Request documentation for video recording flags
+   - Hypothetical flags: `record_video`, `record_screen`, `capture_mode`
+
+2. **Test undocumented flags (IF support confirms):**
+   ```typescript
+   // packages/meeting-bots/src/vexa/client.ts
+   body: JSON.stringify({
+     platform: "teams",
+     meeting_url: input.meetingUrl,
+     bot_name: input.botName,
+     transcribe_enabled: false,
+     record_video: true, // TEST if Vexa confirms this flag exists
+   })
+   ```
+
+3. **Verify against different meeting types:**
+   - Scheduled vs ad-hoc meetings
+   - Meetings with active screen sharing
+   - Meetings with multiple participants
+
+4. **Consider Microsoft Graph fallback:**
+   - Requires tenant admin to grant recording permissions
+   - See "Alternative: Microsoft Graph Cloud Recording" section above
+   - Defer to separate PR if Vexa path fails
+
+### Product Decision
+
+**Current State:**
+- Audio recording: ✅ Working in production
+- Video recording: ❌ Not available from Vexa
+- Architecture: ✅ Ready for video when available
+- Feature flag: ✅ Default OFF (honest about capabilities)
+
+**Owner determines:**
+- GO: Keep flag OFF until Vexa video confirmed, merge PR for audio improvements
+- INVESTIGATE: Contact Vexa support about video recording
+- FALLBACK: Pursue Microsoft Graph cloud recording path if needed
 
 ## Appendix: Vexa Documentation References
 
