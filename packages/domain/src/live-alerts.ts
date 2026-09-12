@@ -117,12 +117,6 @@ export async function detectCustomerMissingAlerts(
   serviceRoleClient: AppSupabaseClient,
 ): Promise<AlertNotification[]> {
   const now = Date.now();
-  const warnThresholdTime = new Date(
-    now - CUSTOMER_MISSING_WARN_MINUTES * 60 * 1000,
-  );
-  const escalateThresholdTime = new Date(
-    now - CUSTOMER_MISSING_ESCALATE_MINUTES * 60 * 1000,
-  );
 
   // Find meetings that have started and have a bot that joined
   const { data: activeMeetings, error } = await serviceRoleClient

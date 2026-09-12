@@ -23,11 +23,9 @@ function fakeSupabase(tables: Record<string, Row[]>) {
     let patch: Row = {};
     let insertRow: Row = {};
     let filtered = rows;
-    let selectCols: string | null = null;
 
     const builder = {
-      select(cols?: string) {
-        selectCols = cols ?? null;
+      select() {
         return builder;
       },
       update(p: Row) {
