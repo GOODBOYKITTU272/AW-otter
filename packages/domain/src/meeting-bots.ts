@@ -518,6 +518,185 @@ export interface SyncStatusesResult {
 }
 
 /**
+ * Phase-1 P1: Auto-leave thresholds.
+ * - GRACE_AFTER_SCHEDULED_END_MS: how long after scheduled_end to wait before
+ *   assuming the meeting is over (covers late joins, overruns).
+ * - EMPTY_CALL_DURATION_MS: if bot has been joined alone for this long,
+ *   assume no-show and stop the bot.
+ */
+const GRACE_AFTER_SCHEDULED_END_MS = 15 * 60 * 1000; // 15 minutes
+const EMPTY_CALL_DURATION_MS = 10 * 60 * 1000; // 10 minutes
+
+export interface AutoLeaveResult {
+  stopped: number;
+}
+
+/**
+ * Phase-1 P1: Detect and stop bots for meetings that have ended.
+ * 
+ * Stops a bot when ANY of these conditions are met:
+ * 1. Meeting has actual_end set (meeting definitively ended)
+ * 2. Scheduled_end + grace period has passed AND no active attendees
+ * 3. Bot has been joined alone (no other attendees) for EMPTY_CALL_DURATION
+ * 
+ * When a bot is stopped:
+ * - Calls provider.cancelBot() to trigger Vexa to finalize recording
+ * - Marks bot status as 'completed' with left_at timestamp
+ * - Allows transcription pipeline to proceed
+ * 
+ * This fixes the observed issue where "Vexa bot staying `active` after
+ * meeting ended; recording stayed in_progress until manual DELETE stop;
+ * Echo had no audio until then."
+ */
+export async function detectAndStopEndedMeetingBots(
+  serviceRoleClient: AppSupabaseClient,
+  provider: MeetingBotProvider,
+  limit = 20,
+): Promise<AutoLeaveResult> {
+  // Find bots that are actively joined
+  const { data: activeBots, error: botsError } = await serviceRoleClient
+    .from("meeting_bot_jobs")
+    .select("id, meeting_id, organization_id, provider_bot_id, joined_at")
+    .eq("status", "joined")
+    .not("provider_bot_id", "is", null)
+    .not("joined_at", "is", null)
+    .limit(limit);
+
+  if (botsError) throw botsError;
+  if (!activeBots || activeBots.length === 0) return { stopped: 0 };
+
+  const meetingIds = activeBots.map((b) => b.meeting_id);
+
+  // Get meeting details
+  const { data: meetings, error: meetingsError } = await serviceRoleClient
+    .from("meetings")
+    .select("id, scheduled_end, actual_end, lifecycle_status")
+    .in("id", meetingIds);
+
+  if (meetingsError) throw meetingsError;
+
+  const meetingById = new Map(meetings?.map((m) => [m.id, m]) ?? []);
+
+  // Get attendee information to detect empty calls
+  const { data: attendees, error: attendeesError } = await serviceRoleClient
+    .from("meeting_attendees")
+    .select("meeting_id, attended, left_at")
+    .in("meeting_id", meetingIds);
+
+  if (attendeesError) throw attendeesError;
+
+  // Group attendees by meeting
+  const attendeesByMeeting = new Map<string, typeof attendees>();
+  for (const attendee of attendees ?? []) {
+    const list = attendeesByMeeting.get(attendee.meeting_id) ?? [];
+    list.push(attendee);
+    attendeesByMeeting.set(attendee.meeting_id, list);
+  }
+
+  let stopped = 0;
+  const now = Date.now();
+
+  for (const bot of activeBots) {
+    const meeting = meetingById.get(bot.meeting_id);
+    if (!meeting) continue;
+
+    let shouldStop = false;
+    let reason = "";
+
+    // Condition 1: Meeting has definitively ended (actual_end is set)
+    if (meeting.actual_end) {
+      shouldStop = true;
+      reason = "Meeting ended (actual_end set)";
+    }
+
+    // Condition 2: Scheduled end + grace period has passed
+    if (!shouldStop) {
+      const scheduledEndTime = new Date(meeting.scheduled_end).getTime();
+      const gracePeriodEnd = scheduledEndTime + GRACE_AFTER_SCHEDULED_END_MS;
+      if (now > gracePeriodEnd) {
+        // Check if there are any attendees still in the call
+        const meetingAttendees = attendeesByMeeting.get(bot.meeting_id) ?? [];
+        const activeAttendees = meetingAttendees.filter(
+          (a) => a.attended && !a.left_at,
+        );
+        if (activeAttendees.length === 0) {
+          shouldStop = true;
+          reason = `Scheduled end + ${GRACE_AFTER_SCHEDULED_END_MS / 60000} min grace period passed with no active attendees`;
+        }
+      }
+    }
+
+    // Condition 3: Bot has been alone in the call for too long (no-show scenario)
+    if (!shouldStop && bot.joined_at) {
+      const botJoinedTime = new Date(bot.joined_at).getTime();
+      const aloneTime = now - botJoinedTime;
+      if (aloneTime > EMPTY_CALL_DURATION_MS) {
+        const meetingAttendees = attendeesByMeeting.get(bot.meeting_id) ?? [];
+        // Check if any non-bot attendees ever joined
+        const hasHumanAttendees = meetingAttendees.some((a) => a.attended);
+        if (!hasHumanAttendees) {
+          shouldStop = true;
+          reason = `Bot alone in call for ${EMPTY_CALL_DURATION_MS / 60000} minutes (no-show)`;
+        }
+      }
+    }
+
+    if (!shouldStop) continue;
+
+    // Stop the bot: call provider.cancelBot() to finalize recording
+    try {
+      await provider.cancelBot({ providerBotId: bot.provider_bot_id as string });
+    } catch (cancelError) {
+      // Don't fail the whole batch if one cancellation fails
+      await logLifecycleEvent(serviceRoleClient, {
+        meetingId: bot.meeting_id,
+        organizationId: bot.organization_id,
+        botJobId: bot.id,
+        eventType: "bot.auto_leave_failed",
+        source: "auto_leave",
+        payload: {
+          error:
+            cancelError instanceof Error
+              ? cancelError.message
+              : String(cancelError),
+          reason,
+        },
+      });
+      continue;
+    }
+
+    // Mark bot as completed with left_at timestamp
+    const { data: updated, error: updateError } = await serviceRoleClient
+      .from("meeting_bot_jobs")
+      .update({
+        status: "completed",
+        left_at: new Date().toISOString(),
+      })
+      .eq("id", bot.id)
+      .eq("organization_id", bot.organization_id)
+      .eq("status", "joined") // Guard: only transition if still joined
+      .select("id")
+      .maybeSingle();
+
+    if (updateError) throw updateError;
+    if (!updated) continue; // Race: another process already updated this row
+
+    await logLifecycleEvent(serviceRoleClient, {
+      meetingId: bot.meeting_id,
+      organizationId: bot.organization_id,
+      botJobId: bot.id,
+      eventType: "bot.auto_leave",
+      source: "auto_leave",
+      payload: { reason },
+    });
+
+    stopped += 1;
+  }
+
+  return { stopped };
+}
+
+/**
  * Polls the provider for jobs we believe are still live and reconciles
  * our own status against it — the local/no-public-URL substitute for a
  * real Vexa webhook receiver (POST /api/webhooks/vexa is the locked
@@ -570,7 +749,10 @@ export async function syncBotStatuses(
     if (result.status === "joined" && result.joinedAt)
       update.joined_at = result.joinedAt;
     if (result.status === "completed") {
-      if (result.leftAt) update.left_at = result.leftAt;
+      // Phase-1 P1: Always set left_at when transitioning to completed,
+      // either from Vexa's own reported end_time or current timestamp.
+      // This ensures the recording finalization pipeline can proceed.
+      update.left_at = result.leftAt ?? new Date().toISOString();
     }
     if (result.status === "failed") {
       update.failed_at = new Date().toISOString();
