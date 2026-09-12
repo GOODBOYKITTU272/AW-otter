@@ -1,5 +1,5 @@
 import type { TranscriptionProvider } from "@applywizz/transcription";
-import { writeFile, rm } from "node:fs/promises";
+import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";

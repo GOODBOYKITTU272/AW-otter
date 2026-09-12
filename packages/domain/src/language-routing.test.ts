@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   routeByLanguage,
   shouldUseLanguageRouting,
-  detectLanguage,
 } from "./language-routing";
 import type { TranscriptionProvider } from "@applywizz/transcription";
 
