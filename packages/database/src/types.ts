@@ -839,7 +839,9 @@ export type Database = {
           idempotency_key: string
           joined_at: string | null
           last_error: string | null
+          last_raw_status: string | null
           left_at: string | null
+          lobby_waiting_since: string | null
           meeting_id: string
           next_retry_at: string | null
           organization_id: string
@@ -860,7 +862,9 @@ export type Database = {
           idempotency_key: string
           joined_at?: string | null
           last_error?: string | null
+          last_raw_status?: string | null
           left_at?: string | null
+          lobby_waiting_since?: string | null
           meeting_id: string
           next_retry_at?: string | null
           organization_id: string
@@ -881,7 +885,9 @@ export type Database = {
           idempotency_key?: string
           joined_at?: string | null
           last_error?: string | null
+          last_raw_status?: string | null
           left_at?: string | null
+          lobby_waiting_since?: string | null
           meeting_id?: string
           next_retry_at?: string | null
           organization_id?: string
@@ -1446,6 +1452,7 @@ export type Database = {
           created_at: string
           duration_seconds: number | null
           id: string
+          media_kind: string
           meeting_id: string
           organization_id: string
           source_metadata: Json
@@ -1462,6 +1469,7 @@ export type Database = {
           created_at?: string
           duration_seconds?: number | null
           id?: string
+          media_kind: string
           meeting_id: string
           organization_id: string
           source_metadata?: Json
@@ -1478,6 +1486,7 @@ export type Database = {
           created_at?: string
           duration_seconds?: number | null
           id?: string
+          media_kind?: string
           meeting_id?: string
           organization_id?: string
           source_metadata?: Json
@@ -1721,6 +1730,7 @@ export type Database = {
           organization_id: string
           organizer_email: string | null
           organizer_name: string | null
+          online_meeting_id: string | null
           original_start: string | null
           owner_membership_id: string | null
           provider: string
@@ -1758,6 +1768,7 @@ export type Database = {
           organization_id: string
           organizer_email?: string | null
           organizer_name?: string | null
+          online_meeting_id?: string | null
           original_start?: string | null
           owner_membership_id?: string | null
           provider?: string
@@ -1795,6 +1806,7 @@ export type Database = {
           organization_id?: string
           organizer_email?: string | null
           organizer_name?: string | null
+          online_meeting_id?: string | null
           original_start?: string | null
           owner_membership_id?: string | null
           provider?: string

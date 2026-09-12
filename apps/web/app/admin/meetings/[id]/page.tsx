@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { StatusBadge, type BadgeTone } from "@/components/admin/status-badge";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -42,6 +43,26 @@ const TRANSCRIPT_STATUS_LABEL: Record<string, string> = {
   failed: "Failed",
 };
 
+const BOT_STATUS_TONE: Record<string, BadgeTone> = {
+  pending: "neutral",
+  scheduled: "info",
+  joining: "warning",
+  joined: "success",
+  completed: "success",
+  cancelled: "neutral",
+  failed: "critical",
+};
+
+const BOT_STATUS_LABEL: Record<string, string> = {
+  pending: "Preparing",
+  scheduled: "Ready to join",
+  joining: "Joining now",
+  joined: "Recording",
+  completed: "Recorded",
+  cancelled: "Cancelled",
+  failed: "Failed to join",
+};
+
 export default async function MeetingDetailPage({
   params,
 }: {
@@ -61,6 +82,17 @@ export default async function MeetingDetailPage({
   // RLS naturally returns null for a meeting this caller can't see — a
   // plain not-found page, never a distinguishable "exists but denied".
   if (!meeting) notFound();
+
+  const { data: botJob, error: botJobError } = await supabase
+    .from("meeting_bot_jobs")
+    .select(
+      "id, status, scheduled_at, joined_at, left_at, failed_at, last_error, lobby_waiting_since, last_raw_status",
+    )
+    .eq("meeting_id", id)
+    .order("generation", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (botJobError) throw botJobError;
 
   const { data: transcript, error: transcriptError } = await supabase
     .from("meeting_transcripts")
@@ -99,27 +131,104 @@ export default async function MeetingDetailPage({
   return (
     <div className="flex flex-col gap-6 p-6">
       <div>
-        <Link
-          href="/admin/meetings"
-          className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
-        >
-          ← All meetings
-        </Link>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight">
+        <AdminBackLink href="/admin/meetings" label="All meetings" />
+        <h1 className="mt-2 text-xl font-semibold tracking-tight text-[#1E1E1E]">
           {meeting.title}
         </h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="text-sm text-zinc-500">
           {meeting.organizer_name ?? meeting.organizer_email ?? "—"} ·{" "}
           {formatDateTime(meeting.scheduled_start)} –{" "}
           {formatDateTime(meeting.scheduled_end)}
         </p>
       </div>
 
-      <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
-        <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+      {/* Bot Status Section - Phase-1 P0: Show lobby waiting prominently */}
+      <section className="rounded-lg border border-zinc-200 bg-white">
+        <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3">
           <div>
-            <h2 className="text-sm font-medium">Transcript</h2>
-            <p className="text-xs text-zinc-400">
+            <h2 className="text-sm font-medium text-[#1E1E1E]">Echo Bot Status</h2>
+            <p className="text-xs text-zinc-500">
+              Automatic recording bot for this meeting
+            </p>
+          </div>
+          {botJob ? (
+            <StatusBadge tone={BOT_STATUS_TONE[botJob.status] ?? "neutral"}>
+              {BOT_STATUS_LABEL[botJob.status] ?? botJob.status}
+            </StatusBadge>
+          ) : (
+            <StatusBadge tone="neutral">Not scheduled</StatusBadge>
+          )}
+        </div>
+
+        {!botJob ? (
+          <p className="px-4 py-8 text-center text-sm text-zinc-500">
+            No bot scheduled for this meeting yet.
+          </p>
+        ) : (
+          <div className="px-4 py-3">
+            {botJob.lobby_waiting_since && (
+              <div className="mb-3 rounded-md bg-amber-50 border border-amber-200 px-4 py-3">
+                <div className="flex items-start gap-3">
+                  <span className="text-2xl">⚠️</span>
+                  <div className="flex-1">
+                    <p className="font-semibold text-amber-900">
+                      Action Required: Bot waiting in Teams lobby
+                    </p>
+                    <p className="mt-1 text-sm text-amber-800">
+                      The Echo bot is waiting to be admitted to the meeting.
+                      Open Teams and admit &ldquo;AW Echo&rdquo; from the lobby.
+                    </p>
+                    <p className="mt-2 text-xs text-amber-700">
+                      Waiting since: {formatDateTime(botJob.lobby_waiting_since)}
+                      {botJob.last_raw_status && (
+                        <span className="ml-2 font-mono">
+                          ({botJob.last_raw_status})
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-4 text-xs text-zinc-500">
+              {botJob.scheduled_at && (
+                <div>
+                  <span className="font-medium text-zinc-700">Scheduled:</span>{" "}
+                  {formatDateTime(botJob.scheduled_at)}
+                </div>
+              )}
+              {botJob.joined_at && (
+                <div>
+                  <span className="font-medium text-zinc-700">Joined:</span>{" "}
+                  {formatDateTime(botJob.joined_at)}
+                </div>
+              )}
+              {botJob.left_at && (
+                <div>
+                  <span className="font-medium text-zinc-700">Left:</span>{" "}
+                  {formatDateTime(botJob.left_at)}
+                </div>
+              )}
+              {botJob.failed_at && (
+                <div className="col-span-2">
+                  <span className="font-medium text-red-700">Failed:</span>{" "}
+                  {formatDateTime(botJob.failed_at)}
+                  {botJob.last_error && (
+                    <p className="mt-1 text-red-600">{botJob.last_error}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-lg border border-zinc-200 bg-white">
+        <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3">
+          <div>
+            <h2 className="text-sm font-medium text-[#1E1E1E]">Transcript</h2>
+            <p className="text-xs text-zinc-500">
               English transcription (V1). Other languages may be flagged for
               review.
             </p>
@@ -145,16 +254,16 @@ export default async function MeetingDetailPage({
           </p>
         ) : (
           <>
-            <div className="flex flex-wrap gap-4 border-b border-zinc-200 px-4 py-3 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+            <div className="flex flex-wrap gap-4 border-b border-zinc-200 px-4 py-3 text-xs text-zinc-500">
               <span>
                 Detected language:{" "}
-                <span className="font-medium text-zinc-700 dark:text-zinc-300">
+                <span className="font-medium text-zinc-700">
                   {transcript.detected_language ?? "—"}
                 </span>
               </span>
               <span>
                 Canonical English:{" "}
-                <span className="font-medium text-zinc-700 dark:text-zinc-300">
+                <span className="font-medium text-zinc-700">
                   {transcript.has_canonical_english
                     ? "Available"
                     : "Not available"}
@@ -163,13 +272,13 @@ export default async function MeetingDetailPage({
               {transcript.model && (
                 <span>
                   Model:{" "}
-                  <span className="font-mono text-zinc-700 dark:text-zinc-300">
+                  <span className="font-mono text-zinc-700">
                     {transcript.model}
                   </span>
                 </span>
               )}
               {transcript.error_code && (
-                <span className="text-red-600 dark:text-red-400">
+                <span className="text-red-600">
                   Error: {transcript.error_code}
                 </span>
               )}
@@ -182,13 +291,13 @@ export default async function MeetingDetailPage({
                   : "Segments will appear once processing completes."}
               </p>
             ) : (
-              <ol className="divide-y divide-zinc-100 dark:divide-zinc-900">
+              <ol className="divide-y divide-zinc-100">
                 {(segments ?? []).map((segment) => (
                   <li
                     key={segment.id}
                     className="flex flex-col gap-1.5 px-4 py-3"
                   >
-                    <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    <div className="flex items-center gap-2 text-xs text-zinc-500">
                       <span className="font-mono">
                         {formatTimestamp(segment.start_ms)}–
                         {formatTimestamp(segment.end_ms)}
@@ -207,11 +316,11 @@ export default async function MeetingDetailPage({
                         <StatusBadge tone="warning">Needs review</StatusBadge>
                       )}
                     </div>
-                    <p className="text-sm">{segment.original_text}</p>
+                    <p className="text-sm text-[#1E1E1E]">{segment.original_text}</p>
                     {segment.canonical_english_text &&
                       segment.canonical_english_text !==
                         segment.original_text && (
-                        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                        <p className="text-sm text-zinc-500">
                           <span className="font-medium">English:</span>{" "}
                           {segment.canonical_english_text}
                         </p>
@@ -226,24 +335,24 @@ export default async function MeetingDetailPage({
 
       {((callRecords ?? []).length > 0 ||
         (truthProposals ?? []).length > 0) && (
-        <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
-          <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-            <h2 className="text-sm font-medium">
+        <section className="rounded-lg border border-zinc-200 bg-white">
+          <div className="border-b border-zinc-200 px-4 py-3">
+            <h2 className="text-sm font-medium text-[#1E1E1E]">
               Call records &amp; truth proposals from this meeting
             </h2>
-            <p className="text-xs text-zinc-400">
+            <p className="text-xs text-zinc-500">
               Review and confirm/reject on{" "}
-              <Link href="/customers" className="hover:underline">
+              <Link href="/customers" className="text-[#2C76FF] hover:underline">
                 Customers
               </Link>{" "}
               or{" "}
-              <Link href="/actions" className="hover:underline">
+              <Link href="/actions" className="text-[#2C76FF] hover:underline">
                 Actions
               </Link>
               .
             </p>
           </div>
-          <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
+          <ul className="divide-y divide-zinc-100">
             {(callRecords ?? []).map((record) => (
               <li
                 key={record.id}

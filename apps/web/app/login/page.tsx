@@ -1,86 +1,183 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, type FormEvent } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { Eye, EyeOff } from "lucide-react";
+import { ROLE_HOME_ROUTE, isSystemRoleKey } from "@applywizz/domain";
+import Link from "next/link";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    async function checkExistingSession() {
+      const supabase = getSupabaseBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session) {
+        const { data: membership } = await supabase
+          .from("organization_memberships")
+          .select("role_id")
+          .eq("user_id", session.user.id)
+          .eq("status", "active")
+          .maybeSingle();
+
+        if (membership) {
+          const { data: role } = await supabase
+            .from("roles")
+            .select("key")
+            .eq("id", membership.role_id)
+            .maybeSingle();
+
+          const roleKey = role?.key;
+          if (roleKey && isSystemRoleKey(roleKey)) {
+            window.location.assign(ROLE_HOME_ROUTE[roleKey]);
+          }
+        }
+      }
+    }
+    checkExistingSession();
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
 
-    const { error: signInError } =
-      await getSupabaseBrowserClient().auth.signInWithPassword({
-        email,
-        password,
-      });
+    const supabase = getSupabaseBrowserClient();
+    const { error: signInError, data } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
     if (signInError) {
-      setError("Invalid email or password.");
+      setError("Invalid email or password. Please try again.");
       setSubmitting(false);
       return;
     }
 
-    router.push("/");
-    router.refresh();
+    const { data: membership } = await supabase
+      .from("organization_memberships")
+      .select("role_id")
+      .eq("user_id", data.user.id)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (!membership) {
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- Hard navigation required to commit cookies before SSR
+      window.location.assign("/access-pending");
+      return;
+    }
+
+    const { data: role } = await supabase
+      .from("roles")
+      .select("key")
+      .eq("id", membership.role_id)
+      .maybeSingle();
+
+    const roleKey = role?.key;
+
+    if (!roleKey || !isSystemRoleKey(roleKey)) {
+      setError(
+        "Your account role is not recognized. Please contact your administrator."
+      );
+      setSubmitting(false);
+      return;
+    }
+
+    window.location.assign(ROLE_HOME_ROUTE[roleKey]);
   }
 
   return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-6 px-6">
-      <div className="text-center">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Apply Wizz Echo
-        </h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          Remembers every customer conversation.
-        </p>
-      </div>
-      <form
-        onSubmit={handleSubmit}
-        className="flex w-full max-w-sm flex-col gap-4"
-      >
-        <label className="flex flex-col gap-1 text-sm">
-          Work email
-          <input
-            type="email"
-            required
-            autoComplete="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Password
-          <input
-            type="password"
-            required
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-          />
-        </label>
-        {error ? (
-          <p role="alert" className="text-sm text-red-600">
-            {error}
+    <main className="flex min-h-screen flex-1 flex-col items-center justify-center gap-6 bg-gradient-to-br from-[#0B1D33] via-[#1E1E1E] to-[#1E1E1E] px-6">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <Link href="/" className="inline-flex items-center gap-2 mb-3 hover:opacity-80 transition-opacity">
+            <div className="h-10 w-10 rounded-lg bg-[#29FE29] flex items-center justify-center">
+              <span className="text-xl font-bold text-[#1E1E1E]">AW</span>
+            </div>
+          </Link>
+          <h1 className="text-3xl font-bold tracking-tight text-white">
+            Apply Wizz Echo
+          </h1>
+          <p className="mt-2 text-sm text-[#F5F5F5]/70">
+            Remembers every customer conversation.
           </p>
-        ) : null}
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900"
-        >
-          {submitting ? "Signing in…" : "Sign in"}
-        </button>
-      </form>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#1E1E1E]/80 backdrop-blur-sm p-8 shadow-2xl">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-white">
+                Work email
+              </label>
+              <input
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                className="rounded-lg border border-white/10 bg-[#0B1D33]/50 px-4 py-3 text-sm text-white placeholder-[#F5F5F5]/30 focus:border-[#2C76FF] focus:outline-none focus:ring-2 focus:ring-[#2C76FF]/20 transition-all"
+                placeholder="you@company.com"
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-white">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  className="w-full rounded-lg border border-white/10 bg-[#0B1D33]/50 px-4 py-3 pr-11 text-sm text-white placeholder-[#F5F5F5]/30 focus:border-[#2C76FF] focus:outline-none focus:ring-2 focus:ring-[#2C76FF]/20 transition-all"
+                  placeholder="Enter your password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#F5F5F5]/50 hover:text-white transition-colors"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {error ? (
+              <div
+                role="alert"
+                className="rounded-lg border border-[#FF5C5C]/20 bg-[#FF5C5C]/10 px-4 py-3 text-sm text-[#FF5C5C]"
+              >
+                {error}
+              </div>
+            ) : null}
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="mt-2 rounded-lg bg-[#29FE29] px-4 py-3 text-sm font-semibold text-[#1E1E1E] hover:bg-[#29FE29]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-[#29FE29]/20"
+            >
+              {submitting ? "Signing in…" : "Sign in"}
+            </button>
+          </form>
+
+          <p className="mt-6 text-center text-xs text-[#F5F5F5]/50">
+            Invite-only access · Contact your admin for account access
+          </p>
+        </div>
+      </div>
     </main>
   );
 }

@@ -18,7 +18,7 @@ export interface RawGraphEvent {
   attendees?: RawGraphAttendee[];
   isOnlineMeeting?: boolean;
   onlineMeetingProvider?: string | null;
-  onlineMeeting?: { joinUrl?: string | null };
+  onlineMeeting?: { joinUrl?: string | null; id?: string | null };
   lastModifiedDateTime?: string;
   iCalUId?: string;
   type?: string;
@@ -71,5 +71,6 @@ export function normalizeCalendarEvent(
     seriesMasterId: raw.seriesMasterId ?? null,
     originalStart: raw.originalStart ?? null,
     isOrganizer: raw.isOrganizer ?? false,
+    onlineMeetingId: raw.onlineMeeting?.id ?? null,
   };
 }

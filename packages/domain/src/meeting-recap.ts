@@ -7,6 +7,7 @@ import type {
 import { logAuditEvent } from "./audit";
 import {
   analyzeMeetingIntegrity,
+  isEligibleForIntelligence,
   type MeetingIntegrityAnalysis,
   type MeetingIntegrityFlag,
   type IntegrityVerdict,
@@ -215,6 +216,13 @@ export async function getMeetingRecapData(
       canonicalEnglishText: s.canonical_english_text ?? s.original_text,
     }),
   );
+
+  // Generate fallback overview from transcript when AI summary not available
+  const hasAiSummary = Boolean(aiRun?.summary || validatedOutput.summary);
+  let fallbackSummary = "";
+  if (!hasAiSummary && transcriptSegments.length > 0) {
+    fallbackSummary = generateTranscriptOverviewSummary(transcriptSegments, meeting.call_type);
+  }
 
   const { data: customer, error: customerError } = meeting.customer_id
     ? await supabase
@@ -444,7 +452,7 @@ export async function getMeetingRecapData(
     recordingUrl,
     integrityReport,
     result: {
-      summary: aiRun?.summary ?? validatedOutput.summary ?? "",
+      summary: aiRun?.summary || validatedOutput.summary || fallbackSummary,
       callRecords,
       customerTruthDeltas,
       callTypeSpecific: validatedOutput.callTypeSpecific,
@@ -632,6 +640,52 @@ function formatJourneyStep(journey: JourneyContext): string {
     return `Next: ${label(journey.nextCall.callType)} scheduled ${when}.`;
   }
   return "No next call scheduled yet.";
+}
+
+/**
+ * Generates a Fireflies-style overview summary from raw transcript segments
+ * when AI intelligence analysis hasn't completed yet. Provides a meaningful
+ * conversation preview rather than an empty shell, addressing the product
+ * requirement: "When transcript is complete, Meeting Detail Overview must
+ * show a finished conversation report."
+ */
+function generateTranscriptOverviewSummary(
+  segments: TranscriptSegmentData[],
+  callType: string | null,
+): string {
+  if (segments.length === 0) return "";
+
+  // Calculate conversation stats
+  const totalDurationMs = segments[segments.length - 1]?.endMs ?? 0;
+  const durationMinutes = Math.round(totalDurationMs / 60000);
+  const speakerSet = new Set(segments.map((s) => s.speakerLabel));
+  const speakerCount = speakerSet.size;
+
+  // Extract conversation highlights (first 5-7 meaningful exchanges)
+  const meaningfulSegments = segments
+    .filter((s) => s.canonicalEnglishText.trim().length > 10)
+    .slice(0, 7);
+
+  const conversationPreview = meaningfulSegments
+    .map((s) => {
+      const speaker = s.speakerLabel === "speaker_unknown" ? "Speaker" : s.speakerLabel;
+      const text = s.canonicalEnglishText.length > 150
+        ? s.canonicalEnglishText.slice(0, 150).trim() + "..."
+        : s.canonicalEnglishText;
+      return `${speaker}: ${text}`;
+    })
+    .join("\n\n");
+
+  const callTypeLabel = callType ? CALL_TYPE_LABEL[callType] ?? callType : "conversation";
+
+  return `**Conversation Overview** (${durationMinutes} min${durationMinutes !== 1 ? "s" : ""} · ${speakerCount} participant${speakerCount !== 1 ? "s" : ""})
+
+This was a ${callTypeLabel.toLowerCase()} with the following discussion:
+
+${conversationPreview}
+
+${segments.length > 7 ? `\n*(${segments.length - 7} more exchanges in full transcript)*\n` : ""}
+**Note:** Full AI analysis with action items, decisions, and insights is being generated and will appear here once complete.`;
 }
 
 /**
@@ -1008,6 +1062,23 @@ export async function approveMeetingRecap(
     throw new Error(
       "Only the responsible Account Manager for this meeting can approve the recap.",
     );
+  }
+
+  // Phase 4 INTEGRITY GATE: Block recap approval for FAIL verdicts
+  const { data: integrityReport, error: integrityError } = await supabase
+    .from("meeting_integrity_reports")
+    .select("overall_verdict")
+    .eq("meeting_id", input.meetingId)
+    .maybeSingle();
+  if (integrityError) throw integrityError;
+
+  if (integrityReport) {
+    const verdict = integrityReport.overall_verdict as IntegrityVerdict;
+    if (!isEligibleForIntelligence(verdict)) {
+      throw new Error(
+        `Cannot approve recap: transcript integrity FAIL (${verdict}). This recording requires human review or retranscription.`,
+      );
+    }
   }
 
   let recapId: string;

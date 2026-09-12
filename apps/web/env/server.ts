@@ -208,9 +208,17 @@ export function getAzureMaiEnv() {
   } as const;
 }
 
+export function getSarvamEnv() {
+  const apiKey = process.env.SARVAM_API_KEY;
+  return {
+    SARVAM_API_KEY: apiKey,
+    isConfigured: Boolean(apiKey),
+  } as const;
+}
+
 export function getTranscriptionConfigEnv() {
   const primaryProvider =
-    (process.env.TRANSCRIPTION_PRIMARY_PROVIDER as "azure-mai" | "openrouter" | undefined) ??
+    (process.env.TRANSCRIPTION_PRIMARY_PROVIDER as "azure-mai" | "sarvam" | "openrouter" | undefined) ??
     "openrouter";
   return {
     TRANSCRIPTION_PRIMARY_PROVIDER: primaryProvider,

@@ -4,80 +4,93 @@ import { StatusBadge } from "@/components/admin/status-badge";
 import { CustomerLinkControl } from "@/components/customer-link-control";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
-// M4 operational view of the future Admin Meetings screen (blueprint
-// screen 02) — later milestones add filters, the meeting detail drawer,
-// transcript/AI panels, etc. Every number and row here is read straight
-// from the DB via the same RLS an org admin already has
-// (meetings_select_admin_org / calendar_event_jobs_select_admin_org /
-// calendar_connections_select_admin_org) — nothing is fabricated for
-// display, and a section is simply empty until the pipeline actually
-// produces rows for it.
+/**
+ * AM-friendly Meetings overview with plain English labels and Apply Wizz branding.
+ * Focus: Meeting title, When, Who (AM), Customer, Bot, Transcript, Next action.
+ * Technical details hidden behind optional disclosure for admins only.
+ */
 
 type LifecycleStatus = string;
+type BotStatus = string;
 
-function lifecycleBadge(status: LifecycleStatus) {
-  if (status === "cancelled")
-    return <StatusBadge tone="critical">Cancelled</StatusBadge>;
-  if (status === "completed")
-    return <StatusBadge tone="success">Completed</StatusBadge>;
+// Human-friendly status mapping (Upcoming / Live / Done / Needs review / Failed)
+function meetingStatusBadge(
+  lifecycle: LifecycleStatus,
+  botStatus: BotStatus | undefined,
+) {
+  if (lifecycle === "cancelled")
+    return <StatusBadge tone="neutral">Cancelled</StatusBadge>;
+  if (lifecycle === "completed")
+    return <StatusBadge tone="success">Done</StatusBadge>;
+  if (botStatus === "joined")
+    return <StatusBadge tone="info">Live now</StatusBadge>;
+  if (botStatus === "joining")
+    return <StatusBadge tone="warning">Joining...</StatusBadge>;
   return <StatusBadge tone="info">Upcoming</StatusBadge>;
 }
 
-type JobRow = {
-  id: string;
-  external_event_id: string;
-  provider_user_key: string;
-  change_type: string;
-  status: string;
-  attempts: number;
-  last_error: string | null;
-  run_at: string;
-  created_at: string;
-};
-
-/** Worst-status-wins across every mailbox that's observed this meeting — one canonical meeting can now have several. */
-function syncStateBadge(jobs: JobRow[]) {
-  if (jobs.length === 0)
-    return <StatusBadge tone="neutral">No queue activity</StatusBadge>;
-  if (jobs.some((job) => job.status === "dead_letter"))
-    return <StatusBadge tone="critical">Sync failed</StatusBadge>;
-  if (
-    jobs.some((job) => job.status === "pending" || job.status === "processing")
-  )
-    return <StatusBadge tone="warning">Syncing</StatusBadge>;
-  return <StatusBadge tone="success">Synced</StatusBadge>;
+function botStatusLabel(status: string | undefined, isLobbyWaiting: boolean): string {
+  if (!status) return "Not scheduled";
+  if (status === "joining" && isLobbyWaiting) {
+    return "⚠️ Waiting in lobby";
+  }
+  const labels: Record<string, string> = {
+    pending: "Preparing",
+    scheduled: "Ready to join",
+    joining: "Joining now",
+    joined: "Recording",
+    completed: "Recorded",
+    cancelled: "Cancelled",
+    failed: "Failed to join",
+  };
+  return labels[status] ?? status;
 }
 
-const BOT_STATUS_TONE: Record<
-  string,
-  "success" | "warning" | "critical" | "info" | "neutral"
-> = {
-  pending: "neutral",
-  scheduled: "info",
-  joining: "warning",
-  joined: "success",
-  completed: "success",
-  cancelled: "neutral",
-  failed: "critical",
-};
-
-const BOT_STATUS_LABEL: Record<string, string> = {
-  pending: "Pending",
-  scheduled: "Scheduled",
-  joining: "Joining",
-  joined: "In meeting",
-  completed: "Completed",
-  cancelled: "Cancelled",
-  failed: "Failed",
-};
-
-function botStatusBadge(status: string | undefined) {
-  if (!status) return <span className="text-zinc-400">—</span>;
+function botStatusBadge(status: string | undefined, isLobbyWaiting: boolean) {
+  if (!status)
+    return <span className="text-zinc-400 text-sm">Not scheduled</span>;
+  
+  // Phase-1 P0: Urgent warning tone for lobby waiting
+  if (status === "joining" && isLobbyWaiting) {
+    return (
+      <StatusBadge tone="critical">
+        {botStatusLabel(status, isLobbyWaiting)}
+      </StatusBadge>
+    );
+  }
+  
+  const tones: Record<string, "success" | "warning" | "critical" | "info" | "neutral"> = {
+    pending: "neutral",
+    scheduled: "info",
+    joining: "warning",
+    joined: "success",
+    completed: "success",
+    cancelled: "neutral",
+    failed: "critical",
+  };
+  
   return (
-    <StatusBadge tone={BOT_STATUS_TONE[status] ?? "neutral"}>
-      {BOT_STATUS_LABEL[status] ?? status}
+    <StatusBadge tone={tones[status] ?? "neutral"}>
+      {botStatusLabel(status, isLobbyWaiting)}
     </StatusBadge>
   );
+}
+
+function transcriptStatusBadge(transcript: {
+  processing_status: string;
+  error_code: string | null;
+} | null) {
+  if (!transcript)
+    return <span className="text-zinc-400 text-sm">Pending</span>;
+  
+  if (transcript.processing_status === "completed")
+    return <StatusBadge tone="success">Ready</StatusBadge>;
+  if (transcript.processing_status === "failed")
+    return <StatusBadge tone="critical">Failed</StatusBadge>;
+  if (transcript.processing_status === "processing")
+    return <StatusBadge tone="info">Processing...</StatusBadge>;
+  
+  return <StatusBadge tone="neutral">Pending</StatusBadge>;
 }
 
 const CALL_TYPE_LABEL: Record<string, string> = {
@@ -86,7 +99,7 @@ const CALL_TYPE_LABEL: Record<string, string> = {
   orientation: "Orientation",
   progress: "Progress Review",
   renewal: "Renewal",
-  other_unknown: "Other / Unknown",
+  other_unknown: "Other",
 };
 
 function customerCell(
@@ -110,13 +123,16 @@ function customerCell(
       : undefined;
     return (
       <div className="flex flex-col gap-0.5">
-        <span className="font-medium">{name ?? "—"}</span>
-        {meeting.call_type ? (
+        <Link
+          href={meeting.customer_id ? `/customers/${meeting.customer_id}` : "#"}
+          className="font-medium text-[#2C76FF] hover:underline"
+        >
+          {name ?? "Unknown"}
+        </Link>
+        {meeting.call_type && (
           <span className="text-xs text-zinc-500 dark:text-zinc-400">
             {CALL_TYPE_LABEL[meeting.call_type] ?? meeting.call_type}
           </span>
-        ) : (
-          <span className="text-xs text-zinc-400">Call type not confirmed</span>
         )}
       </div>
     );
@@ -134,15 +150,69 @@ function customerCell(
       />
     );
   }
-  if (meeting.customer_link_status === "unlinked")
-    return <span className="text-zinc-400">Left unlinked</span>;
-  if (meeting.customer_link_status === "cancelled")
-    return <span className="text-zinc-400">—</span>;
-  return <span className="text-zinc-400">Not applicable</span>;
+  return <span className="text-zinc-400 text-sm">—</span>;
+}
+
+function nextActionCell(
+  meeting: {
+    lifecycle_status: string;
+    customer_link_status: string | null;
+  },
+  transcript: { processing_status: string } | null,
+  intelligenceRunStatus: string | null,
+) {
+  // Needs review: Customer needs linking
+  if (meeting.customer_link_status === "needs_link") {
+    return (
+      <span className="text-sm text-amber-600 dark:text-amber-400">
+        Link customer
+      </span>
+    );
+  }
+  
+  // Done: Meeting completed with transcript
+  if (meeting.lifecycle_status === "completed" && transcript?.processing_status === "completed") {
+    if (intelligenceRunStatus === "completed") {
+      return (
+        <span className="text-sm text-zinc-500 dark:text-zinc-400">
+          Review recap
+        </span>
+      );
+    }
+    return (
+      <span className="text-sm text-zinc-500 dark:text-zinc-400">
+        Processing insights
+      </span>
+    );
+  }
+  
+  // Failed: Transcript or bot failed
+  if (transcript?.processing_status === "failed") {
+    return (
+      <span className="text-sm text-red-600 dark:text-red-400">
+        Transcript failed
+      </span>
+    );
+  }
+  
+  // Upcoming or in progress
+  return <span className="text-sm text-zinc-400">—</span>;
 }
 
 function formatDateTime(value: string) {
-  return new Date(value).toLocaleString(undefined, {
+  const date = new Date(value);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const meetingDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  
+  if (meetingDate.getTime() === today.getTime()) {
+    return `Today ${date.toLocaleTimeString(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    })}`;
+  }
+  
+  return date.toLocaleString(undefined, {
     month: "short",
     day: "numeric",
     hour: "numeric",
@@ -154,290 +224,192 @@ export default async function AdminMeetingsPage() {
   const supabase = await getSupabaseServerClient();
 
   const [
-    jobsResult,
     meetingsResult,
-    connectionsResult,
-    mappingsResult,
     botJobsResult,
     customersResult,
+    membershipsResult,
+    transcriptsResult,
+    intelligenceRunsResult,
   ] = await Promise.all([
-    supabase
-      .from("calendar_event_jobs")
-      .select(
-        "id, external_event_id, provider_user_key, change_type, status, attempts, last_error, run_at, created_at",
-      )
-      .order("created_at", { ascending: false })
-      .limit(50),
     supabase
       .from("meetings")
       .select(
-        "id, ical_uid, title, organizer_name, organizer_email, meeting_type, meeting_url, scheduled_start, scheduled_end, lifecycle_status, reason_code, updated_at, customer_id, customer_link_status, needs_link_reason, call_type, owner_membership_id",
+        "id, title, scheduled_start, lifecycle_status, customer_id, customer_link_status, needs_link_reason, call_type, owner_membership_id",
       )
       .order("scheduled_start", { ascending: false })
       .limit(50),
     supabase
-      .from("calendar_connections")
-      .select("id, status, last_sync_at, last_reconciliation_result")
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("meeting_external_events")
-      .select("meeting_id, external_event_id"),
-    supabase
       .from("meeting_bot_jobs")
-      .select(
-        "id, meeting_id, provider, provider_bot_id, status, generation, retry_count, last_error, scheduled_at, joined_at, created_at",
-      )
+      .select("id, meeting_id, status, generation, lobby_waiting_since")
       .order("generation", { ascending: false }),
     supabase.from("customers").select("id, name, owner_membership_id"),
+    supabase.from("organization_memberships").select("id, display_name"),
+    supabase
+      .from("meeting_transcripts")
+      .select("id, meeting_id, processing_status, error_code"),
+    supabase
+      .from("ai_runs")
+      .select("id, meeting_id, status")
+      .eq("run_type", "meeting_intelligence"),
   ]);
 
-  if (jobsResult.error) throw jobsResult.error;
   if (meetingsResult.error) throw meetingsResult.error;
-  if (connectionsResult.error) throw connectionsResult.error;
-  if (mappingsResult.error) throw mappingsResult.error;
   if (botJobsResult.error) throw botJobsResult.error;
   if (customersResult.error) throw customersResult.error;
+  if (membershipsResult.error) throw membershipsResult.error;
+  if (transcriptsResult.error) throw transcriptsResult.error;
+  if (intelligenceRunsResult.error) throw intelligenceRunsResult.error;
 
-  const jobs = jobsResult.data;
   const meetings = meetingsResult.data;
-  const connections = connectionsResult.data;
-  const mappings = mappingsResult.data;
   const botJobs = botJobsResult.data;
   const customers = customersResult.data;
+  const memberships = membershipsResult.data;
+  const transcripts = transcriptsResult.data;
+  const intelligenceRuns = intelligenceRunsResult.data;
+
   const customerNameById = new Map(customers.map((c) => [c.id, c.name]));
+  const membershipNameById = new Map(
+    memberships.map((m) => [m.id, m.display_name]),
+  );
   const customersByOwner = new Map<string, { id: string; name: string }[]>();
   for (const c of customers) {
     const existing = customersByOwner.get(c.owner_membership_id) ?? [];
     existing.push({ id: c.id, name: c.name });
     customersByOwner.set(c.owner_membership_id, existing);
   }
+
   const latestBotJobByMeetingId = new Map<string, (typeof botJobs)[number]>();
   for (const botJob of botJobs) {
     if (!latestBotJobByMeetingId.has(botJob.meeting_id))
       latestBotJobByMeetingId.set(botJob.meeting_id, botJob);
   }
 
-  // A canonical meeting can now be observed via more than one mailbox —
-  // gather every job across every mailbox copy mapped to each meeting, so
-  // "Sync state" reflects the whole meeting, not just one observer.
-  const jobsByExternalEventId = new Map<string, JobRow[]>();
-  for (const job of jobs) {
-    const existing = jobsByExternalEventId.get(job.external_event_id) ?? [];
-    existing.push(job);
-    jobsByExternalEventId.set(job.external_event_id, existing);
-  }
-  const jobsByMeetingId = new Map<string, JobRow[]>();
-  for (const mapping of mappings) {
-    const meetingJobs = jobsByExternalEventId.get(mapping.external_event_id);
-    if (!meetingJobs) continue;
-    const existing = jobsByMeetingId.get(mapping.meeting_id) ?? [];
-    jobsByMeetingId.set(mapping.meeting_id, existing.concat(meetingJobs));
-  }
+  const transcriptByMeetingId = new Map(
+    transcripts.map((t) => [t.meeting_id, t]),
+  );
 
-  const discoveredEventCount = new Set([
-    ...jobs.map((job) => job.external_event_id),
-    ...mappings.map((m) => m.external_event_id),
-  ]).size;
-  const teamsMeetingCount = meetings.filter(
-    (meeting) => meeting.meeting_type === "teams",
-  ).length;
+  const intelligenceRunByMeetingId = new Map(
+    intelligenceRuns.map((r) => [r.meeting_id, r.status]),
+  );
+
+  // Metrics for overview cards
   const upcomingCount = meetings.filter(
-    (meeting) => meeting.lifecycle_status === "upcoming",
+    (m) => m.lifecycle_status === "upcoming",
   ).length;
-  const cancelledCount = meetings.filter(
-    (meeting) => meeting.lifecycle_status === "cancelled",
+  const liveCount = meetings.filter(
+    (m) => latestBotJobByMeetingId.get(m.id)?.status === "joined",
   ).length;
-  const needsAttentionCount = jobs.filter(
-    (job) => job.status === "pending" || job.status === "dead_letter",
+  const completedCount = meetings.filter(
+    (m) => m.lifecycle_status === "completed",
+  ).length;
+  const needsLinkCount = meetings.filter(
+    (m) => m.customer_link_status === "needs_link",
   ).length;
 
   return (
-    <main className="flex flex-1 flex-col gap-8 p-8">
-      <h1 className="text-xl font-semibold tracking-tight">Meetings</h1>
+    <main className="flex flex-1 flex-col gap-6 p-8">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-[#1E1E1E]">
+            Meetings
+          </h1>
+          <p className="text-sm text-zinc-600 mt-1">
+            Track customer meetings, recordings, and transcripts
+          </p>
+        </div>
+      </div>
 
-      <section className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        <MetricCard label="Discovered events" value={discoveredEventCount} />
-        <MetricCard
-          label="Teams meetings"
-          value={teamsMeetingCount}
-          tone="info"
-        />
+      {/* Metrics Overview */}
+      <section className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <MetricCard label="Upcoming" value={upcomingCount} tone="info" />
         <MetricCard
-          label="Cancelled"
-          value={cancelledCount}
-          tone={cancelledCount > 0 ? "critical" : "neutral"}
+          label="Live now"
+          value={liveCount}
+          tone={liveCount > 0 ? "warning" : "neutral"}
         />
+        <MetricCard label="Completed" value={completedCount} tone="success" />
         <MetricCard
-          label="Needs attention"
-          value={needsAttentionCount}
-          tone={needsAttentionCount > 0 ? "warning" : "success"}
+          label="Needs review"
+          value={needsLinkCount}
+          tone={needsLinkCount > 0 ? "warning" : "neutral"}
         />
       </section>
 
-      <section className="flex flex-col gap-2">
-        <h2 className="font-medium">All meetings</h2>
-        <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
-          <table className="w-full min-w-[1200px] text-left text-sm">
-            <thead>
-              <tr className="border-b border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/50">
-                <th className="px-4 py-2.5">Meeting</th>
-                <th className="px-4 py-2.5">Organizer</th>
-                <th className="px-4 py-2.5">Start / End</th>
-                <th className="px-4 py-2.5">Teams</th>
-                <th className="px-4 py-2.5">Join URL</th>
-                <th className="px-4 py-2.5">Status</th>
-                <th className="px-4 py-2.5">Sync state</th>
-                <th className="px-4 py-2.5">Bot</th>
-                <th className="px-4 py-2.5">Customer</th>
-                <th className="px-4 py-2.5">Rescheduled</th>
-                <th className="px-4 py-2.5">Last updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {meetings.map((meeting) => (
-                <tr
-                  key={meeting.id}
-                  className="border-b border-zinc-100 last:border-0 dark:border-zinc-900"
-                >
-                  <td className="px-4 py-2.5">
-                    <Link
-                      href={`/admin/meetings/${meeting.id}`}
-                      className="font-medium hover:underline"
-                    >
-                      {meeting.title}
-                    </Link>
-                    <div className="font-mono text-xs text-zinc-400">
-                      {meeting.ical_uid}
-                    </div>
-                  </td>
-                  <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400">
-                    {meeting.organizer_name ?? meeting.organizer_email ?? "—"}
-                  </td>
-                  <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400">
-                    {formatDateTime(meeting.scheduled_start)} –{" "}
-                    {formatDateTime(meeting.scheduled_end)}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    {meeting.meeting_type === "teams" ? (
-                      <StatusBadge tone="info">Teams</StatusBadge>
-                    ) : (
-                      <span className="text-zinc-400">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    {meeting.meeting_url ? (
-                      <StatusBadge tone="success">Present</StatusBadge>
-                    ) : (
-                      <StatusBadge tone="neutral">Not present</StatusBadge>
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    {lifecycleBadge(meeting.lifecycle_status)}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    {syncStateBadge(jobsByMeetingId.get(meeting.id) ?? [])}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    {botStatusBadge(
-                      latestBotJobByMeetingId.get(meeting.id)?.status,
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    {customerCell(meeting, customerNameById, customersByOwner)}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    {meeting.reason_code === "rescheduled" ? (
-                      <StatusBadge tone="warning">Rescheduled</StatusBadge>
-                    ) : (
-                      <span className="text-zinc-400">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400">
-                    {formatDateTime(meeting.updated_at)}
-                  </td>
-                </tr>
-              ))}
-              {meetings.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={11}
-                    className="px-4 py-8 text-center text-zinc-500"
-                  >
-                    No meetings yet — meetings appear here once a connected
-                    calendar&apos;s events are discovered and synced.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+      {/* Main Meetings Table */}
+      <section className="flex flex-col gap-3 bg-white rounded-xl border border-zinc-200 shadow-sm">
+        <div className="px-6 py-4 border-b border-zinc-200">
+          <h2 className="font-semibold text-[#1E1E1E]">
+            Recent meetings
+          </h2>
         </div>
-      </section>
-
-      <section className="flex flex-col gap-2">
-        <h2 className="font-medium">Calendar sync &amp; reconciliation</h2>
-        <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
-          <table className="w-full min-w-[700px] text-left text-sm">
+        
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1100px] text-left text-sm">
             <thead>
-              <tr className="border-b border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/50">
-                <th className="px-4 py-2.5">Connection</th>
-                <th className="px-4 py-2.5">Status</th>
-                <th className="px-4 py-2.5">Last sync</th>
-                <th className="px-4 py-2.5">Events seen</th>
-                <th className="px-4 py-2.5">Cancelled</th>
-                <th className="px-4 py-2.5">Last reconciliation run</th>
+              <tr className="border-b border-zinc-200 bg-zinc-50 text-zinc-700">
+                <th className="px-6 py-3 font-medium">Status</th>
+                <th className="px-6 py-3 font-medium">Meeting</th>
+                <th className="px-6 py-3 font-medium">When</th>
+                <th className="px-6 py-3 font-medium">Account Manager</th>
+                <th className="px-6 py-3 font-medium">Customer</th>
+                <th className="px-6 py-3 font-medium">Echo Bot</th>
+                <th className="px-6 py-3 font-medium">Transcript</th>
+                <th className="px-6 py-3 font-medium">Next action</th>
               </tr>
             </thead>
             <tbody>
-              {connections.map((connection) => {
-                const result = connection.last_reconciliation_result as {
-                  eventsSeen?: number;
-                  cancelled?: number;
-                  ranAt?: string;
-                } | null;
+              {meetings.map((meeting) => {
+                const botJob = latestBotJobByMeetingId.get(meeting.id);
+                const transcript = transcriptByMeetingId.get(meeting.id);
+                const intelligenceStatus = intelligenceRunByMeetingId.get(meeting.id);
+                
                 return (
                   <tr
-                    key={connection.id}
-                    className="border-b border-zinc-100 last:border-0 dark:border-zinc-900"
+                    key={meeting.id}
+                    className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50 transition-colors"
                   >
-                    <td className="px-4 py-2.5 font-mono text-xs">
-                      {connection.id.slice(0, 8)}
+                    <td className="px-6 py-4">
+                      {meetingStatusBadge(meeting.lifecycle_status, botJob?.status)}
                     </td>
-                    <td className="px-4 py-2.5">
-                      {connection.status === "active" ? (
-                        <StatusBadge tone="success">Active</StatusBadge>
-                      ) : (
-                        <StatusBadge tone="neutral">
-                          {connection.status}
-                        </StatusBadge>
-                      )}
+                    <td className="px-6 py-4">
+                      <Link
+                        href={`/admin/meetings/${meeting.id}`}
+                        className="font-medium text-[#2C76FF] hover:underline"
+                      >
+                        {meeting.title}
+                      </Link>
                     </td>
-                    <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400">
-                      {connection.last_sync_at
-                        ? formatDateTime(connection.last_sync_at)
-                        : "Never"}
+                    <td className="px-6 py-4 text-zinc-600">
+                      {formatDateTime(meeting.scheduled_start)}
                     </td>
-                    <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400">
-                      {result?.eventsSeen ?? "—"}
+                    <td className="px-6 py-4 text-zinc-600">
+                      {meeting.owner_membership_id
+                        ? membershipNameById.get(meeting.owner_membership_id) ?? "—"
+                        : "—"}
                     </td>
-                    <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400">
-                      {result?.cancelled ?? "—"}
+                    <td className="px-6 py-4">
+                      {customerCell(meeting, customerNameById, customersByOwner)}
                     </td>
-                    <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400">
-                      {result?.ranAt
-                        ? formatDateTime(result.ranAt)
-                        : "Never run"}
+                    <td className="px-6 py-4">
+                      {botStatusBadge(botJob?.status, !!botJob?.lobby_waiting_since)}
+                    </td>
+                    <td className="px-6 py-4">
+                      {transcriptStatusBadge(transcript ?? null)}
+                    </td>
+                    <td className="px-6 py-4">
+                      {nextActionCell(meeting, transcript ?? null, intelligenceStatus ?? null)}
                     </td>
                   </tr>
                 );
               })}
-              {connections.length === 0 && (
+              {meetings.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
-                    className="px-4 py-8 text-center text-zinc-500"
+                    colSpan={8}
+                    className="px-6 py-12 text-center text-zinc-500"
                   >
-                    No Microsoft connections in this organization.
+                    No meetings yet. Meetings will appear here once your calendar is connected.
                   </td>
                 </tr>
               )}
@@ -446,112 +418,45 @@ export default async function AdminMeetingsPage() {
         </div>
       </section>
 
-      <details className="group">
-        <summary className="cursor-pointer text-sm font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
-          Discovery / Technical — raw queue log
+      {/* Technical Details - Optional Disclosure */}
+      <details className="group bg-white rounded-xl border border-zinc-200 shadow-sm">
+        <summary className="cursor-pointer px-6 py-4 font-medium text-zinc-700 hover:text-[#2C76FF] transition-colors">
+          🔧 Technical details (for admins)
         </summary>
-        <div className="mt-2 overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
-          <table className="w-full min-w-[700px] text-left text-sm">
-            <thead>
-              <tr className="border-b border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/50">
-                <th className="px-4 py-2.5">Source event ID</th>
-                <th className="px-4 py-2.5">Mailbox</th>
-                <th className="px-4 py-2.5">Change type</th>
-                <th className="px-4 py-2.5">Status</th>
-                <th className="px-4 py-2.5">Attempts</th>
-                <th className="px-4 py-2.5">Last error</th>
-                <th className="px-4 py-2.5">Discovered</th>
-              </tr>
-            </thead>
-            <tbody>
-              {jobs.map((job) => (
-                <tr
-                  key={job.id}
-                  className="border-b border-zinc-100 last:border-0 dark:border-zinc-900"
-                >
-                  <td className="px-4 py-2.5 font-mono text-xs">
-                    {job.external_event_id}
-                  </td>
-                  <td className="px-4 py-2.5">{job.provider_user_key}</td>
-                  <td className="px-4 py-2.5">{job.change_type}</td>
-                  <td className="px-4 py-2.5">{job.status}</td>
-                  <td className="px-4 py-2.5">{job.attempts}</td>
-                  <td className="px-4 py-2.5">{job.last_error ?? "—"}</td>
-                  <td className="px-4 py-2.5">
-                    {formatDateTime(job.created_at)}
-                  </td>
-                </tr>
-              ))}
-              {jobs.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="px-4 py-8 text-center text-zinc-500"
-                  >
-                    No calendar events discovered yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </details>
-
-      <details className="group">
-        <summary className="cursor-pointer text-sm font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
-          Meeting Assistant / Technical — bot job log
-        </summary>
-        <div className="mt-2 overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
-          <table className="w-full min-w-[900px] text-left text-sm">
-            <thead>
-              <tr className="border-b border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/50">
-                <th className="px-4 py-2.5">Meeting</th>
-                <th className="px-4 py-2.5">Provider</th>
-                <th className="px-4 py-2.5">Status</th>
-                <th className="px-4 py-2.5">Generation</th>
-                <th className="px-4 py-2.5">Retries</th>
-                <th className="px-4 py-2.5">Scheduled</th>
-                <th className="px-4 py-2.5">Joined</th>
-                <th className="px-4 py-2.5">Last error</th>
-              </tr>
-            </thead>
-            <tbody>
-              {botJobs.map((job) => (
-                <tr
-                  key={job.id}
-                  className="border-b border-zinc-100 last:border-0 dark:border-zinc-900"
-                >
-                  <td className="px-4 py-2.5">
-                    {meetings.find((m) => m.id === job.meeting_id)?.title ??
-                      job.meeting_id}
-                  </td>
-                  <td className="px-4 py-2.5">{job.provider}</td>
-                  <td className="px-4 py-2.5">{botStatusBadge(job.status)}</td>
-                  <td className="px-4 py-2.5">{job.generation}</td>
-                  <td className="px-4 py-2.5">{job.retry_count}</td>
-                  <td className="px-4 py-2.5">
-                    {job.scheduled_at ? formatDateTime(job.scheduled_at) : "—"}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    {job.joined_at ? formatDateTime(job.joined_at) : "—"}
-                  </td>
-                  <td className="px-4 py-2.5 text-red-600 dark:text-red-400">
-                    {job.last_error ?? "—"}
-                  </td>
-                </tr>
-              ))}
-              {botJobs.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={8}
-                    className="px-4 py-8 text-center text-zinc-500"
-                  >
-                    No bot jobs yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <div className="px-6 pb-6 pt-2 space-y-6">
+          <div className="text-sm text-zinc-600 space-y-2">
+            <p className="font-medium text-zinc-700">Debug Information</p>
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div>
+                <span className="font-mono text-zinc-500">Total meetings loaded:</span>{" "}
+                <span className="font-mono">{meetings.length}</span>
+              </div>
+              <div>
+                <span className="font-mono text-zinc-500">Bot jobs tracked:</span>{" "}
+                <span className="font-mono">{botJobs.length}</span>
+              </div>
+              <div>
+                <span className="font-mono text-zinc-500">Transcripts processed:</span>{" "}
+                <span className="font-mono">{transcripts.length}</span>
+              </div>
+              <div>
+                <span className="font-mono text-zinc-500">Intelligence runs:</span>{" "}
+                <span className="font-mono">{intelligenceRuns.length}</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="rounded-lg bg-zinc-50 p-4 text-xs font-mono space-y-1">
+            <p className="text-zinc-500">Raw database queries returning real data from:</p>
+            <ul className="list-disc list-inside text-zinc-600 space-y-0.5 ml-2">
+              <li>meetings (lifecycle, scheduling)</li>
+              <li>meeting_bot_jobs (Echo bot status)</li>
+              <li>meeting_transcripts (transcription pipeline)</li>
+              <li>ai_runs (intelligence processing)</li>
+              <li>customers (customer linkage)</li>
+              <li>organization_memberships (AM attribution)</li>
+            </ul>
+          </div>
         </div>
       </details>
     </main>

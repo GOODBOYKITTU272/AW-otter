@@ -38,6 +38,7 @@ function meetingFields(event: MicrosoftCalendarEvent, rescheduled: boolean) {
     graph_event_type: event.graphEventType,
     series_master_id: event.seriesMasterId,
     original_start: event.originalStart,
+    online_meeting_id: event.onlineMeetingId,
   };
 }
 

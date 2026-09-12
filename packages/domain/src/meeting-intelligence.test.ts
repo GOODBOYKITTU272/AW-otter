@@ -159,6 +159,13 @@ function createFakeSupabase(
         }
         return applyWrite();
       },
+      async maybeSingle() {
+        if (op === "select") {
+          const rows = currentRows();
+          return { data: rows[0] ?? null, error: null };
+        }
+        return applyWrite();
+      },
       then(
         onFulfilled: (value: { data: unknown; error: unknown }) => unknown,
         onRejected?: (reason: unknown) => unknown,
@@ -262,6 +269,56 @@ function createFakeSupabase(
       return { data: true, error: null };
     }
 
+    if (fnName === "save_meeting_integrity_report_atomic") {
+      const reports = tables.meeting_integrity_reports;
+      const flags = tables.meeting_integrity_flags;
+      if (!reports) return { data: null, error: null };
+
+      const existing = reports.rows.find(
+        (r) =>
+          r.organization_id === args?.p_organization_id &&
+          r.meeting_id === args?.p_meeting_id,
+      );
+      if (existing) {
+        Object.assign(existing, {
+          overall_verdict: args?.p_overall_verdict,
+          summary: args?.p_summary,
+          confidence_score_avg: args?.p_confidence_score_avg,
+          suspected_background_media: args?.p_suspected_background_media,
+          metrics: args?.p_metrics,
+        });
+      } else {
+        reports.rows.push({
+          id: reports.genId(),
+          organization_id: args?.p_organization_id,
+          meeting_id: args?.p_meeting_id,
+          overall_verdict: args?.p_overall_verdict,
+          summary: args?.p_summary,
+          confidence_score_avg: args?.p_confidence_score_avg,
+          suspected_background_media: args?.p_suspected_background_media,
+          metrics: args?.p_metrics,
+        });
+      }
+
+      const reportId = existing?.id ?? reports.rows[reports.rows.length - 1]?.id;
+
+      if (flags && reportId) {
+        flags.rows = flags.rows.filter((f) => f.report_id !== reportId);
+        const incomingFlags = (args?.p_flags as Row[] | undefined) ?? [];
+        for (const flag of incomingFlags) {
+          flags.rows.push({
+            id: flags.genId(),
+            organization_id: args?.p_organization_id,
+            report_id: reportId,
+            meeting_id: args?.p_meeting_id,
+            ...flag,
+          });
+        }
+      }
+
+      return { data: { id: reportId }, error: null };
+    }
+
     return { data: null, error: { message: `unmocked rpc: ${fnName}` } };
   }
 
@@ -277,6 +334,8 @@ function baseTables() {
     call_records: new FakeTable("record"),
     customer_truth_facts: new FakeTable("fact"),
     meeting_lifecycle_events: new FakeTable("event"),
+    meeting_integrity_reports: new FakeTable("integrity_report"),
+    meeting_integrity_flags: new FakeTable("integrity_flag"),
   };
 }
 
@@ -288,6 +347,15 @@ describe("enqueuePendingIntelligenceRuns", () => {
       meeting_id: "m1",
       organization_id: "org1",
       processing_status: "completed",
+    });
+    tables.transcript_segments.rows.push({
+      id: "seg1",
+      transcript_id: "t1",
+      sequence_index: 0,
+      start_ms: 0,
+      end_ms: 15000,
+      original_text: "Test segment",
+      canonical_english_text: "Test segment",
     });
     const supabase = createFakeSupabase(tables);
 
@@ -305,6 +373,15 @@ describe("enqueuePendingIntelligenceRuns", () => {
       organization_id: "org1",
       processing_status: "completed",
     });
+    tables.transcript_segments.rows.push({
+      id: "seg1",
+      transcript_id: "t1",
+      sequence_index: 0,
+      start_ms: 0,
+      end_ms: 15000,
+      original_text: "Test",
+      canonical_english_text: "Test",
+    });
     const supabase = createFakeSupabase(tables);
 
     await enqueuePendingIntelligenceRuns(supabase, "org1");
@@ -313,7 +390,7 @@ describe("enqueuePendingIntelligenceRuns", () => {
     expect(tables.ai_runs.rows).toHaveLength(1);
   });
 
-  it("does not block intelligence enqueue if integrity evaluation or RPC throws", async () => {
+  it("skips meetings where integrity evaluation fails (conservative: don't process without verification)", async () => {
     const tables = baseTables();
     tables.meeting_transcripts.rows.push({
       id: "t1",
@@ -324,9 +401,9 @@ describe("enqueuePendingIntelligenceRuns", () => {
     const supabase = createFakeSupabase(tables, { failIntegrity: true });
 
     const result = await enqueuePendingIntelligenceRuns(supabase, "org1");
-    expect(result.enqueued).toBe(1);
-    expect(tables.ai_runs.rows).toHaveLength(1);
-    expect(tables.ai_runs.rows[0]?.status).toBe("pending");
+    // Phase 4: integrity evaluation failure now blocks (conservative approach)
+    expect(result.enqueued).toBe(0);
+    expect(tables.ai_runs.rows).toHaveLength(0);
   });
 });
 
@@ -348,6 +425,14 @@ describe("processIntelligenceRun", () => {
       original_text: "raw",
       canonical_english_text: "clean text",
       speaker_label: "speaker_unknown",
+    });
+    // Phase 4: default PASS integrity so process tests exercise the happy path
+    tables.meeting_integrity_reports.rows.push({
+      id: "report1",
+      organization_id: "org1",
+      meeting_id: "m1",
+      overall_verdict: "good",
+      summary: "Clean transcript",
     });
     const run = {
       id: "run1",
@@ -601,6 +686,20 @@ describe("processIntelligenceQueue", () => {
       status: "pending",
       retry_count: 0,
     });
+    tables.meeting_integrity_reports.rows.push({
+      id: "report1",
+      organization_id: "org1",
+      meeting_id: "m1",
+      overall_verdict: "good",
+      summary: "Clean",
+    });
+    tables.meeting_integrity_reports.rows.push({
+      id: "report2",
+      organization_id: "org1",
+      meeting_id: "m2",
+      overall_verdict: "good",
+      summary: "Clean",
+    });
     const supabase = createFakeSupabase(tables);
     const provider = new FakeMeetingIntelligenceProvider({
       result: fakeResult(),
@@ -675,5 +774,408 @@ describe("materializeReadyCustomerTruthDeltas", () => {
       tables.ai_runs.rows.find((r) => r.id === "run2")
         ?.customer_truth_materialized_at,
     ).toBeNull();
+  });
+});
+
+describe("Phase 4: Integrity Gate Enforcement — Hard Block for FAIL Verdicts", () => {
+  describe("enqueuePendingIntelligenceRuns: FAIL blocks enqueue", () => {
+    it("does NOT enqueue intelligence when integrity verdict is transcription_unreliable", async () => {
+      const tables = baseTables();
+      tables.meeting_transcripts.rows.push({
+        id: "t1",
+        meeting_id: "m1",
+        organization_id: "org1",
+        processing_status: "completed",
+      });
+      tables.transcript_segments.rows.push({
+        id: "seg1",
+        transcript_id: "t1",
+        sequence_index: 0,
+        start_ms: 0,
+        end_ms: 15000,
+        original_text: "Test",
+        canonical_english_text: "Test",
+      });
+      tables.meeting_integrity_reports.rows.push({
+        id: "report1",
+        organization_id: "org1",
+        meeting_id: "m1",
+        overall_verdict: "transcription_unreliable",
+        summary: "Critical hallucination loops detected",
+      });
+      const supabase = createFakeSupabase(tables);
+
+      const result = await enqueuePendingIntelligenceRuns(supabase, "org1");
+
+      expect(result.enqueued).toBe(0);
+      expect(tables.ai_runs.rows).toHaveLength(0);
+      expect(
+        tables.meeting_lifecycle_events.rows.some(
+          (e) => e.event_type === "meeting_intelligence.blocked_by_integrity",
+        ),
+      ).toBe(true);
+    });
+
+    it("does NOT enqueue intelligence when integrity verdict is insufficient_speech", async () => {
+      const tables = baseTables();
+      tables.meeting_transcripts.rows.push({
+        id: "t1",
+        meeting_id: "m1",
+        organization_id: "org1",
+        processing_status: "completed",
+      });
+      tables.transcript_segments.rows.push({
+        id: "seg1",
+        transcript_id: "t1",
+        sequence_index: 0,
+        start_ms: 0,
+        end_ms: 15000,
+        original_text: "Test",
+        canonical_english_text: "Test",
+      });
+      tables.meeting_integrity_reports.rows.push({
+        id: "report1",
+        organization_id: "org1",
+        meeting_id: "m1",
+        overall_verdict: "insufficient_speech",
+        summary: "Less than 10 seconds of transcribed speech",
+      });
+      const supabase = createFakeSupabase(tables);
+
+      const result = await enqueuePendingIntelligenceRuns(supabase, "org1");
+
+      expect(result.enqueued).toBe(0);
+      expect(tables.ai_runs.rows).toHaveLength(0);
+    });
+
+    it("DOES enqueue intelligence when integrity verdict is needs_review (WARN policy)", async () => {
+      const tables = baseTables();
+      tables.meeting_transcripts.rows.push({
+        id: "t1",
+        meeting_id: "m1",
+        organization_id: "org1",
+        processing_status: "completed",
+      });
+      tables.transcript_segments.rows.push({
+        id: "seg1",
+        transcript_id: "t1",
+        sequence_index: 0,
+        start_ms: 0,
+        end_ms: 15000,
+        original_text: "Test",
+        canonical_english_text: "Test",
+      });
+      tables.meeting_integrity_reports.rows.push({
+        id: "report1",
+        organization_id: "org1",
+        meeting_id: "m1",
+        overall_verdict: "needs_review",
+        summary: "Transcript repetition warnings detected",
+      });
+      const supabase = createFakeSupabase(tables);
+
+      const result = await enqueuePendingIntelligenceRuns(supabase, "org1");
+
+      expect(result.enqueued).toBe(1);
+      expect(tables.ai_runs.rows).toHaveLength(1);
+      expect(tables.meeting_integrity_reports.rows[0]?.overall_verdict).toBe(
+        "needs_review",
+      );
+    });
+
+    it("DOES enqueue intelligence when integrity verdict is good (PASS)", async () => {
+      const tables = baseTables();
+      tables.meeting_transcripts.rows.push({
+        id: "t1",
+        meeting_id: "m1",
+        organization_id: "org1",
+        processing_status: "completed",
+      });
+      tables.transcript_segments.rows.push({
+        id: "seg1",
+        transcript_id: "t1",
+        sequence_index: 0,
+        start_ms: 0,
+        end_ms: 15000,
+        original_text: "Test",
+        canonical_english_text: "Test",
+      });
+      tables.meeting_integrity_reports.rows.push({
+        id: "report1",
+        organization_id: "org1",
+        meeting_id: "m1",
+        overall_verdict: "good",
+        summary: "Clean transcript",
+      });
+      const supabase = createFakeSupabase(tables);
+
+      const result = await enqueuePendingIntelligenceRuns(supabase, "org1");
+
+      expect(result.enqueued).toBe(1);
+      expect(tables.ai_runs.rows).toHaveLength(1);
+    });
+  });
+
+  describe("processIntelligenceRun: FAIL blocks processing (defense in depth)", () => {
+    it("refuses to process ai_run when integrity verdict is transcription_unreliable", async () => {
+      const tables = baseTables();
+      tables.meetings.rows.push({
+        id: "m1",
+        organization_id: "org1",
+        call_type: "discovery",
+        customer_id: "cust1",
+      });
+      tables.meeting_integrity_reports.rows.push({
+        id: "report1",
+        organization_id: "org1",
+        meeting_id: "m1",
+        overall_verdict: "transcription_unreliable",
+        summary: "Critical hallucination loops",
+      });
+      tables.transcript_segments.rows.push({
+        id: "seg1",
+        transcript_id: "t1",
+        sequence_index: 0,
+        original_text: "test",
+        canonical_english_text: "test",
+      });
+      const run = {
+        id: "run1",
+        organization_id: "org1",
+        meeting_id: "m1",
+        transcript_id: "t1",
+        status: "running",
+        retry_count: 0,
+        customer_truth_materialized_at: null,
+      };
+      tables.ai_runs.rows.push(run);
+      const supabase = createFakeSupabase(tables);
+      const provider = new FakeMeetingIntelligenceProvider({
+        result: fakeResult({}),
+        model: "test",
+        usage: { promptTokens: 1, completionTokens: 1, cost: null },
+        providerMetadata: {},
+      });
+
+      await processIntelligenceRun(supabase, run as never, { provider });
+
+      const updatedRun = tables.ai_runs.rows[0];
+      expect(updatedRun?.status).not.toBe("completed");
+      expect(updatedRun?.status).toMatch(/failed|retryable/);
+      expect(provider.extractCalls).toHaveLength(0);
+      expect(tables.call_records.rows).toHaveLength(0);
+    });
+
+    it("refuses to process ai_run when integrity verdict is insufficient_speech", async () => {
+      const tables = baseTables();
+      tables.meetings.rows.push({
+        id: "m1",
+        organization_id: "org1",
+        call_type: "discovery",
+        customer_id: "cust1",
+      });
+      tables.meeting_integrity_reports.rows.push({
+        id: "report1",
+        organization_id: "org1",
+        meeting_id: "m1",
+        overall_verdict: "insufficient_speech",
+        summary: "Less than 10s of speech",
+      });
+      tables.transcript_segments.rows.push({
+        id: "seg1",
+        transcript_id: "t1",
+        sequence_index: 0,
+        original_text: "test",
+        canonical_english_text: "test",
+      });
+      const run = {
+        id: "run1",
+        organization_id: "org1",
+        meeting_id: "m1",
+        transcript_id: "t1",
+        status: "running",
+        retry_count: 0,
+        customer_truth_materialized_at: null,
+      };
+      tables.ai_runs.rows.push(run);
+      const supabase = createFakeSupabase(tables);
+      const provider = new FakeMeetingIntelligenceProvider({
+        result: fakeResult({}),
+        model: "test",
+        usage: { promptTokens: 1, completionTokens: 1, cost: null },
+        providerMetadata: {},
+      });
+
+      await processIntelligenceRun(supabase, run as never, { provider });
+
+      expect(tables.ai_runs.rows[0]?.status).not.toBe("completed");
+      expect(provider.extractCalls).toHaveLength(0);
+    });
+  });
+
+  describe("Gate checklist proofs", () => {
+    it("INTEGRITY FAIL BLOCKS AI + CUSTOMER TRUTH; FAILED EVIDENCE PRESERVED; PASS CAN CONTINUE", async () => {
+      const tables = baseTables();
+      tables.meetings.rows.push({
+        id: "m1",
+        organization_id: "org1",
+        call_type: "discovery",
+        customer_id: "cust1",
+      });
+      tables.meeting_transcripts.rows.push({
+        id: "t1",
+        meeting_id: "m1",
+        organization_id: "org1",
+        processing_status: "completed",
+      });
+      tables.transcript_segments.rows.push({
+        id: "seg1",
+        transcript_id: "t1",
+        sequence_index: 0,
+        start_ms: 0,
+        end_ms: 15000,
+        original_text: "test",
+        canonical_english_text: "test",
+      });
+      tables.meeting_integrity_reports.rows.push({
+        id: "report1",
+        organization_id: "org1",
+        meeting_id: "m1",
+        overall_verdict: "transcription_unreliable",
+        summary: "Critical",
+      });
+      const supabase = createFakeSupabase(tables);
+
+      const enqueueResult = await enqueuePendingIntelligenceRuns(supabase, "org1");
+      expect(enqueueResult.enqueued).toBe(0);
+      expect(tables.ai_runs.rows).toHaveLength(0);
+      expect(tables.customer_truth_facts.rows).toHaveLength(0);
+      // FAILED EVIDENCE PRESERVED
+      expect(tables.meeting_integrity_reports.rows).toHaveLength(1);
+      expect(tables.meeting_integrity_reports.rows[0]?.overall_verdict).toBe(
+        "transcription_unreliable",
+      );
+    });
+
+    it("PASS CAN CONTINUE through enqueue and process", async () => {
+      const tables = baseTables();
+      tables.meetings.rows.push({
+        id: "m1",
+        organization_id: "org1",
+        call_type: "discovery",
+        customer_id: "cust1",
+      });
+      tables.meeting_transcripts.rows.push({
+        id: "t1",
+        meeting_id: "m1",
+        organization_id: "org1",
+        processing_status: "completed",
+      });
+      tables.transcript_segments.rows.push({
+        id: "seg1",
+        transcript_id: "t1",
+        sequence_index: 0,
+        start_ms: 0,
+        end_ms: 15000,
+        original_text: "test",
+        canonical_english_text: "test",
+      });
+      tables.meeting_integrity_reports.rows.push({
+        id: "report1",
+        organization_id: "org1",
+        meeting_id: "m1",
+        overall_verdict: "good",
+        summary: "Clean",
+      });
+      const supabase = createFakeSupabase(tables);
+
+      const enqueueResult = await enqueuePendingIntelligenceRuns(supabase, "org1");
+      const provider = new FakeMeetingIntelligenceProvider({
+        result: fakeResult({
+          callRecords: [
+            {
+              recordType: "action_item",
+              description: "Follow up",
+              ownerType: "am",
+              ownerRef: null,
+              dueAt: null,
+              evidenceSegmentIds: ["seg1"],
+            },
+          ],
+          customerTruthDeltas: [
+            {
+              fieldKey: "target_roles",
+              previousValue: null,
+              proposedValue: "Python",
+              confidence: 0.9,
+              evidenceSegmentIds: ["seg1"],
+            },
+          ],
+        }),
+        model: "test",
+        usage: { promptTokens: 1, completionTokens: 1, cost: null },
+        providerMetadata: {},
+      });
+
+      expect(enqueueResult.enqueued).toBe(1);
+      await processIntelligenceRun(supabase, tables.ai_runs.rows[0] as never, {
+        provider,
+      });
+
+      expect(tables.ai_runs.rows[0]?.status).toBe("completed");
+      expect(tables.call_records.rows).toHaveLength(1);
+      expect(tables.customer_truth_facts.rows).toHaveLength(1);
+    });
+
+    it("WARN POLICY EXPLICIT: needs_review allows processing but remains auditable", async () => {
+      const tables = baseTables();
+      tables.meetings.rows.push({
+        id: "m1",
+        organization_id: "org1",
+        call_type: "discovery",
+        customer_id: "cust1",
+      });
+      tables.meeting_transcripts.rows.push({
+        id: "t1",
+        meeting_id: "m1",
+        organization_id: "org1",
+        processing_status: "completed",
+      });
+      tables.transcript_segments.rows.push({
+        id: "seg1",
+        transcript_id: "t1",
+        sequence_index: 0,
+        start_ms: 0,
+        end_ms: 15000,
+        original_text: "test",
+        canonical_english_text: "test",
+      });
+      tables.meeting_integrity_reports.rows.push({
+        id: "report1",
+        organization_id: "org1",
+        meeting_id: "m1",
+        overall_verdict: "needs_review",
+        summary: "Repetition warnings",
+      });
+      const supabase = createFakeSupabase(tables);
+
+      const enqueueResult = await enqueuePendingIntelligenceRuns(supabase, "org1");
+      const provider = new FakeMeetingIntelligenceProvider({
+        result: fakeResult({}),
+        model: "test",
+        usage: { promptTokens: 1, completionTokens: 1, cost: null },
+        providerMetadata: {},
+      });
+
+      expect(enqueueResult.enqueued).toBe(1);
+      await processIntelligenceRun(supabase, tables.ai_runs.rows[0] as never, {
+        provider,
+      });
+
+      expect(tables.ai_runs.rows[0]?.status).toBe("completed");
+      expect(tables.meeting_integrity_reports.rows[0]?.overall_verdict).toBe(
+        "needs_review",
+      );
+    });
   });
 });

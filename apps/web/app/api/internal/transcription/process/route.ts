@@ -11,7 +11,9 @@ import {
 import {
   OpenRouterNormalizationProvider,
   OpenRouterTranscriptionProvider,
+  SarvamTranscriptionProvider,
   createTranscriptionProvider,
+  type TranscriptionProvider,
 } from "@applywizz/transcription";
 import {
   getAzureMaiEnv,
@@ -91,6 +93,7 @@ export async function POST(request: NextRequest) {
 
   const azureMaiEnv = getAzureMaiEnv();
   const transcriptionConfig = getTranscriptionConfigEnv();
+  const sarvamApiKey = process.env.SARVAM_API_KEY;
 
   const transcriptionProvider = createTranscriptionProvider({
     primaryProvider: transcriptionConfig.TRANSCRIPTION_PRIMARY_PROVIDER,
@@ -101,20 +104,36 @@ export async function POST(request: NextRequest) {
           region: azureMaiEnv.AZURE_MAI_REGION,
         }
       : undefined,
+    sarvam: sarvamApiKey ? { apiKey: sarvamApiKey } : undefined,
     openRouter: {
       apiKey: openRouterEnv.OPENROUTER_API_KEY,
     },
   });
 
-  const fallbackProvider =
-    transcriptionConfig.TRANSCRIPTION_PRIMARY_PROVIDER === "azure-mai"
-      ? new OpenRouterTranscriptionProvider(openRouterEnv.OPENROUTER_API_KEY)
-      : undefined;
+  // Phase 3: Three-provider fallback chain for azure-mai primary (Azure → Sarvam → Whisper)
+  let providers: TranscriptionProvider[] | undefined = undefined;
+  let fallbackProvider: TranscriptionProvider | undefined = undefined;
+
+  if (transcriptionConfig.TRANSCRIPTION_PRIMARY_PROVIDER === "azure-mai") {
+    const whisperProvider = new OpenRouterTranscriptionProvider(openRouterEnv.OPENROUTER_API_KEY);
+    if (sarvamApiKey) {
+      // Full three-provider chain: Azure → Sarvam → Whisper
+      const sarvamProvider = new SarvamTranscriptionProvider(sarvamApiKey);
+      providers = [transcriptionProvider, sarvamProvider, whisperProvider];
+    } else {
+      // Sarvam not configured, skip it: Azure → Whisper
+      providers = [transcriptionProvider, whisperProvider];
+    }
+  } else {
+    // For non-azure primary, keep legacy two-slot behavior (no fallback)
+    fallbackProvider = undefined;
+  }
 
   const deps = {
     vexaEnv,
     transcriptionProvider,
     fallbackProvider,
+    providers,
     normalizationProvider: new OpenRouterNormalizationProvider(
       openRouterEnv.OPENROUTER_API_KEY,
     ),

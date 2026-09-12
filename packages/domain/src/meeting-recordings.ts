@@ -6,6 +6,10 @@ import {
   getMeetingRecordingRef,
   type VexaEnv,
 } from "@applywizz/meeting-bots";
+import {
+  downloadGraphRecording,
+  pollForCloudRecording,
+} from "@applywizz/microsoft";
 
 export type AppSupabaseClient = SupabaseClient<Database>;
 
@@ -13,31 +17,39 @@ type MeetingRecordingRow = Database["public"]["Tables"]["meeting_recordings"]["R
 
 export const MEETING_RECORDINGS_BUCKET = "meeting-recordings";
 
+export type MediaKind = "audio" | "video";
+
 /**
  * One helper owns path construction — nothing else in this codebase
  * builds a meeting_recordings storage path. Deterministic by design
- * (spec §6): the SAME organizationId+meetingId always produces the SAME
- * path, which is what makes crash recovery (Task 5) possible without
- * needing to look anything up first.
+ * (P3 extension): the SAME organizationId+meetingId+mediaKind always
+ * produces the SAME path, which is what makes crash recovery possible
+ * without needing to look anything up first.
+ *
+ * P3 change: now includes media_kind in path to support both audio and
+ * video artifacts for the same meeting.
  */
 export function getMeetingRecordingStoragePath(
   organizationId: string,
   meetingId: string,
+  mediaKind: MediaKind,
   extension: string,
 ): string {
-  return `organizations/${organizationId}/meetings/${meetingId}/original.${extension}`;
+  return `organizations/${organizationId}/meetings/${meetingId}/${mediaKind}.original.${extension}`;
 }
 
 /**
- * Provider-independent shape (spec §5/§10) — deliberately does not
- * include source_metadata, which stays internal to this module and is
- * only ever surfaced through the admin-only Technical Details path
- * Meeting Detail already established, never through this type.
+ * Provider-independent shape (P3 extension: now includes mediaKind) —
+ * deliberately does not include source_metadata, which stays internal
+ * to this module and is only ever surfaced through the admin-only
+ * Technical Details path Meeting Detail already established, never
+ * through this type.
  */
 export interface OwnedRecordingRef {
   id: string;
   organizationId: string;
   meetingId: string;
+  mediaKind: MediaKind;
   storageBucket: string;
   storagePath: string;
   contentType: string;
@@ -58,6 +70,7 @@ function toOwnedRecordingRef(row: MeetingRecordingRow): OwnedRecordingRef {
     id: row.id,
     organizationId: row.organization_id,
     meetingId: row.meeting_id,
+    mediaKind: row.media_kind as MediaKind,
     storageBucket: row.storage_bucket,
     storagePath: row.storage_path,
     contentType: row.content_type,
@@ -69,24 +82,51 @@ function toOwnedRecordingRef(row: MeetingRecordingRow): OwnedRecordingRef {
 }
 
 /**
- * UNIQUE(organization_id, meeting_id) (Task 1 migration) means at most one
- * row per meeting — .maybeSingle() is correct here, not .single() or an
- * array read.
+ * P3: UNIQUE(organization_id, meeting_id, media_kind) means at most one
+ * row per meeting per kind — .maybeSingle() is correct here when fetching
+ * a specific kind.
  */
 export async function getOwnedMeetingRecording(
   supabase: AppSupabaseClient,
   meetingId: string,
+  mediaKind: MediaKind,
 ): Promise<OwnedRecordingRef | null> {
   const { data, error } = await supabase
     .from("meeting_recordings")
     .select(
-      "id, organization_id, meeting_id, storage_bucket, storage_path, content_type, byte_size, duration_seconds, checksum_sha256, captured_at",
+      "id, organization_id, meeting_id, media_kind, storage_bucket, storage_path, content_type, byte_size, duration_seconds, checksum_sha256, captured_at",
     )
     .eq("meeting_id", meetingId)
+    .eq("media_kind", mediaKind)
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
   return toOwnedRecordingRef(data as MeetingRecordingRow);
+}
+
+/**
+ * P3: Fetch all recording artifacts (audio and/or video) for a meeting.
+ * Returns an object with optional audio and video refs, never inventing
+ * artifacts that don't exist.
+ */
+export async function getMeetingRecordingRefs(
+  supabase: AppSupabaseClient,
+  meetingId: string,
+): Promise<{ audio?: OwnedRecordingRef; video?: OwnedRecordingRef }> {
+  const { data, error } = await supabase
+    .from("meeting_recordings")
+    .select(
+      "id, organization_id, meeting_id, media_kind, storage_bucket, storage_path, content_type, byte_size, duration_seconds, checksum_sha256, captured_at",
+    )
+    .eq("meeting_id", meetingId);
+  if (error) throw error;
+  if (!data) return {};
+
+  const refs = data.map((row) => toOwnedRecordingRef(row as MeetingRecordingRow));
+  return {
+    audio: refs.find((r) => r.mediaKind === "audio"),
+    video: refs.find((r) => r.mediaKind === "video"),
+  };
 }
 
 /** Duck-typed subset of @supabase/storage-js's real StorageFileApi (v2.115.0, confirmed during planning) — kept minimal and independently fakeable rather than importing the full SDK type. */
@@ -131,6 +171,7 @@ export class RecordingNotReadyError extends Error {
 export interface EnsureOwnedRecordingInput {
   organizationId: string;
   meetingId: string;
+  mediaKind: MediaKind;
   vexaMeetingId: number;
   vexaEnv: VexaEnv;
   fetchImpl?: typeof fetch;
@@ -141,7 +182,11 @@ export async function ensureOwnedRecording(
   storage: RecordingStorageClient,
   input: EnsureOwnedRecordingInput,
 ): Promise<{ recordingRef: OwnedRecordingRef; bytes: ArrayBuffer }> {
-  const existing = await getOwnedMeetingRecording(supabase, input.meetingId);
+  const existing = await getOwnedMeetingRecording(
+    supabase,
+    input.meetingId,
+    input.mediaKind,
+  );
   if (existing) {
     const { data, error } = await storage.download(existing.storagePath);
     if (error || !data) throw error ?? new Error("Owned recording download returned no data.");
@@ -152,6 +197,7 @@ export async function ensureOwnedRecording(
   const vexaRecording = await getMeetingRecordingRef(
     input.vexaEnv,
     input.vexaMeetingId,
+    input.mediaKind,
     input.fetchImpl,
   );
   if (!vexaRecording) throw new RecordingNotReadyError();
@@ -159,9 +205,10 @@ export async function ensureOwnedRecording(
   const path = getMeetingRecordingStoragePath(
     input.organizationId,
     input.meetingId,
+    input.mediaKind,
     vexaRecording.format,
   );
-  const contentType = `audio/${vexaRecording.format}`;
+  const contentType = `${input.mediaKind}/${vexaRecording.format}`;
 
   const preexisting = await storage.info(path);
   if (preexisting.data) {
@@ -201,6 +248,7 @@ export async function ensureOwnedRecording(
   const row = await insertRecordingRow(supabase, {
     organizationId: input.organizationId,
     meetingId: input.meetingId,
+    mediaKind: input.mediaKind,
     bucket: MEETING_RECORDINGS_BUCKET,
     path,
     contentType,
@@ -220,6 +268,7 @@ export async function ensureOwnedRecording(
 export interface StoreOwnedRecordingInput {
   organizationId: string;
   meetingId: string;
+  mediaKind: MediaKind;
   format: string;
   bytes: ArrayBuffer;
   durationSeconds?: number | null;
@@ -229,7 +278,7 @@ export interface StoreOwnedRecordingInput {
 
 /**
   * Stores an owned recording, strictly enforcing immutability:
-  * 1. Rejects if a meeting_recordings row already exists for this meeting.
+  * 1. Rejects if a meeting_recordings row already exists for this meeting+kind.
   * 2. Rejects if a storage object already exists at the deterministic path.
   * 3. Disallows upsert: true on storage uploads.
   *
@@ -240,19 +289,24 @@ export async function storeOwnedRecording(
   storage: RecordingStorageClient,
   input: StoreOwnedRecordingInput,
 ): Promise<{ recordingRef: OwnedRecordingRef; bytes: ArrayBuffer }> {
-  const existing = await getOwnedMeetingRecording(supabase, input.meetingId);
+  const existing = await getOwnedMeetingRecording(
+    supabase,
+    input.meetingId,
+    input.mediaKind,
+  );
   if (existing) {
     throw new RecordingAlreadyExistsError(
-      `An owned recording already exists for meeting ${input.meetingId} — immutable recordings cannot be overwritten.`,
+      `An owned ${input.mediaKind} recording already exists for meeting ${input.meetingId} — immutable recordings cannot be overwritten.`,
     );
   }
 
   const path = getMeetingRecordingStoragePath(
     input.organizationId,
     input.meetingId,
+    input.mediaKind,
     input.format,
   );
-  const contentType = `audio/${input.format}`;
+  const contentType = `${input.mediaKind}/${input.format}`;
 
   const preexisting = await storage.info(path);
   if (preexisting.data) {
@@ -273,6 +327,7 @@ export async function storeOwnedRecording(
   const row = await insertRecordingRow(supabase, {
     organizationId: input.organizationId,
     meetingId: input.meetingId,
+    mediaKind: input.mediaKind,
     bucket: MEETING_RECORDINGS_BUCKET,
     path,
     contentType,
@@ -287,11 +342,95 @@ export async function storeOwnedRecording(
   return { recordingRef: row, bytes: input.bytes };
 }
 
+/**
+ * Graph cloud recording ingest input parameters
+ */
+export interface EnsureGraphCloudRecordingInput {
+  organizationId: string;
+  meetingId: string;
+  onlineMeetingId: string;
+  graphAccessToken: string;
+  fetchImpl?: typeof fetch;
+}
+
+/**
+ * Ensure a Graph Teams cloud recording exists in owned storage.
+ * 
+ * Flow:
+ * 1. Check if video recording already exists (idempotency)
+ * 2. Poll Graph API for recording availability (max 12 min)
+ * 3. Download MP4 from signed URL
+ * 4. Store in meeting_recordings with media_kind='video'
+ * 
+ * Behind feature flag: ENABLE_VIDEO_RECORDING
+ * Requires admin consent: OnlineMeetingRecording.Read.All
+ * 
+ * @throws RecordingNotReadyError if no recording found after polling (not an error - manual recording may not have been started)
+ * @throws RecordingAlreadyExistsError if video recording already exists (idempotency)
+ * @throws Error for download failures, API errors
+ */
+export async function ensureGraphCloudRecording(
+  supabase: AppSupabaseClient,
+  storage: RecordingStorageClient,
+  input: EnsureGraphCloudRecordingInput,
+): Promise<{ recordingRef: OwnedRecordingRef; bytes: ArrayBuffer }> {
+  // Idempotency: check if video recording already exists
+  const existing = await getOwnedMeetingRecording(
+    supabase,
+    input.meetingId,
+    "video",
+  );
+  if (existing) {
+    const { data, error } = await storage.download(existing.storagePath);
+    if (error || !data) throw error ?? new Error("Owned recording download returned no data.");
+    const bytes = await data.arrayBuffer();
+    return { recordingRef: existing, bytes };
+  }
+
+  // Poll for recording availability (Graph processing takes ~5-10 min after meeting ends)
+  const graphRecording = await pollForCloudRecording(
+    input.graphAccessToken,
+    input.onlineMeetingId,
+    input.fetchImpl,
+  );
+
+  if (!graphRecording) {
+    // No recording found after polling - this is NOT an error
+    // (organizer may not have clicked Record, or auto-record policy not enabled)
+    throw new RecordingNotReadyError();
+  }
+
+  // Download MP4 from Graph signed URL
+  const bytes = await downloadGraphRecording(
+    graphRecording.recordingContentUrl,
+    input.fetchImpl,
+  );
+
+  // Store in meeting_recordings
+  const result = await storeOwnedRecording(supabase, storage, {
+    organizationId: input.organizationId,
+    meetingId: input.meetingId,
+    mediaKind: "video",
+    format: "mp4",
+    bytes,
+    durationSeconds: null, // TODO: Extract from MP4 metadata if needed
+    sourceProvider: "microsoft-graph",
+    sourceMetadata: {
+      graphRecordingId: graphRecording.id,
+      graphOnlineMeetingId: graphRecording.meetingId,
+      recordedAt: graphRecording.createdDateTime,
+    },
+  });
+
+  return result;
+}
+
 async function insertRecordingRow(
   supabase: AppSupabaseClient,
   input: {
     organizationId: string;
     meetingId: string;
+    mediaKind: MediaKind;
     bucket: string;
     path: string;
     contentType: string;
@@ -305,6 +444,7 @@ async function insertRecordingRow(
     .insert({
       organization_id: input.organizationId,
       meeting_id: input.meetingId,
+      media_kind: input.mediaKind,
       storage_bucket: input.bucket,
       storage_path: input.path,
       content_type: input.contentType,
@@ -314,17 +454,22 @@ async function insertRecordingRow(
       source_metadata: input.sourceMetadata,
     })
     .select(
-      "id, organization_id, meeting_id, storage_bucket, storage_path, content_type, byte_size, duration_seconds, checksum_sha256, captured_at",
+      "id, organization_id, meeting_id, media_kind, storage_bucket, storage_path, content_type, byte_size, duration_seconds, checksum_sha256, captured_at",
     )
     .single();
 
   if (error) {
     // Same idempotency idiom as syncMeetingBotIntent (meeting-bots.ts)
     // and enqueuePendingTranscriptions (transcription.ts): a 23505 here
-    // IS the unique(organization_id, meeting_id) constraint working, not
-    // a real error — a concurrent caller already won this exact insert.
+    // IS the unique(organization_id, meeting_id, media_kind) constraint
+    // working, not a real error — a concurrent caller already won this
+    // exact insert.
     if ((error as { code?: string }).code === "23505") {
-      const existing = await getOwnedMeetingRecording(supabase, input.meetingId);
+      const existing = await getOwnedMeetingRecording(
+        supabase,
+        input.meetingId,
+        input.mediaKind,
+      );
       if (existing) return existing;
     }
     throw error;
@@ -369,6 +514,7 @@ async function reconcilePreexistingObject(
   const row = await insertRecordingRow(supabase, {
     organizationId: input.organizationId,
     meetingId: input.meetingId,
+    mediaKind: input.mediaKind,
     bucket: MEETING_RECORDINGS_BUCKET,
     path,
     contentType,

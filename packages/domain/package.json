@@ -16,6 +16,7 @@
     "./recording-exceptions": "./src/recording-exceptions.ts",
     "./meeting-bots": "./src/meeting-bots.ts",
     "./audit": "./src/audit.ts",
+    "./feature-flags": "./src/feature-flags.ts",
     "./customers": "./src/customers.ts",
     "./customer-linkage": "./src/customer-linkage.ts",
     "./customer-truth": "./src/customer-truth.ts",

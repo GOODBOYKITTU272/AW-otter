@@ -35,9 +35,9 @@ export default async function AdminExceptionsPage() {
   return (
     <main className="flex flex-1 flex-col gap-6 p-8">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Do-Not-Record Exceptions</h1>
-        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-          Every request across the organization. An unresolved request follows the organization
+        <h1 className="text-2xl font-bold tracking-tight text-[#1E1E1E]">Review Queue</h1>
+        <p className="mt-1 text-sm text-zinc-600">
+          Do-not-record exception requests across the organization. Unresolved requests follow the organization
           default at cutoff.
         </p>
       </div>

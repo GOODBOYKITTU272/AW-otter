@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/internal/microsoft-subscriptions/renew",
+      "schedule": "0 6 * * *"
+    }
+  ]
+}

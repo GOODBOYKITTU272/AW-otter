@@ -85,24 +85,24 @@ export function EditPersonForm({
       onSubmit={handleSubmit}
       className="flex max-w-lg flex-col gap-4 text-sm"
     >
-      <label className="flex flex-col gap-1">
+      <label className="flex flex-col gap-1 text-zinc-900">
         Display Name
         <input
           type="text"
           required
           value={displayName}
           onChange={(event) => setDisplayName(event.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 placeholder:text-zinc-400"
         />
       </label>
 
-      <label className="flex flex-col gap-1">
+      <label className="flex flex-col gap-1 text-zinc-900">
         Role
         <select
           required
           value={roleId}
           onChange={(event) => setRoleId(event.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900"
         >
           {reference.roles.map((role) => (
             <option key={role.id} value={role.id}>
@@ -112,12 +112,12 @@ export function EditPersonForm({
         </select>
       </label>
 
-      <label className="flex flex-col gap-1">
+      <label className="flex flex-col gap-1 text-zinc-900">
         Manager
         <select
           value={managerId}
           onChange={(event) => setManagerId(event.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900"
         >
           <option value="">No manager</option>
           {selectableManagers.map((member) => (
@@ -128,7 +128,7 @@ export function EditPersonForm({
         </select>
       </label>
 
-      <label className="flex flex-col gap-1">
+      <label className="flex flex-col gap-1 text-zinc-900">
         Department
         <select
           value={departmentId}
@@ -136,7 +136,7 @@ export function EditPersonForm({
             setDepartmentId(event.target.value);
             setTeamId("");
           }}
-          className="rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900"
         >
           <option value="">No department</option>
           {reference.departments.map((department) => (
@@ -147,12 +147,12 @@ export function EditPersonForm({
         </select>
       </label>
 
-      <label className="flex flex-col gap-1">
+      <label className="flex flex-col gap-1 text-zinc-900">
         Team
         <select
           value={teamId}
           onChange={(event) => setTeamId(event.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900"
         >
           <option value="">No team</option>
           {visibleTeams.map((team) => (
@@ -163,7 +163,7 @@ export function EditPersonForm({
         </select>
       </label>
 
-      <label className="flex items-start gap-2">
+      <label className="flex items-start gap-2 text-zinc-900">
         <input
           type="checkbox"
           checked={meetingAiEnabled}
@@ -172,7 +172,7 @@ export function EditPersonForm({
         />
         <span>
           <span className="block font-medium">Meeting Intelligence</span>
-          <span className="block text-zinc-500 dark:text-zinc-400">
+          <span className="block text-zinc-600">
             When enabled, eligible meetings for this person can later be
             automatically processed by ApplyWizz Signal according to company
             policy.
@@ -186,14 +186,14 @@ export function EditPersonForm({
         </p>
       ) : null}
       {status === "saved" && !error ? (
-        <p className="text-green-700">Saved.</p>
+        <p className="text-green-500">Saved.</p>
       ) : null}
 
       <div className="flex items-center gap-3">
         <button
           type="submit"
           disabled={status === "saving"}
-          className="w-fit rounded-md bg-zinc-900 px-4 py-2 font-medium text-white disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900"
+          className="w-fit rounded-md bg-[#29FE29] px-4 py-2 font-medium text-[#0B1D33] disabled:opacity-50"
         >
           {status === "saving" ? "Saving…" : "Save changes"}
         </button>
@@ -203,7 +203,7 @@ export function EditPersonForm({
             type="button"
             onClick={handleDeactivate}
             disabled={status === "saving"}
-            className="w-fit rounded-md border border-red-300 px-4 py-2 font-medium text-red-700 disabled:opacity-50"
+            className="w-fit rounded-md border border-red-500 px-4 py-2 font-medium text-red-500 disabled:opacity-50"
           >
             Deactivate
           </button>

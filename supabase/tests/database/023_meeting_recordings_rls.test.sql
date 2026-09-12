@@ -38,8 +38,8 @@ insert into auth.users (instance_id, id, aud, role, email, encrypted_password, e
 insert into public.meetings (id, organization_id, owner_membership_id, provider, title, ical_uid, organizer_email, scheduled_start, scheduled_end, lifecycle_status, eligibility_status)
 values ('98300000-0000-0000-0000-0000000000c1', '98000000-0000-0000-0000-0000000000c1', '98100000-0000-0000-0000-0000000000c1', 'microsoft', 'Recording RLS Test Meeting', 'rls-test-uid-c1', 'am-a@m17crecA.test', now(), now() + interval '30 minutes', 'upcoming', 'record');
 
-insert into public.meeting_recordings (id, organization_id, meeting_id, storage_bucket, storage_path, content_type, byte_size, source_provider)
-values ('98400000-0000-0000-0000-0000000000c1', '98000000-0000-0000-0000-0000000000c1', '98300000-0000-0000-0000-0000000000c1', 'meeting-recordings', 'organizations/98000000-0000-0000-0000-0000000000c1/meetings/98300000-0000-0000-0000-0000000000c1/original.webm', 'audio/webm', 12345, 'vexa');
+insert into public.meeting_recordings (id, organization_id, meeting_id, media_kind, storage_bucket, storage_path, content_type, byte_size, source_provider)
+values ('98400000-0000-0000-0000-0000000000c1', '98000000-0000-0000-0000-0000000000c1', '98300000-0000-0000-0000-0000000000c1', 'audio', 'meeting-recordings', 'organizations/98000000-0000-0000-0000-0000000000c1/meetings/98300000-0000-0000-0000-0000000000c1/audio.original.webm', 'audio/webm', 12345, 'vexa');
 
 create or replace function pg_temp.tests_as(p_user_id uuid) returns void as $$
 begin
@@ -56,7 +56,7 @@ select is(
 );
 select is(
   (select storage_path from public.meeting_recordings where id = '98400000-0000-0000-0000-0000000000c1'),
-  'organizations/98000000-0000-0000-0000-0000000000c1/meetings/98300000-0000-0000-0000-0000000000c1/original.webm',
+  'organizations/98000000-0000-0000-0000-0000000000c1/meetings/98300000-0000-0000-0000-0000000000c1/audio.original.webm',
   '2. Same-org member sees the real storage_path (not filtered/redacted)'
 );
 
@@ -70,19 +70,19 @@ select is(
 
 reset role;
 
--- 4: uniqueness constraint is real.
+-- 4: uniqueness constraint is real (same media_kind).
 select throws_ok(
-  $$insert into public.meeting_recordings (organization_id, meeting_id, storage_bucket, storage_path, content_type, byte_size, source_provider)
-    values ('98000000-0000-0000-0000-0000000000c1', '98300000-0000-0000-0000-0000000000c1', 'meeting-recordings', 'organizations/x/meetings/y/original.webm', 'audio/webm', 1, 'vexa')$$,
+  $$insert into public.meeting_recordings (organization_id, meeting_id, media_kind, storage_bucket, storage_path, content_type, byte_size, source_provider)
+    values ('98000000-0000-0000-0000-0000000000c1', '98300000-0000-0000-0000-0000000000c1', 'audio', 'meeting-recordings', 'organizations/x/meetings/y/audio.original.webm', 'audio/webm', 1, 'vexa')$$,
   '23505',
   null,
-  '4. A second recording row for the same meeting_id is rejected by the unique constraint'
+  '4. A second recording row for the same meeting_id and media_kind is rejected by the unique constraint'
 );
 
 -- 5: byte_size must be positive.
 select throws_ok(
-  $$insert into public.meeting_recordings (organization_id, meeting_id, storage_bucket, storage_path, content_type, byte_size, source_provider)
-    values ('98000000-0000-0000-0000-0000000000c2', '98300000-0000-0000-0000-0000000000c1', 'meeting-recordings', 'organizations/x/meetings/z/original.webm', 'audio/webm', 0, 'vexa')$$,
+  $$insert into public.meeting_recordings (organization_id, meeting_id, media_kind, storage_bucket, storage_path, content_type, byte_size, source_provider)
+    values ('98000000-0000-0000-0000-0000000000c2', '98300000-0000-0000-0000-0000000000c1', 'video', 'meeting-recordings', 'organizations/x/meetings/z/video.original.mp4', 'video/mp4', 0, 'vexa')$$,
   '23514',
   null,
   '5. byte_size <= 0 is rejected by the check constraint'

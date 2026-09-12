@@ -8,6 +8,7 @@ type PolicySet = {
   name: string;
   default_decision: string;
   cutoff_minutes_before_start: number;
+  bot_dispatch_lead_seconds: number;
 };
 
 type Rule = {
@@ -28,6 +29,7 @@ export function PolicyEditor({ policySet, rules }: { policySet: PolicySet; rules
   const router = useRouter();
   const [defaultDecision, setDefaultDecision] = useState(policySet.default_decision);
   const [cutoffMinutes, setCutoffMinutes] = useState(policySet.cutoff_minutes_before_start);
+  const [botDispatchLeadSeconds, setBotDispatchLeadSeconds] = useState(policySet.bot_dispatch_lead_seconds);
   const [savingSet, setSavingSet] = useState(false);
   const [ruleSaving, setRuleSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +44,7 @@ export function PolicyEditor({ policySet, rules }: { policySet: PolicySet; rules
         policySetId: policySet.id,
         defaultDecision,
         cutoffMinutesBeforeStart: cutoffMinutes,
+        botDispatchLeadSeconds,
       }),
     });
     setSavingSet(false);
@@ -78,83 +81,101 @@ export function PolicyEditor({ policySet, rules }: { policySet: PolicySet; rules
         </p>
       ) : null}
 
-      <section className="flex max-w-md flex-col gap-4 rounded-lg border border-zinc-200 p-5 text-sm dark:border-zinc-800">
-        <h2 className="font-medium">Organization default</h2>
-        <p className="text-zinc-500 dark:text-zinc-400">
+      <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+        <h2 className="text-base font-semibold text-[#1E1E1E]">Organization default</h2>
+        <p className="mt-1 text-sm text-zinc-600">
           Applied when no other rule fires — including any do-not-record request left unresolved
           at cutoff.
         </p>
 
-        <label className="flex flex-col gap-1">
-          Default decision
-          <select
-            value={defaultDecision}
-            onChange={(event) => setDefaultDecision(event.target.value)}
-            className="rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
-          >
-            <option value="record">Record</option>
-            <option value="exclude">Do not record</option>
-          </select>
-        </label>
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+          <label className="flex flex-col gap-2 text-sm">
+            <span className="font-medium text-[#1E1E1E]">Default decision</span>
+            <select
+              value={defaultDecision}
+              onChange={(event) => setDefaultDecision(event.target.value)}
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-[#1E1E1E] text-sm"
+            >
+              <option value="record">Record</option>
+              <option value="exclude">Do not record</option>
+            </select>
+          </label>
 
-        <label className="flex flex-col gap-1">
-          Cutoff (minutes before meeting start)
-          <input
-            type="number"
-            min={0}
-            value={cutoffMinutes}
-            onChange={(event) => setCutoffMinutes(Number(event.target.value))}
-            className="rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
-          />
-          <span className="text-xs text-zinc-500 dark:text-zinc-400">
-            An unresolved do-not-record request still pending this many minutes before the meeting
-            starts automatically follows the default above.
-          </span>
-        </label>
+          <label className="flex flex-col gap-2 text-sm">
+            <span className="font-medium text-[#1E1E1E]">Cutoff (minutes before start)</span>
+            <input
+              type="number"
+              min={0}
+              value={cutoffMinutes}
+              onChange={(event) => setCutoffMinutes(Number(event.target.value))}
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-[#1E1E1E] text-sm"
+            />
+            <span className="text-xs text-zinc-500">
+              Unresolved do-not-record requests follow the default at this cutoff
+            </span>
+          </label>
+
+          <label className="flex flex-col gap-2 text-sm">
+            <span className="font-medium text-[#1E1E1E]">Bot dispatch lead time (seconds)</span>
+            <input
+              type="number"
+              min={0}
+              value={botDispatchLeadSeconds}
+              onChange={(event) => setBotDispatchLeadSeconds(Number(event.target.value))}
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-[#1E1E1E] text-sm"
+            />
+            <span className="text-xs text-zinc-500">
+              How many seconds before start to dispatch the bot (90s default avoids empty lobby)
+            </span>
+          </label>
+        </div>
 
         <button
           type="button"
           onClick={saveSet}
           disabled={savingSet}
-          className="w-fit rounded-md bg-zinc-900 px-4 py-2 font-medium text-white disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900"
+          className="mt-6 rounded-md bg-[#2C76FF] px-4 py-2 text-sm font-medium text-white hover:bg-[#2C76FF]/90 disabled:opacity-50"
         >
           {savingSet ? "Saving…" : "Save"}
         </button>
       </section>
 
-      <section className="flex flex-col gap-2">
-        <h2 className="font-medium">Eligibility rules</h2>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          Evaluated in a fixed order, top to bottom — the first enabled rule that applies decides
-          the meeting.
-        </p>
-        <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
+      <section className="rounded-xl border border-zinc-200 bg-white shadow-sm">
+        <div className="border-b border-zinc-200 px-6 py-4">
+          <h2 className="text-base font-semibold text-[#1E1E1E]">Eligibility rules</h2>
+          <p className="mt-1 text-sm text-zinc-600">
+            Evaluated in a fixed order, top to bottom — the first enabled rule that applies decides
+            the meeting.
+          </p>
+        </div>
+        <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead>
-              <tr className="border-b border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/50">
-                <th className="px-4 py-2.5">Rule</th>
-                <th className="px-4 py-2.5">Reason code</th>
-                <th className="px-4 py-2.5">Enabled</th>
+              <tr className="border-b border-zinc-200 bg-zinc-50">
+                <th className="px-6 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Rule</th>
+                <th className="px-6 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Reason code</th>
+                <th className="px-6 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Enabled</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-zinc-100">
               {rules.map((rule) => {
                 const inert = INERT_RULE_TYPES.has(rule.rule_type);
                 return (
-                  <tr key={rule.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
-                    <td className="px-4 py-2.5">
-                      <div className="font-medium">{rule.label}</div>
+                  <tr key={rule.id} className="hover:bg-zinc-50 transition-colors">
+                    <td className="px-6 py-3">
+                      <div className="font-medium text-[#1E1E1E]">{rule.label}</div>
                       {inert ? (
-                        <div className="text-xs text-zinc-400">Not active in this release</div>
+                        <div className="text-xs text-zinc-500 mt-0.5">Not active in this release</div>
                       ) : null}
                     </td>
-                    <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400">{rule.reason_code}</td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-6 py-3 text-zinc-600">{rule.reason_code}</td>
+                    <td className="px-6 py-3">
                       <input
                         type="checkbox"
                         checked={rule.enabled}
                         disabled={inert || ruleSaving === rule.rule_type}
                         onChange={(event) => toggleRule(rule.rule_type, event.target.checked)}
+                        className="h-4 w-4 rounded border-zinc-300"
                       />
                     </td>
                   </tr>

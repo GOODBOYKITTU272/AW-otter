@@ -688,21 +688,36 @@ describe("processTranscriptionJob", () => {
     };
     tables.meeting_transcripts.rows.push(transcript);
 
-    // meeting_recordings already has a row — owned, per Task 6's shape.
-    const ownedRow = {
+    // meeting_recordings already has rows for both audio and video — owned.
+    const ownedAudioRow = {
       id: "rec-1",
       organization_id: "org-1",
       meeting_id: "meeting-1",
+      media_kind: "audio",
       storage_bucket: "meeting-recordings",
-      storage_path: "organizations/org-1/meetings/meeting-1/original.webm",
+      storage_path: "organizations/org-1/meetings/meeting-1/audio.original.webm",
       content_type: "audio/webm",
       byte_size: syntheticAudioBytes.byteLength,
       duration_seconds: null,
       checksum_sha256: "abc123",
       captured_at: null,
     };
+    const ownedVideoRow = {
+      id: "rec-2",
+      organization_id: "org-1",
+      meeting_id: "meeting-1",
+      media_kind: "video",
+      storage_bucket: "meeting-recordings",
+      storage_path: "organizations/org-1/meetings/meeting-1/video.original.mp4",
+      content_type: "video/mp4",
+      byte_size: 1024,
+      duration_seconds: null,
+      checksum_sha256: "def456",
+      captured_at: null,
+    };
+    tables.meeting_recordings.rows.push(ownedAudioRow, ownedVideoRow);
 
-    const supabase = createFakeSupabase(tables, { meeting_recordings: ownedRow });
+    const supabase = createFakeSupabase(tables);
 
     let vexaEndpointCalled = false;
     const vexaCallDetectingFetch = (async (url: string | URL) => {
@@ -721,7 +736,7 @@ describe("processTranscriptionJob", () => {
     });
 
     expect(vexaEndpointCalled).toBe(false);
-    expect(storageDownloadSpy).toHaveBeenCalledWith("organizations/org-1/meetings/meeting-1/original.webm");
+    expect(storageDownloadSpy).toHaveBeenCalledWith("organizations/org-1/meetings/meeting-1/audio.original.webm");
     expect(tables.meeting_transcripts.rows[0]?.processing_status).toBe("completed");
   });
 
@@ -1143,7 +1158,7 @@ describe("processTranscriptionJob with AzureMai provider", () => {
 
     const meta = transcript.provider_metadata as Record<string, unknown>;
     expect(meta.provider).toBe("openrouter");
-    expect(meta.fallbackReason).toContain("Primary provider azure-mai failed after 2 attempts. Final error: TIMEOUT");
+    expect(meta.fallbackReason).toContain("Provider azure-mai failed after 2 attempts. Final error: TIMEOUT");
     const attempts = meta.attempts as Array<Record<string, unknown>>;
     expect(attempts).toHaveLength(3);
     expect(attempts[0]).toMatchObject({ sequence: 1, provider: "azure-mai", model: null, outcome: "failed", failureCode: "TIMEOUT" });
@@ -1216,7 +1231,7 @@ describe("processTranscriptionJob with AzureMai provider", () => {
     expect(transcript.provider).toBe("openrouter");
 
     const meta = transcript.provider_metadata as Record<string, unknown>;
-    expect(meta.fallbackReason).toContain("Primary provider azure-mai encountered non-retryable error: AUTH_FAILURE");
+    expect(meta.fallbackReason).toContain("Provider azure-mai encountered non-retryable error: AUTH_FAILURE");
     const attempts = meta.attempts as Array<Record<string, unknown>>;
     expect(attempts).toHaveLength(2);
     expect(attempts[0]).toMatchObject({ sequence: 1, provider: "azure-mai", model: null, outcome: "failed", failureCode: "AUTH_FAILURE" });
@@ -1274,11 +1289,12 @@ describe("processTranscriptionJob with AzureMai provider", () => {
 
     const safeMeta = transcript.safe_error_metadata as Record<string, unknown>;
     expect(safeMeta.message).toBe("All transcription providers failed.");
-    expect(safeMeta.fallbackReason).toContain("Primary provider azure-mai failed after 2 attempts.");
+    expect(safeMeta.fallbackReason).toContain("Provider azure-mai failed after 2 attempts.");
     const attempts = safeMeta.attempts as Array<Record<string, unknown>>;
-    expect(attempts).toHaveLength(3);
+    expect(attempts).toHaveLength(4); // 2 Azure (retry) + 2 OpenRouter (retry)
     expect(attempts[0]).toMatchObject({ sequence: 1, provider: "azure-mai", model: null, failureCode: "TIMEOUT" });
     expect(attempts[1]).toMatchObject({ sequence: 2, provider: "azure-mai", model: null, failureCode: "TIMEOUT" });
     expect(attempts[2]).toMatchObject({ sequence: 3, provider: "openrouter", model: null, failureCode: "PROVIDER_5XX" });
+    expect(attempts[3]).toMatchObject({ sequence: 4, provider: "openrouter", model: null, failureCode: "PROVIDER_5XX" });
   });
 });
