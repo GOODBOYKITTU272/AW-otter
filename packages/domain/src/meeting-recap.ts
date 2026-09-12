@@ -658,7 +658,7 @@ function generateTranscriptOverviewSummary(
   // Calculate conversation stats
   const totalDurationMs = segments[segments.length - 1]?.endMs ?? 0;
   const durationMinutes = Math.round(totalDurationMs / 60000);
-  const speakerSet = new Set(segments.map((s) => s.speaker_label));
+  const speakerSet = new Set(segments.map((s) => s.speakerLabel));
   const speakerCount = speakerSet.size;
 
   // Extract conversation highlights (first 5-7 meaningful exchanges)
