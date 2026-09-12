@@ -54,6 +54,11 @@ export class VexaMeetingBotProvider implements MeetingBotProvider {
     // meeting_url directly — Vexa "settles host and passcode together"
     // from the raw Teams join URL M4 already captured. transcribe_enabled
     // is explicitly false: M6 only schedules the bot, transcription is M7.
+    //
+    // AVATAR INFRASTRUCTURE PREPARED (not active): When Vexa enables
+    // PUT /bots/{platform}/{id}/avatar (currently 404 in v0.12), add:
+    //   bot_avatar_url: input.botAvatarUrl,
+    // to the payload below. See: docs/product/bot-branding-investigation.md
     const raw = await this.request<RawVexaCreateResponse>("/bots", {
       method: "POST",
       headers: { "Idempotency-Key": input.idempotencyKey },
@@ -62,6 +67,7 @@ export class VexaMeetingBotProvider implements MeetingBotProvider {
         meeting_url: input.meetingUrl,
         bot_name: input.botName,
         transcribe_enabled: false,
+        // bot_avatar_url: input.botAvatarUrl, // PREPARED: Uncomment when Vexa v0.12.x enables avatar API
       }),
     });
 
