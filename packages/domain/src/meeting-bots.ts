@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@applywizz/database/types";
 import type { MeetingBotProvider } from "@applywizz/meeting-bots";
+import { isLobbyWaitingStatus } from "@applywizz/meeting-bots";
 import { generateBotDisplayName } from "./bot-name";
 
 export type AppSupabaseClient = SupabaseClient<Database>;
@@ -532,7 +533,7 @@ export async function syncBotStatuses(
   const { data: jobs, error } = await serviceRoleClient
     .from("meeting_bot_jobs")
     .select(
-      "id, meeting_id, organization_id, provider_bot_id, status, scheduled_at",
+      "id, meeting_id, organization_id, provider_bot_id, status, scheduled_at, lobby_waiting_since",
     )
     .in("status", ["scheduled", "joining", "joined"])
     .not("provider_bot_id", "is", null)
@@ -575,6 +576,30 @@ export async function syncBotStatuses(
       update.failed_at = new Date().toISOString();
       update.last_error =
         result.failureReason ?? "Provider reported the bot failed.";
+    }
+
+    // Phase-1 P0 lobby detection: track when bot enters/leaves lobby waiting.
+    // Set lobby_waiting_since when Vexa reports awaiting_admission (and we're
+    // moving to 'joining'), clear it when bot joins or fails.
+    if (result.rawStatus && isLobbyWaitingStatus(result.rawStatus)) {
+      // Only set lobby_waiting_since if it's not already set (preserve the
+      // original timestamp when the bot first entered lobby).
+      if (!job.lobby_waiting_since) {
+        update.lobby_waiting_since = new Date().toISOString();
+      }
+    } else if (
+      result.status === "joined" ||
+      result.status === "completed" ||
+      result.status === "failed" ||
+      result.status === "cancelled"
+    ) {
+      // Clear lobby waiting once bot successfully joins or terminates.
+      update.lobby_waiting_since = null;
+    }
+
+    // Always update last_raw_status for diagnostics.
+    if (result.rawStatus) {
+      update.last_raw_status = result.rawStatus;
     }
 
     // Guarded by the exact status we just read (and org-scoped), same

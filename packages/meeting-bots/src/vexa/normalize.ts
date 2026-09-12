@@ -39,6 +39,21 @@ export function normalizeVexaStatus(status: unknown): BotStatus {
   }
 }
 
+/**
+ * Returns true if the raw Vexa status indicates the bot is waiting in the
+ * Teams lobby for a human to admit it (not just "joining" network/handshake).
+ * Phase-1 P0: this is the high-leverage distinction for CRM customer calls.
+ */
+export function isLobbyWaitingStatus(rawStatus: unknown): boolean {
+  if (typeof rawStatus !== "string") return false;
+  const lower = rawStatus.toLowerCase();
+  return (
+    lower === "awaiting_admission" ||
+    lower === "waiting_for_admission" ||
+    lower === "needs_help"
+  );
+}
+
 export function encodeProviderBotId(identity: VexaMeetingIdentity): string {
   return `${identity.platform}/${encodeURIComponent(identity.nativeMeetingId)}`;
 }

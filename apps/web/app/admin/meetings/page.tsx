@@ -29,8 +29,11 @@ function meetingStatusBadge(
   return <StatusBadge tone="info">Upcoming</StatusBadge>;
 }
 
-function botStatusLabel(status: string | undefined): string {
+function botStatusLabel(status: string | undefined, isLobbyWaiting: boolean): string {
   if (!status) return "Not scheduled";
+  if (status === "joining" && isLobbyWaiting) {
+    return "⚠️ Waiting in lobby";
+  }
   const labels: Record<string, string> = {
     pending: "Preparing",
     scheduled: "Ready to join",
@@ -43,9 +46,18 @@ function botStatusLabel(status: string | undefined): string {
   return labels[status] ?? status;
 }
 
-function botStatusBadge(status: string | undefined) {
+function botStatusBadge(status: string | undefined, isLobbyWaiting: boolean) {
   if (!status)
     return <span className="text-zinc-400 text-sm">Not scheduled</span>;
+  
+  // Phase-1 P0: Urgent warning tone for lobby waiting
+  if (status === "joining" && isLobbyWaiting) {
+    return (
+      <StatusBadge tone="critical">
+        {botStatusLabel(status, isLobbyWaiting)}
+      </StatusBadge>
+    );
+  }
   
   const tones: Record<string, "success" | "warning" | "critical" | "info" | "neutral"> = {
     pending: "neutral",
@@ -59,7 +71,7 @@ function botStatusBadge(status: string | undefined) {
   
   return (
     <StatusBadge tone={tones[status] ?? "neutral"}>
-      {botStatusLabel(status)}
+      {botStatusLabel(status, isLobbyWaiting)}
     </StatusBadge>
   );
 }
@@ -228,7 +240,7 @@ export default async function AdminMeetingsPage() {
       .limit(50),
     supabase
       .from("meeting_bot_jobs")
-      .select("id, meeting_id, status, generation")
+      .select("id, meeting_id, status, generation, lobby_waiting_since")
       .order("generation", { ascending: false }),
     supabase.from("customers").select("id, name, owner_membership_id"),
     supabase.from("organization_memberships").select("id, display_name"),
@@ -380,7 +392,7 @@ export default async function AdminMeetingsPage() {
                       {customerCell(meeting, customerNameById, customersByOwner)}
                     </td>
                     <td className="px-6 py-4">
-                      {botStatusBadge(botJob?.status)}
+                      {botStatusBadge(botJob?.status, !!botJob?.lobby_waiting_since)}
                     </td>
                     <td className="px-6 py-4">
                       {transcriptStatusBadge(transcript ?? null)}
