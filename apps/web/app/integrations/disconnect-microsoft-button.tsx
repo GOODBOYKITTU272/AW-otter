@@ -25,7 +25,7 @@ export function DisconnectMicrosoftButton() {
       type="button"
       onClick={handleDisconnect}
       disabled={pending}
-      className="rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-700 disabled:opacity-50"
+      className="rounded-md bg-[#FF5C5C] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#FF5C5C]/90 disabled:opacity-50"
     >
       {pending ? "Disconnecting…" : "Disconnect"}
     </button>

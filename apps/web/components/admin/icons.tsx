@@ -84,3 +84,10 @@ export const SettingsIcon = base(
     <path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" />
   </>,
 );
+
+export const CustomerTruthIcon = base(
+  <>
+    <path d="M4 4h16v6H4zM4 14h16v6H4z" />
+    <path d="M7 7h.01M7 17h.01M12 7h5M12 17h5" />
+  </>,
+);

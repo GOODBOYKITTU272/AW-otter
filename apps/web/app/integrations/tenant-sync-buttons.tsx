@@ -33,11 +33,11 @@ export function EnableTenantSyncButton() {
         type="button"
         onClick={handleEnable}
         disabled={pending}
-        className="w-fit rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900"
+        className="w-fit rounded-md bg-[#29FE29] px-3 py-1.5 text-sm font-medium text-[#0B1D33] hover:bg-[#29FE29]/90 disabled:opacity-50"
       >
-        {pending ? "Enabling…" : "Enable organization-wide sync"}
+        {pending ? "Enabling…" : "Enable"}
       </button>
-      {error ? <p className="text-sm text-red-700 dark:text-red-400">{error}</p> : null}
+      {error ? <p className="text-sm text-[#991B1B]">{error}</p> : null}
     </div>
   );
 }
@@ -59,7 +59,7 @@ export function DisableTenantSyncButton() {
       type="button"
       onClick={handleDisable}
       disabled={pending}
-      className="w-fit rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-700 disabled:opacity-50"
+      className="w-fit rounded-md bg-[#FF5C5C] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#FF5C5C]/90 disabled:opacity-50"
     >
       {pending ? "Disabling…" : "Disable"}
     </button>

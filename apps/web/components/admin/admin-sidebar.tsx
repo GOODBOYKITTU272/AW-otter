@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  CustomerTruthIcon,
   ExceptionsIcon,
   IntegrationsIcon,
   MeetingsIcon,
@@ -16,6 +17,7 @@ const NAV_ITEMS = [
   { href: "/admin/meetings", label: "Meetings", icon: MeetingsIcon },
   { href: "/admin/people", label: "Team", icon: PeopleIcon },
   { href: "/admin/exceptions", label: "Review Queue", icon: ExceptionsIcon },
+  { href: "/admin/customer-truth", label: "Customer Truth", icon: CustomerTruthIcon },
   { href: "/integrations", label: "Integrations", icon: IntegrationsIcon },
   { href: "/admin/policies", label: "Settings", icon: SettingsIcon },
 ];
