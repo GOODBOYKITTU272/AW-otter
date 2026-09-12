@@ -22,7 +22,7 @@ export default async function AdminPoliciesPage() {
 
   const { data: policySet, error: policySetError } = await supabase
     .from("meeting_policy_sets")
-    .select("id, name, default_decision, cutoff_minutes_before_start")
+    .select("id, name, default_decision, cutoff_minutes_before_start, bot_dispatch_lead_seconds")
     .eq("organization_id", membership.organizationId)
     .single();
   if (policySetError) throw policySetError;
@@ -35,13 +35,12 @@ export default async function AdminPoliciesPage() {
   if (rulesError) throw rulesError;
 
   return (
-    <main className="flex flex-1 flex-col gap-8 p-8">
+    <main className="flex flex-1 flex-col gap-8 p-8 max-w-7xl">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-[#1E1E1E]">Settings</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-[#1E1E1E]">Policies</h1>
         <p className="mt-1 text-sm text-zinc-600">
-          Controls which meetings Signal automatically records. This governs the internal
-          do-not-record exception workflow — participant recording consent/notice is a
-          separate concern, handled elsewhere.
+          Recording eligibility rules, bot dispatch timing, and default decisions. Controls which
+          meetings Echo automatically records and when bots join.
         </p>
       </div>
 

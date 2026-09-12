@@ -63,18 +63,23 @@ export function ExceptionQueue({ requests }: { requests: ExceptionRequestRow[] }
   }
 
   const pending = requests.filter((r) => r.status === "requested");
-  const decided = requests.filter((r) => r.status !== "requested");
+  const approved = requests.filter((r) => r.status === "approved");
+  const rejected = requests.filter((r) => r.status === "rejected");
+  const other = requests.filter((r) => r.status !== "requested" && r.status !== "approved" && r.status !== "rejected");
 
   return (
     <div className="flex flex-col gap-8">
       {error ? (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="rounded-lg bg-[#FF5C5C]/10 border border-[#FF5C5C]/20 px-4 py-2 text-sm text-[#991B1B]">
           {error}
         </p>
       ) : null}
 
-      <section className="flex flex-col gap-2">
-        <h2 className="font-medium text-[#1E1E1E]">Pending review ({pending.length})</h2>
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-[#1E1E1E]">Pending review</h2>
+          <span className="text-sm text-zinc-500">{pending.length} request{pending.length !== 1 ? "s" : ""}</span>
+        </div>
         {pending.length === 0 ? (
           <p className="text-sm text-zinc-500">No requests waiting for review.</p>
         ) : (
@@ -129,39 +134,38 @@ export function ExceptionQueue({ requests }: { requests: ExceptionRequestRow[] }
         )}
       </section>
 
-      <section className="flex flex-col gap-2">
-        <h2 className="font-medium text-[#1E1E1E]">Decided</h2>
-        <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white shadow-sm">
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-[#1E1E1E]">Approved</h2>
+          <span className="text-sm text-zinc-500">{approved.length} request{approved.length !== 1 ? "s" : ""}</span>
+        </div>
+        <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
           <table className="w-full min-w-[900px] text-left text-sm">
             <thead>
               <tr className="border-b border-zinc-200 bg-zinc-50">
-                <th className="px-4 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Meeting</th>
-                <th className="px-4 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Requested by</th>
-                <th className="px-4 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Status</th>
-                <th className="px-4 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Reviewed by</th>
-                <th className="px-4 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Notes</th>
-                <th className="px-4 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Decided</th>
+                <th className="px-6 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Meeting</th>
+                <th className="px-6 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Requested by</th>
+                <th className="px-6 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Reviewed by</th>
+                <th className="px-6 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Notes</th>
+                <th className="px-6 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Decided</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
-              {decided.map((request) => (
+              {approved.map((request) => (
                 <tr key={request.id} className="hover:bg-zinc-50 transition-colors">
-                  <td className="px-4 py-3 text-[#1E1E1E]">{request.meetingTitle}</td>
-                  <td className="px-4 py-3 text-zinc-600">{request.requestedByName}</td>
-                  <td className="px-4 py-3">
-                    <StatusBadge tone={STATUS_TONE[request.status] ?? "neutral"}>{request.status}</StatusBadge>
-                  </td>
-                  <td className="px-4 py-3 text-zinc-600">{request.reviewedByName ?? "—"}</td>
-                  <td className="px-4 py-3 text-zinc-600">{request.reviewNotes ?? "—"}</td>
-                  <td className="px-4 py-3 text-zinc-600">
+                  <td className="px-6 py-3 text-[#1E1E1E]">{request.meetingTitle}</td>
+                  <td className="px-6 py-3 text-zinc-600">{request.requestedByName}</td>
+                  <td className="px-6 py-3 text-zinc-600">{request.reviewedByName ?? "—"}</td>
+                  <td className="px-6 py-3 text-zinc-600">{request.reviewNotes ?? "—"}</td>
+                  <td className="px-6 py-3 text-zinc-600">
                     {request.reviewedAt ? formatDateTime(request.reviewedAt) : "—"}
                   </td>
                 </tr>
               ))}
-              {decided.length === 0 && (
+              {approved.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-zinc-500">
-                    No decided requests yet.
+                  <td colSpan={5} className="px-6 py-8 text-center text-zinc-500">
+                    No approved requests yet.
                   </td>
                 </tr>
               )}
@@ -169,6 +173,81 @@ export function ExceptionQueue({ requests }: { requests: ExceptionRequestRow[] }
           </table>
         </div>
       </section>
+
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-[#1E1E1E]">Rejected</h2>
+          <span className="text-sm text-zinc-500">{rejected.length} request{rejected.length !== 1 ? "s" : ""}</span>
+        </div>
+        <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+          <table className="w-full min-w-[900px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-zinc-200 bg-zinc-50">
+                <th className="px-6 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Meeting</th>
+                <th className="px-6 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Requested by</th>
+                <th className="px-6 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Reviewed by</th>
+                <th className="px-6 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Rejection reason</th>
+                <th className="px-6 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Decided</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100">
+              {rejected.map((request) => (
+                <tr key={request.id} className="hover:bg-zinc-50 transition-colors">
+                  <td className="px-6 py-3 text-[#1E1E1E]">{request.meetingTitle}</td>
+                  <td className="px-6 py-3 text-zinc-600">{request.requestedByName}</td>
+                  <td className="px-6 py-3 text-zinc-600">{request.reviewedByName ?? "—"}</td>
+                  <td className="px-6 py-3 text-zinc-600">{request.reviewNotes ?? "—"}</td>
+                  <td className="px-6 py-3 text-zinc-600">
+                    {request.reviewedAt ? formatDateTime(request.reviewedAt) : "—"}
+                  </td>
+                </tr>
+              ))}
+              {rejected.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-6 py-8 text-center text-zinc-500">
+                    No rejected requests yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {other.length > 0 && (
+        <section className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-[#1E1E1E]">Other</h2>
+            <span className="text-sm text-zinc-500">{other.length} request{other.length !== 1 ? "s" : ""}</span>
+          </div>
+          <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+            <table className="w-full min-w-[900px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-zinc-200 bg-zinc-50">
+                  <th className="px-6 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Meeting</th>
+                  <th className="px-6 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Requested by</th>
+                  <th className="px-6 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Reviewed by</th>
+                  <th className="px-6 py-3 text-xs font-medium text-zinc-600 uppercase tracking-wider">Notes</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100">
+                {other.map((request) => (
+                  <tr key={request.id} className="hover:bg-zinc-50 transition-colors">
+                    <td className="px-6 py-3 text-[#1E1E1E]">{request.meetingTitle}</td>
+                    <td className="px-6 py-3 text-zinc-600">{request.requestedByName}</td>
+                    <td className="px-6 py-3">
+                      <StatusBadge tone={STATUS_TONE[request.status] ?? "neutral"}>{request.status}</StatusBadge>
+                    </td>
+                    <td className="px-6 py-3 text-zinc-600">{request.reviewedByName ?? "—"}</td>
+                    <td className="px-6 py-3 text-zinc-600">{request.reviewNotes ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
