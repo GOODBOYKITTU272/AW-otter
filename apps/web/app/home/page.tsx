@@ -214,39 +214,49 @@ export default async function AccountManagerHomePage() {
   const firstName = membership.displayName.split(" ")[0] ?? membership.displayName;
 
   return (
-    <main className="flex flex-1 flex-col bg-[#EFFBFF]">
-      <header className="border-b border-[#1E1E1E]/10 bg-white px-8 py-4 shadow-sm">
-        <div className="flex items-center justify-between max-w-5xl mx-auto w-full">
-          <Link href="/home" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <div className="h-8 w-8 rounded-lg bg-[#29FE29] flex items-center justify-center">
-              <span className="text-sm font-bold text-[#1E1E1E]">AW</span>
+    <main className="flex flex-1 flex-col bg-[#F5F5F5]">
+      <header className="border-b border-[#1E1E1E]/10 bg-white px-8 py-4 shadow-sm sticky top-0 z-10">
+        <div className="flex items-center justify-between max-w-6xl mx-auto w-full">
+          <div className="flex items-center gap-3">
+            <Link href="/home" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-[#2C76FF] to-[#29FE29] flex items-center justify-center">
+                <span className="text-sm font-bold text-white">AW</span>
+              </div>
+              <div className="flex flex-col leading-tight">
+                <span className="text-base font-bold tracking-tight text-[#1E1E1E]">
+                  Wizz Echo
+                </span>
+                <span className="text-[10px] font-medium text-[#2C76FF] uppercase tracking-wide">
+                  AM
+                </span>
+              </div>
+            </Link>
+          </div>
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-full bg-[#2C76FF]/10 flex items-center justify-center">
+                <span className="text-xs font-bold text-[#2C76FF]">
+                  {membership.displayName.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase()}
+                </span>
+              </div>
+              <div className="flex flex-col leading-tight">
+                <span className="text-sm font-medium text-[#1E1E1E]">
+                  {membership.displayName}
+                </span>
+                <span className="text-xs text-[#1E1E1E]/50">Account Manager</span>
+              </div>
             </div>
-            <span className="text-base font-bold tracking-tight text-[#1E1E1E]">
-              Apply Wizz Echo
-            </span>
-          </Link>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-[#1E1E1E]/90">
-              {membership.displayName} <span className="text-[#1E1E1E]/50">· Account Manager</span>
-            </span>
             <SignOutButton />
           </div>
         </div>
       </header>
-      <div className="flex flex-1 flex-col gap-6 p-8 max-w-5xl mx-auto w-full">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-3xl font-bold tracking-tight text-[#1E1E1E]">
-            Good morning, {firstName}
+      <div className="flex flex-1 flex-col gap-6 p-8 max-w-6xl mx-auto w-full">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-4xl font-bold tracking-tight text-[#1E1E1E]">
+            {firstName}&apos;s day
           </h1>
-          <p className="text-sm font-medium text-[#1E1E1E]/70">
-            <span className="font-semibold text-[#2C76FF]">
-              {todaysCalls.length}
-            </span>{" "}
-            call{todaysCalls.length === 1 ? "" : "s"} today ·{" "}
-            <span className="font-semibold text-[#FFDE59]">
-              {needsAttention.length}
-            </span>{" "}
-            thing{needsAttention.length === 1 ? "" : "s"} need your attention
+          <p className="text-base text-[#1E1E1E]/70">
+            {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
           </p>
         </div>
 
@@ -304,62 +314,90 @@ export default async function AccountManagerHomePage() {
       ) : null}
 
       {nextCall ? (
-        <section className="rounded-xl border border-[#2C76FF]/20 bg-gradient-to-br from-[#2C76FF]/10 to-[#29FE29]/5 p-6 shadow-lg">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#2C76FF]">
-              Next Call
-            </span>
-            <span className="rounded-full bg-[#2C76FF] px-3 py-1 text-xs font-semibold text-white">
-              {formatTime(nextCall.call.scheduledAt)}
-            </span>
-          </div>
+        <section className="rounded-2xl border-2 border-[#2C76FF]/30 bg-white p-8 shadow-xl">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="rounded-full bg-[#2C76FF]/10 p-3">
+                  <svg className="h-8 w-8 text-[#2C76FF]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-[#2C76FF]">
+                    Next up
+                  </p>
+                  <h2 className="text-2xl font-bold text-[#1E1E1E] mt-1">
+                    <Link
+                      href={`/customers/${nextCall.customer.customerId}`}
+                      className="hover:underline"
+                    >
+                      {nextCall.customer.name}
+                    </Link>
+                  </h2>
+                </div>
+              </div>
 
-          <div className="mt-4 flex flex-wrap items-baseline justify-between gap-2">
-            <div>
-              <Link
-                href={`/customers/${nextCall.customer.customerId}`}
-                className="text-xl font-bold text-[#1E1E1E] hover:underline"
-              >
-                {nextCall.customer.name}
-              </Link>
-              <span className="ml-2 text-sm text-[#1E1E1E]/60">
-                · {callTypeLabel(nextCall.call.callType)}
-              </span>
+              <div className="flex items-center gap-3 mb-4">
+                <p className="text-sm text-[#1E1E1E]/70">
+                  {callTypeLabel(nextCall.call.callType)}
+                </p>
+                <span className="inline-flex items-center rounded-md bg-[#2C76FF]/10 px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-[#2C76FF]">
+                  {nextCall.call.callType?.replace('_', ' ') ?? 'CALL'}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 text-sm text-[#1E1E1E]/70 mb-6">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>{formatTime(nextCall.call.scheduledAt)} – {new Date(new Date(nextCall.call.scheduledAt).getTime() + 45*60000).toLocaleTimeString(undefined, {hour: 'numeric', minute: '2-digit'})} · 🎯 Microsoft Teams Meeting</span>
+              </div>
+
+              {nextCallRemembers.length > 0 ? (
+                <div className="rounded-lg border border-[#1E1E1E]/10 bg-[#F5F5F5] p-4 mb-6">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[#1E1E1E]/70 mb-2">
+                    Echo remembers
+                  </p>
+                  <ul className="space-y-1.5 text-sm text-[#1E1E1E]/80">
+                    {nextCallRemembers.slice(0, 3).map((item, idx) => (
+                      <li key={idx} className="flex items-start gap-2">
+                        <span className="text-[#2C76FF] mt-0.5">•</span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              <div className="flex items-center gap-3">
+                {nextCall.call.meetingId ? (
+                  <button className="rounded-lg bg-[#29FE29] px-6 py-3 text-sm font-bold text-[#1E1E1E] shadow-lg hover:bg-[#29FE29]/90 transition-all flex items-center gap-2 min-h-[44px]">
+                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M19.5 3h-15A2.5 2.5 0 002 5.5v13A2.5 2.5 0 004.5 21h15a2.5 2.5 0 002.5-2.5v-13A2.5 2.5 0 0019.5 3zM10 16.5v-9l6 4.5-6 4.5z"/>
+                    </svg>
+                    Join Teams →
+                  </button>
+                ) : (
+                  <span className="rounded-lg bg-[#1E1E1E]/5 px-6 py-3 text-sm font-medium text-[#1E1E1E]/50">
+                    Scheduled
+                  </span>
+                )}
+                <Link
+                  href={`/customers/${nextCall.customer.customerId}`}
+                  className="rounded-lg border-2 border-[#1E1E1E]/10 bg-white px-6 py-3 text-sm font-semibold text-[#1E1E1E] hover:bg-[#F5F5F5] transition-all min-h-[44px] flex items-center"
+                >
+                  View customer
+                </Link>
+              </div>
             </div>
-          </div>
 
-          <div className="mt-4 rounded-lg border border-[#2C76FF]/20 bg-white p-4 text-sm">
-            <span className="font-semibold text-[#1E1E1E]">
-              Echo remembers:
-            </span>
-            {nextCallRemembers.length > 0 ? (
-              <ul className="mt-2 list-inside list-disc space-y-1 text-[#1E1E1E]/80">
-                {nextCallRemembers.map((item, idx) => (
-                  <li key={idx}>{item}</li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-2 text-[#1E1E1E]/60">
-                No prior flags recorded. Echo is ready to capture this call.
+            <div className="text-right">
+              <p className="text-xs font-medium text-[#1E1E1E]/50 mb-1">Starts in</p>
+              <p className="text-4xl font-bold text-[#2C76FF]">
+                {Math.floor((new Date(nextCall.call.scheduledAt).getTime() - Date.now()) / 60000)} min
               </p>
-            )}
-          </div>
-
-          <div className="mt-5 flex items-center gap-3">
-            {nextCall.call.meetingId ? (
-              <Link
-                href={`/meetings/${nextCall.call.meetingId}/prep`}
-                className="rounded-lg bg-[#29FE29] px-4 py-2 text-sm font-semibold text-[#1E1E1E] shadow-md hover:bg-[#29FE29]/90 transition-all"
-              >
-                Prepare call
-              </Link>
-            ) : null}
-            <Link
-              href={`/customers/${nextCall.customer.customerId}`}
-              className="rounded-lg border border-[#1E1E1E]/20 bg-white px-4 py-2 text-sm font-semibold text-[#1E1E1E] hover:bg-[#F5F5F5] transition-all"
-            >
-              Open customer →
-            </Link>
+            </div>
           </div>
         </section>
       ) : null}
@@ -406,53 +444,82 @@ export default async function AccountManagerHomePage() {
       </section>
 
       <section className="rounded-xl border border-[#1E1E1E]/10 bg-white shadow-md">
-        <div className="border-b border-[#1E1E1E]/10 px-5 py-4">
-          <h2 className="text-base font-semibold text-[#1E1E1E]">Today&apos;s calls</h2>
+        <div className="border-b border-[#1E1E1E]/10 px-6 py-4">
+          <h2 className="text-lg font-semibold text-[#1E1E1E]">Today&apos;s meetings</h2>
         </div>
         {todaysCalls.length === 0 ? (
-          <p className="px-5 py-6 text-sm text-[#1E1E1E]/60">
+          <p className="px-6 py-8 text-sm text-[#1E1E1E]/60">
             No customer calls scheduled today.
           </p>
         ) : (
           <ul className="divide-y divide-[#1E1E1E]/10">
-            {todaysCalls.map(({ customer, call }) => (
-              <li
-                key={`${customer.customerId}-${call.scheduledAt}`}
-                className="flex items-start justify-between gap-3 px-5 py-4 text-sm"
-              >
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold text-[#1E1E1E]">
-                      {formatTime(call.scheduledAt)}
-                    </span>
-                    <span className="text-[#1E1E1E]/40">·</span>
-                    <Link
-                      href={`/customers/${customer.customerId}`}
-                      className="font-medium text-[#2C76FF] hover:underline"
-                    >
-                      {customer.name}
-                    </Link>
-                    <StatusBadge tone="info">
-                      {callTypeLabel(call.callType)}
-                    </StatusBadge>
+            {todaysCalls.map(({ customer, call }) => {
+              const callTypeUpper = (call.callType?.toUpperCase().replace('_', ' ') ?? 'CALL');
+              const callTypeBadgeColor = 
+                call.callType === 'discovery' ? 'bg-[#2C76FF] text-white' :
+                call.callType === 'orientation' ? 'bg-[#8B5CF6] text-white' :
+                call.callType === 'progress_review' ? 'bg-[#29FE29] text-[#1E1E1E]' :
+                call.callType === 'renewal_discussion' ? 'bg-[#FFDE59] text-[#1E1E1E]' :
+                'bg-[#1E1E1E]/10 text-[#1E1E1E]';
+              
+              const isCompleted = call.scheduledAt && new Date(call.scheduledAt) < new Date();
+              const statusBadge = isCompleted ? 
+                { label: 'Completed', color: 'bg-[#29FE29]/10 text-[#29FE29] border border-[#29FE29]/30' } :
+                { label: 'Upcoming', color: 'bg-[#2C76FF]/10 text-[#2C76FF] border border-[#2C76FF]/30' };
+
+              return (
+                <li
+                  key={`${customer.customerId}-${call.scheduledAt}`}
+                  className="flex items-center justify-between gap-4 px-6 py-5 hover:bg-[#F5F5F5]/50 transition-colors"
+                >
+                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <div className="flex flex-col items-center min-w-[80px]">
+                      <span className="text-xs font-medium text-[#1E1E1E]/50">
+                        {formatTime(call.scheduledAt).split(' ')[0]}
+                      </span>
+                      <span className="text-2xl font-bold text-[#1E1E1E]">
+                        {formatTime(call.scheduledAt).split(' ')[1]}
+                      </span>
+                    </div>
+
+                    <div className="h-12 w-px bg-[#1E1E1E]/10" />
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Link
+                          href={`/customers/${customer.customerId}`}
+                          className="font-semibold text-[#1E1E1E] hover:underline truncate"
+                        >
+                          {customer.name}
+                        </Link>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm text-[#1E1E1E]/70">
+                          {callTypeLabel(call.callType)}
+                        </p>
+                        <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${callTypeBadgeColor}`}>
+                          {callTypeUpper}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <p className="mt-1 text-xs text-[#1E1E1E]/70">
-                    {customer.openActionCount} open action{customer.openActionCount === 1 ? "" : "s"} ·{" "}
-                    {customer.pendingTruthCount} pending update{customer.pendingTruthCount === 1 ? "" : "s"}
-                  </p>
-                </div>
-                {call.meetingId ? (
-                  <Link
-                    href={`/meetings/${call.meetingId}`}
-                    className="rounded-lg border border-[#2C76FF]/30 bg-[#2C76FF]/10 px-3 py-1.5 text-xs font-medium text-[#2C76FF] hover:bg-[#2C76FF]/20 transition-all"
-                  >
-                    View meeting →
-                  </Link>
-                ) : (
-                  <span className="text-xs text-[#1E1E1E]/40">Scheduled</span>
-                )}
-              </li>
-            ))}
+
+                  <div className="flex items-center gap-3">
+                    <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusBadge.color}`}>
+                      {statusBadge.label}
+                    </span>
+                    {call.meetingId ? (
+                      <Link
+                        href={`/meetings/${call.meetingId}`}
+                        className="text-sm text-[#2C76FF] hover:underline font-medium whitespace-nowrap min-h-[44px] flex items-center"
+                      >
+                        View →
+                      </Link>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
