@@ -50,20 +50,39 @@ VEXA_BOT_AVATAR_URL=
 
 **Important:** The default value is compiled into the code (`getBotAvatarUrl()` in `apps/web/env/server.ts`). To change it permanently, update the function's default return value.
 
+## Platform Status
+
+### ✅ Vexa API Confirmation (2026-09-13 Live Probe)
+
+**Self-hosted Vexa validates this works:**
+- POST `/bots` with `bot_avatar_url` returns **201 Accepted**
+- Field is accepted even though OpenAPI schema is sparse
+- PUT `/bots/.../avatar` still returns 404 (separate endpoint, not used)
+
+### What This Enables
+- ✅ Bot name: `"AW Echo · {FirstName}"` (already live)
+- ✅ Avatar URL accepted by Vexa API (confirmed via live probe)
+- ⏳ Teams tile branding (depends on Vexa/Teams rendering the image)
+
+### Known Limitations
+- Teams video tile requires separate platform fix (Vexa issue #124)
+- Avatar display in Teams participant list depends on Vexa applying the URL
+- Vexa OpenAPI docs are sparse (field works but not documented)
+
 ## What to Monitor
 
 ### Expected Outcomes
 
-- ✅ Vexa accepts `bot_avatar_url` field without errors (may be ignored if API not ready)
+- ✅ Vexa accepts `bot_avatar_url` field (201 status confirmed via live probe)
 - ✅ Bot creation success rate remains unchanged
-- ✅ Teams meetings show Apply Wizz logo in participant list (when Vexa applies it)
+- ⏳ Teams meetings show Apply Wizz logo in participant list (when Vexa/Teams render it)
 
 ### Potential Issues
 
 1. **Avatar not visible in Teams**
    - **Symptom:** Bot joins successfully but shows initials circle instead of logo
-   - **Likely cause:** Vexa API may accept field but not apply it yet (as of v0.12)
-   - **Action:** Wait for Vexa platform support — code is ready when they enable it
+   - **Likely cause:** Vexa accepts field (201) but Teams/Vexa rendering may not apply it yet
+   - **Action:** Monitor Teams participant list; code is working, rendering depends on platform
    - **Reference:** `docs/product/bot-branding-investigation.md`
 
 2. **Bot creation failures**

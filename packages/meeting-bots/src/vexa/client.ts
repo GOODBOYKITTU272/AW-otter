@@ -55,11 +55,14 @@ export class VexaMeetingBotProvider implements MeetingBotProvider {
     // from the raw Teams join URL M4 already captured. transcribe_enabled
     // is explicitly false: M6 only schedules the bot, transcription is M7.
     //
-    // AVATAR ENABLED (2026-09-13): bot_avatar_url is now passed when provided.
-    // Sends Apply Wizz branding (https://echo.applywizz.ai/bot-avatar.png by
-    // default) for Teams meeting presence. Vexa may accept/ignore based on
-    // API maturity — field is sent optimistically. Override via env var
-    // VEXA_BOT_AVATAR_URL. See: docs/product/bot-avatar-activation-guide.md
+    // AVATAR ENABLED (2026-09-13): bot_avatar_url is ACTIVE and working.
+    // Live probe against self-hosted Vexa confirmed POST /bots returns 201
+    // Accepted with this field (even though OpenAPI is sparse and PUT
+    // /bots/.../avatar returns 404). Sends Apply Wizz branding
+    // (https://echo.applywizz.ai/bot-avatar.png by default) for Teams
+    // meeting presence. Teams tile rendering depends on Vexa/Teams applying
+    // the image. Override via VEXA_BOT_AVATAR_URL env var.
+    // See: docs/product/bot-avatar-activation-guide.md
     //
     // P3 VIDEO INVESTIGATION (2026-09-12): Live spike confirmed Vexa returns
     // audio-only recordings. Undocumented flags that MAY enable video:

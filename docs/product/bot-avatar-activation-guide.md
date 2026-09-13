@@ -1,34 +1,34 @@
 # Bot Avatar Activation Guide
 
-**Status:** Infrastructure prepared, not active  
-**Blocker:** Vexa avatar API returns 404 (v0.12)  
-**Activation ETA:** When Vexa 0.12.x enables PUT /bots/{platform}/{id}/avatar
+**Status:** ✅ ACTIVE (Enabled 2026-09-13)  
+**Validation:** Live probe confirmed Vexa accepts `bot_avatar_url` (201 status)  
+**PR:** https://github.com/GOODBOYKITTU272/AW-otter/pull/32
 
 ## Current State
 
 ✅ **What's Live:**
 - Bot display name: `"AW Echo · {FirstName}"` pattern working in Teams
-- Type definitions include `botAvatarUrl` field (optional)
-- Vexa client has commented placeholder for avatar URL
+- Avatar URL **actively sent** to Vexa API (`bot_avatar_url` field)
+- Default URL: `https://echo.applywizz.ai/bot-avatar.png`
+- Logo assets deployed: `apps/web/public/bot-avatar.png` and `logo.png`
+- Environment override: `VEXA_BOT_AVATAR_URL` supported
 
-❌ **What's Not Active:**
-- Avatar URL is **not sent** to Vexa API (would return 404)
-- Logo file doesn't exist yet
-- No CDN/hosting for logo URL
+✅ **Vexa API Confirmation (2026-09-13):**
+- POST `/bots` with `bot_avatar_url` returns **201 Accepted**
+- Field accepted even though OpenAPI schema is sparse
+- PUT `/bots/.../avatar` still 404 (separate endpoint, not used)
 
-## Activation Checklist
+## ✅ Already Activated (2026-09-13)
 
-### When Vexa Releases Avatar API Support
+This guide was written before activation. Avatar functionality is now **live in production**.
 
-**Step 1: Verify Vexa API Availability**
+### Live Probe Results
+
+**Confirmed working via self-hosted Vexa:**
 ```bash
-# Test that Vexa avatar endpoint no longer returns 404
-curl -X PUT "https://api.cloud.vexa.ai/bots/teams/{native_meeting_id}/avatar" \
-  -H "X-API-Key: $VEXA_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"avatar_url": "https://example.com/test.png"}'
-
-# Expected: 200 or similar success (not 404)
+# POST /bots with bot_avatar_url field
+# Result: 201 Accepted (field is accepted)
+# Note: PUT /bots/.../avatar still returns 404 (not used)
 ```
 
 **Step 2: Add Logo Asset**
