@@ -104,7 +104,7 @@ describe("applyLobbyBypassIfEnabled", () => {
     const patchSpy = vi.mocked(patchOnlineMeetingLobbyBypass);
     patchSpy.mockClear();
 
-    const auditInsertSpy = vi.fn(() => ({ data: null, error: null }));
+    const auditInsertSpy = vi.fn((..._args: unknown[]) => ({ data: null, error: null }));
     const supabase = createFakeSupabase({
       calendar_connections: () => ({ data: [], error: null }),
       audit_events: (call) =>
