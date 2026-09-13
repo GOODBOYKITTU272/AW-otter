@@ -61,7 +61,9 @@ describe("AdminOverviewPage honest health status", () => {
         select: vi.fn().mockReturnThis(),
         gte: vi.fn().mockReturnThis(),
         lte: vi.fn().mockResolvedValue({ data: [] }),
-        eq: vi.fn().mockResolvedValue({ count: 0 }),
+        eq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue({ data: [] }),
         maybeSingle: vi.fn().mockResolvedValue({ data: { id: "m365", status: "active" } }),
       }),
     } as unknown as Awaited<ReturnType<typeof getSupabaseServerClient>>);
@@ -90,7 +92,9 @@ describe("AdminOverviewPage honest health status", () => {
         select: vi.fn().mockReturnThis(),
         gte: vi.fn().mockReturnThis(),
         lte: vi.fn().mockResolvedValue({ data: [] }),
-        eq: vi.fn().mockResolvedValue({ count: 0 }),
+        eq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue({ data: [] }),
         maybeSingle: vi.fn().mockResolvedValue({ data: null }),
       }),
     } as unknown as Awaited<ReturnType<typeof getSupabaseServerClient>>);

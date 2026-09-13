@@ -30,6 +30,7 @@ export default async function AdminOverviewPage() {
     .limit(4);
 
   const isAzureConfigured = getAzureMaiEnv().isConfigured;
+  const isOpenRouterConfigured = Boolean(process.env.OPENROUTER_API_KEY);
   const isDatabaseReachable = Boolean(memberships !== null);
 
   // Service health status (placeholder - would be real health checks in production)
@@ -38,6 +39,22 @@ export default async function AdminOverviewPage() {
     { name: "Whisper", icon: "📻", status: "Operational", health: 98.7 },
     { name: "Sarvam", icon: "🔊", status: "Operational", health: 97.3 },
     { name: "Graph", icon: "📊", status: "Operational", health: 99.8 },
+  ];
+
+  // STT Provider status (honest, not verified)
+  const sttProviders = [
+    {
+      name: "Azure Speech (Primary Transcriber)",
+      icon: "🎤",
+      status: isAzureConfigured ? "Configured (Not verified)" : "Not configured / Unknown",
+      tone: isAzureConfigured ? ("neutral" as const) : ("warning" as const),
+    },
+    {
+      name: "OpenRouter Whisper Fallback",
+      icon: "🔄",
+      status: isOpenRouterConfigured ? "Configured (Not verified)" : "Not configured / Unknown",
+      tone: isOpenRouterConfigured ? ("neutral" as const) : ("warning" as const),
+    },
   ];
 
   const incidentSeverityColors: Record<string, string> = {
@@ -120,7 +137,7 @@ export default async function AdminOverviewPage() {
                   {/* Mini health graph */}
                   <div className="h-16 flex items-end gap-0.5">
                     {Array.from({ length: 24 }).map((_, i) => {
-                      const height = Math.random() * 30 + 70; // Random between 70-100%
+                      const height = 85 + (i % 3) * 5; // Deterministic pattern between 85-95%
                       return (
                         <div
                           key={i}
@@ -130,6 +147,28 @@ export default async function AdminOverviewPage() {
                       );
                     })}
                   </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* STT Provider Status */}
+          <div className="rounded-2xl border border-[#1E1E1E]/10 bg-white shadow-sm overflow-hidden mt-6">
+            <div className="border-b border-[#1E1E1E]/10 px-6 py-4">
+              <h2 className="text-lg font-bold text-[#1E1E1E]">STT Provider Status</h2>
+            </div>
+            <div className="p-6 space-y-4">
+              {sttProviders.map((provider) => (
+                <div key={provider.name} className="flex items-center justify-between p-4 rounded-lg border border-[#1E1E1E]/10 bg-[#F5F5F5]/30">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-white flex items-center justify-center text-xl shadow-sm">
+                      {provider.icon}
+                    </div>
+                    <span className="text-sm font-medium text-[#1E1E1E]">{provider.name}</span>
+                  </div>
+                  <StatusBadge tone={provider.tone}>
+                    {provider.status}
+                  </StatusBadge>
                 </div>
               ))}
             </div>
