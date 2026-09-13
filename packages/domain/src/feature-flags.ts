@@ -39,6 +39,25 @@ export interface FeatureFlags {
    * Set via: ENABLE_AUDIO_RECORDING=false to disable (NOT RECOMMENDED)
    */
   enableAudioRecording: boolean;
+
+  /**
+   * Track B′: Enable lobby bypass PATCH for Apply Wizz–organized meetings.
+   * 
+   * When TRUE:
+   * - Before bot join, PATCH /onlineMeetings/{id} to set lobbyBypassSettings.scope="everyone"
+   * - Defense-in-depth: reduces lobby wait for anonymous guest bots
+   * - Requires Graph permission: OnlineMeetings.ReadWrite.All (app-only)
+   * - Idempotent and best-effort: bot join proceeds even if PATCH fails
+   * 
+   * When FALSE (default):
+   * - No lobby PATCH; bots rely on tenant policy + manual admission
+   * 
+   * Hypothesis: meeting-level bypass helps even when tenant Track A is applied.
+   * Safe to enable after tenant admin grants OnlineMeetings.ReadWrite.All.
+   * 
+   * Set via: ENABLE_LOBBY_BYPASS_PATCH=true in environment
+   */
+  enableLobbyBypassPatch: boolean;
 }
 
 /**
@@ -53,6 +72,9 @@ export function getFeatureFlags(): FeatureFlags {
     
     // Audio recording always ON (disabling would break transcription)
     enableAudioRecording: process.env.ENABLE_AUDIO_RECORDING !== "false",
+
+    // Track B′: Lobby bypass PATCH OFF by default (requires OnlineMeetings.ReadWrite.All)
+    enableLobbyBypassPatch: process.env.ENABLE_LOBBY_BYPASS_PATCH === "true",
   };
 }
 
