@@ -148,13 +148,14 @@ function normalizeGraphRecording(raw: RawGraphRecording): GraphCloudRecording {
 }
 
 /**
- * Download cloud recording MP4 file via signed URL.
+ * Download cloud recording MP4 file via Graph API.
  * 
  * Prerequisites:
  * - Recording must exist (from listCloudRecordings)
  * - recordingContentUrl expires ~1 hour after fetch, must download immediately
  * 
- * @param recordingContentUrl - Signed download URL from GraphCloudRecording.recordingContentUrl
+ * @param recordingContentUrl - Download URL from GraphCloudRecording.recordingContentUrl
+ * @param accessToken - Application-level access token (same as list recordings)
  * @param fetchImpl - Fetch implementation (for testing)
  * @param timeoutMs - Download timeout (default 2 minutes)
  * @param maxBytes - Size limit (default 500 MB for video)
@@ -163,6 +164,7 @@ function normalizeGraphRecording(raw: RawGraphRecording): GraphCloudRecording {
  */
 export async function downloadGraphRecording(
   recordingContentUrl: string,
+  accessToken: string,
   fetchImpl: typeof fetch = fetch,
   timeoutMs: number = 120_000,
   maxBytes: number = 500 * 1024 * 1024, // 500MB for video
@@ -173,6 +175,9 @@ export async function downloadGraphRecording(
   try {
     const response = await fetchImpl(recordingContentUrl, {
       method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
       signal: controller.signal,
     });
 

@@ -157,9 +157,10 @@ This PR does NOT:
 **Endpoint:** `GET /users/{userOid}/onlineMeetings/{onlineMeetingId}/recordings/{recordingId}/content`  
 **Purpose:** Download the actual MP4 file  
 **Permissions Required:** Same as list recordings (`OnlineMeetingRecording.Read.All`)  
+**Authentication:** MUST include `Authorization: Bearer {accessToken}` header (401 without it)  
 **Response:** Binary MP4 stream  
 **File Format:** MP4 (H.264 video + AAC audio), typically 200-500 MB per hour  
-**Note:** Use the same user-scoped path pattern as list recordings  
+**Note:** Use the same user-scoped path pattern and app-only token as list recordings  
 **Expiration:** Download URL (from `recordingContentUrl`) expires ~1 hour after fetching; must download immediately
 
 **Status:** NOT currently implemented. Use streaming download pattern from `packages/meeting-bots/src/vexa/recordings.ts` (200MB limit + timeout).
