@@ -47,7 +47,7 @@ export default async function AdminOverviewPage() {
   };
 
   return (
-    <main className="flex flex-1 flex-col gap-8 p-8 max-w-[1600px]">
+    <main className="flex flex-1 flex-col gap-6 sm:gap-8 p-4 sm:p-8 max-w-[1600px]">
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-3 mb-2">

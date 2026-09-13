@@ -96,14 +96,14 @@ export default async function ManagerBoardPage() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="border-b border-[#1E1E1E]/10 bg-white px-8 py-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-6">
-              <Link href="/manager/board" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+        <header className="border-b border-[#1E1E1E]/10 bg-white px-4 sm:px-8 py-4 shadow-sm">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 sm:gap-6 min-w-0">
+              <Link href="/manager/board" className="flex items-center gap-2 hover:opacity-80 transition-opacity shrink-0">
                 <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-[#2C76FF] to-[#29FE29] flex items-center justify-center">
                   <span className="text-sm font-bold text-white">W</span>
                 </div>
-                <div className="flex flex-col leading-tight">
+                <div className="hidden sm:flex flex-col leading-tight">
                   <span className="text-base font-bold tracking-tight text-[#1E1E1E]">
                     Wizz Echo
                   </span>
@@ -113,35 +113,30 @@ export default async function ManagerBoardPage() {
                 </div>
               </Link>
               
-              <div className="flex items-center gap-1 ml-4">
+              <div className="hidden md:flex items-center gap-1 ml-4">
                 <Link
                   href="/manager/board"
-                  className="px-4 py-2 text-sm font-medium text-[#2C76FF] bg-[#2C76FF]/10 rounded-lg"
+                  className="px-4 py-2 text-sm font-medium text-[#2C76FF] bg-[#2C76FF]/10 rounded-lg min-h-[44px] flex items-center"
                 >
                   Dashboard
                 </Link>
                 <Link
                   href="/manager/meetings"
-                  className="px-4 py-2 text-sm font-medium text-[#1E1E1E]/70 hover:bg-[#1E1E1E]/5 rounded-lg transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-[#1E1E1E]/70 hover:bg-[#1E1E1E]/5 rounded-lg transition-colors min-h-[44px] flex items-center"
                 >
                   Meetings
                 </Link>
               </div>
             </div>
 
-            <div className="flex items-center gap-6">
-              <button className="relative">
-                <svg className="h-6 w-6 text-[#1E1E1E]/70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </button>
-              <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 sm:gap-6 shrink-0">
+              <div className="hidden sm:flex items-center gap-2">
                 <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#29FE29] to-[#2C76FF] flex items-center justify-center">
                   <span className="text-sm font-bold text-white">
                     {membership.displayName.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase()}
                   </span>
                 </div>
-                <span className="text-sm font-medium text-[#1E1E1E]">{isSenior ? "Ops Manager" : "Manager"}</span>
+                <span className="hidden lg:inline text-sm font-medium text-[#1E1E1E]">{isSenior ? "Ops Manager" : "Manager"}</span>
               </div>
               <SignOutButton />
             </div>
@@ -149,28 +144,28 @@ export default async function ManagerBoardPage() {
         </header>
 
         {/* Main Board Content */}
-        <main className="flex-1 overflow-auto p-8">
+        <main className="flex-1 overflow-auto p-4 sm:p-8">
           <div className="max-w-[1400px] mx-auto">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
               <div>
-                <h1 className="text-3xl font-bold tracking-tight text-[#1E1E1E]">AM Board</h1>
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1E1E1E]">AM Board</h1>
                 <p className="text-sm text-[#1E1E1E]/60 mt-1">
                   Real-time overview of Account Managers and today&apos;s activity. Scroll to see all.
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-1.5 border border-[#29FE29]/30">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-1.5 border border-[#29FE29]/30 min-h-[44px]">
                   <div className="h-2 w-2 rounded-full bg-[#29FE29] animate-pulse" />
                   <span className="text-sm font-medium text-[#1E1E1E]">Auto-refresh: On</span>
                 </div>
-                <button className="rounded-lg bg-white border border-[#1E1E1E]/10 px-4 py-2 text-sm font-medium text-[#1E1E1E] hover:bg-[#F5F5F5] transition-colors">
+                <button className="rounded-lg bg-white border border-[#1E1E1E]/10 px-4 py-2 text-sm font-medium text-[#1E1E1E] hover:bg-[#F5F5F5] transition-colors min-h-[44px]">
                   Export Board
                 </button>
               </div>
             </div>
 
             {/* Filters */}
-            <div className="flex items-center gap-3 mb-6">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6">
               <select className="rounded-lg border border-[#1E1E1E]/10 bg-white px-4 py-2 text-sm font-medium text-[#1E1E1E] min-h-[44px]">
                 <option>All Teams</option>
                 <option>UK Team</option>

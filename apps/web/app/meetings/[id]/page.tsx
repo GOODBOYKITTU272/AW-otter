@@ -177,7 +177,7 @@ export default async function MeetingDetailPage({
 
   return (
     <div className={styles.root}>
-      <div style={{ padding: "14px 28px 0" }}>
+      <div className={styles.backLinkWrap}>
         <Link href="/admin/meetings" className={styles.backLink}>
           &larr; All meetings
         </Link>
