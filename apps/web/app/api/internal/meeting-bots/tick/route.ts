@@ -12,6 +12,7 @@ import {
   getSupabaseServiceRoleKey,
   getVexaEnv,
   toVexaEnv,
+  getBotAvatarUrl,
 } from "@/env/server";
 import { getClientEnv } from "@/env/client";
 import { isAuthorizedInternalRequest } from "@/lib/internal-route-auth";
@@ -79,6 +80,8 @@ export async function POST(request: NextRequest) {
   const processResult = await processPendingBotJobs(
     serviceRoleClient,
     provider,
+    10,
+    getBotAvatarUrl(),
   );
   const statusResult = await syncBotStatuses(serviceRoleClient, provider);
 
