@@ -402,9 +402,10 @@ export async function ensureGraphCloudRecording(
     throw new RecordingNotReadyError();
   }
 
-  // Download MP4 from Graph signed URL
+  // Download MP4 from Graph API (requires Authorization header)
   const bytes = await downloadGraphRecording(
     graphRecording.recordingContentUrl,
+    input.graphAccessToken,
     input.fetchImpl,
   );
 

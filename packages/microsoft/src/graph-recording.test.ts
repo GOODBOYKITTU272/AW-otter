@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   listCloudRecordings,
   getOnlineMeetingIdByJoinUrl,
+  downloadGraphRecording,
 } from "./graph-recording";
 import { GraphApiError } from "./errors";
 
@@ -143,5 +144,61 @@ describe("getOnlineMeetingIdByJoinUrl", () => {
 
     // OData requires single quotes in strings to be escaped as ''
     expect(calls[0]).toContain("test''value");
+  });
+});
+
+describe("downloadGraphRecording", () => {
+  function capturingFetchWithHeaders(status: number, body: ArrayBuffer | string) {
+    const capturedHeaders: Record<string, string>[] = [];
+    const fetchImpl = async (input: string | URL | Request, init?: RequestInit) => {
+      if (init?.headers) {
+        capturedHeaders.push(init.headers as Record<string, string>);
+      }
+      return new Response(body, {
+        status,
+        headers: { "Content-Type": "video/mp4" },
+      });
+    };
+    return { fetchImpl, capturedHeaders };
+  }
+
+  it("includes Authorization header with access token", async () => {
+    const mockMp4Data = new Uint8Array([0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70]).buffer;
+    const { fetchImpl, capturedHeaders } = capturingFetchWithHeaders(200, mockMp4Data);
+
+    await downloadGraphRecording(
+      "https://graph.microsoft.com/v1.0/users/xxx/onlineMeetings/yyy/recordings/zzz/content",
+      "test-access-token",
+      fetchImpl as unknown as typeof fetch,
+    );
+
+    expect(capturedHeaders).toHaveLength(1);
+    expect(capturedHeaders[0]?.Authorization).toBe("Bearer test-access-token");
+  });
+
+  it("throws error on 401 Unauthorized (missing or invalid token)", async () => {
+    const { fetchImpl } = capturingFetchWithHeaders(401, "Unauthorized");
+
+    await expect(
+      downloadGraphRecording(
+        "https://graph.microsoft.com/v1.0/users/xxx/onlineMeetings/yyy/recordings/zzz/content",
+        "invalid-token",
+        fetchImpl as unknown as typeof fetch,
+      ),
+    ).rejects.toThrow("Failed to download recording: HTTP 401");
+  });
+
+  it("downloads and returns MP4 file as ArrayBuffer", async () => {
+    const mockMp4Data = new Uint8Array([0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70]).buffer;
+    const { fetchImpl } = capturingFetchWithHeaders(200, mockMp4Data);
+
+    const result = await downloadGraphRecording(
+      "https://graph.microsoft.com/v1.0/users/xxx/onlineMeetings/yyy/recordings/zzz/content",
+      "test-access-token",
+      fetchImpl as unknown as typeof fetch,
+    );
+
+    expect(result.byteLength).toBe(8);
+    expect(new Uint8Array(result)).toEqual(new Uint8Array(mockMp4Data));
   });
 });
