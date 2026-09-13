@@ -1,7 +1,7 @@
 # Bot Avatar Enabled (2026-09-13)
 
 **Status:** ✅ Active in production  
-**PR:** [Link to PR after creation]
+**PR:** https://github.com/GOODBOYKITTU272/AW-otter/pull/32
 
 ## What Was Enabled
 
