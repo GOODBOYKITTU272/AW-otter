@@ -12,6 +12,7 @@ import {
   relativeDayLabel,
 } from "@applywizz/domain/am-portfolio";
 import { getAMLiveAlerts } from "@applywizz/domain";
+import { CountdownTimer } from "@/components/countdown-timer";
 
 const CALL_TYPE_LABEL: Record<string, string> = {
   discovery: "Discovery",
@@ -392,12 +393,7 @@ export default async function AccountManagerHomePage() {
               </div>
             </div>
 
-            <div className="text-right">
-              <p className="text-xs font-medium text-[#1E1E1E]/50 mb-1">Starts in</p>
-              <p className="text-4xl font-bold text-[#2C76FF]">
-                {Math.floor((new Date(nextCall.call.scheduledAt).getTime() - Date.now()) / 60000)} min
-              </p>
-            </div>
+            <CountdownTimer targetTime={nextCall.call.scheduledAt} />
           </div>
         </section>
       ) : null}
