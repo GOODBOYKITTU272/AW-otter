@@ -47,19 +47,15 @@ async function ingestVideoForMeeting(
     return { meetingId, status: "skipped_dnr", message: "Video recording disabled by feature flag" };
   }
 
-  // Fetch meeting with all necessary fields
+  // Fetch meeting with all necessary fields including organizer_email and meeting_url
   const { data: meeting, error: meetingError } = await serviceRoleClient
     .from("meetings")
-    .select("id, organization_id, online_meeting_id, eligibility_status, lifecycle_status")
+    .select("id, organization_id, online_meeting_id, organizer_email, meeting_url, eligibility_status, lifecycle_status")
     .eq("id", meetingId)
     .single();
 
   if (meetingError) {
     return { meetingId, status: "error", message: meetingError.message };
-  }
-
-  if (!meeting.online_meeting_id) {
-    return { meetingId, status: "skipped_no_online_id", message: "No online_meeting_id present" };
   }
 
   // DNR check: if eligibility_status is 'exclude', skip video ingestion
@@ -75,6 +71,44 @@ async function ingestVideoForMeeting(
     return { meetingId, status: "skipped_dnr", message: "DNR participant detected" };
   }
 
+  // Require organizer_email to resolve the user-scoped API path
+  if (!meeting.organizer_email) {
+    return { meetingId, status: "skipped_no_online_id", message: "No organizer_email present" };
+  }
+
+  let onlineMeetingId = meeting.online_meeting_id;
+
+  // If online_meeting_id is missing but meeting_url exists, try to resolve it
+  if (!onlineMeetingId && meeting.meeting_url) {
+    try {
+      const { getOnlineMeetingIdByJoinUrl } = await import("@applywizz/microsoft");
+      const resolvedId = await getOnlineMeetingIdByJoinUrl(
+        graphAccessToken,
+        meeting.organizer_email,
+        meeting.meeting_url,
+      );
+      
+      if (resolvedId) {
+        onlineMeetingId = resolvedId;
+        // Persist the resolved online_meeting_id for future use
+        await serviceRoleClient
+          .from("meetings")
+          .update({ online_meeting_id: resolvedId })
+          .eq("id", meeting.id);
+      }
+    } catch (error) {
+      return { 
+        meetingId, 
+        status: "error", 
+        message: `Failed to resolve online_meeting_id: ${error instanceof Error ? error.message : String(error)}` 
+      };
+    }
+  }
+
+  if (!onlineMeetingId) {
+    return { meetingId, status: "skipped_no_online_id", message: "No online_meeting_id or meeting_url to resolve it" };
+  }
+
   // Get storage client (cast to expected interface - actual Supabase storage is compatible)
   const storage = serviceRoleClient.storage.from(MEETING_RECORDINGS_BUCKET) as unknown as RecordingStorageClient;
 
@@ -82,7 +116,8 @@ async function ingestVideoForMeeting(
     await ensureGraphCloudRecording(serviceRoleClient, storage, {
       organizationId: meeting.organization_id,
       meetingId: meeting.id,
-      onlineMeetingId: meeting.online_meeting_id,
+      onlineMeetingId,
+      userOid: meeting.organizer_email,
       graphAccessToken,
     });
 
@@ -92,7 +127,7 @@ async function ingestVideoForMeeting(
       action: "recording.video_ingestion_success",
       entityType: "meeting",
       entityId: meeting.id,
-      metadata: { onlineMeetingId: meeting.online_meeting_id },
+      metadata: { onlineMeetingId },
     });
 
     return { meetingId, status: "success" };
@@ -112,7 +147,7 @@ async function ingestVideoForMeeting(
       entityId: meeting.id,
       metadata: { 
         error: error instanceof Error ? error.message : String(error),
-        onlineMeetingId: meeting.online_meeting_id,
+        onlineMeetingId,
       },
     });
 

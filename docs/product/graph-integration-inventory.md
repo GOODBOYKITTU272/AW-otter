@@ -322,14 +322,16 @@ export async function listCloudRecordings(
 ): Promise<GraphCloudRecording[]>
 ```
 
-**Implementation Status:** 🟡 STUB — Throws error until Tranche 1
+**Implementation Status:** ✅ PRODUCTION READY
 
-**Endpoint:** `GET /communications/onlineMeetings/{onlineMeetingId}/recordings`
+**Endpoint:** `GET /users/{userOid}/onlineMeetings/{onlineMeetingId}/recordings`
+
+**Note:** The `/communications/onlineMeetings/{id}/recordings` path returns 404. Use the user-scoped path with organizer's email/OID.
 
 **Dependencies:**
 - ✅ `graphRequest<T>()` helper exists (reusable)
 - ✅ Error normalization exists (reusable)
-- ⏳ Admin consent for `OnlineMeetingRecording.Read.All` needed
+- ✅ Admin consent for `OnlineMeetingRecording.Read.All` granted
 
 ---
 
