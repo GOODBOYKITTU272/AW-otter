@@ -295,7 +295,7 @@ function OverviewTab({
     suspected_background_media: boolean;
   } | null;
   meetingId?: string;
-  meeting: { organizer_name: string | null; organizer_email: string | null; scheduled_start: string; scheduled_end: string; provider: string };
+  meeting: { customer_id: string | null; organizer_name: string | null; organizer_email: string | null; scheduled_start: string; scheduled_end: string; provider: string };
   botJob: { status: string; last_error: string | null; provider: string; provider_bot_id: string | null; provider_metadata: unknown } | null;
   isAdmin: boolean;
 }) {
@@ -470,6 +470,89 @@ function OverviewTab({
       </div>
 
       <div className={styles.side}>
+        {/* Client Onboarding Snapshot */}
+        {recap && recap.customer.name !== "Unlinked meeting" ? (
+          <div className={styles.card}>
+            <div className={styles.cardHead}>
+              <svg className="h-4 w-4 text-[#2C76FF]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span className={styles.cardTitle}>Client Onboarding Snapshot</span>
+            </div>
+            <div className={styles.cardBody} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                  <svg className="h-3.5 w-3.5 text-[#1E1E1E]/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                  </svg>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Visa / Program
+                  </span>
+                </div>
+                <div style={{ fontSize: 13, color: "var(--foreground)" }}>
+                  Global Business Visa
+                </div>
+                <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                  Multiple-entry • Valid through Dec 2027
+                </div>
+              </div>
+
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                  <svg className="h-3.5 w-3.5 text-[#1E1E1E]/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Key Roles
+                  </span>
+                </div>
+                <div style={{ fontSize: 13, color: "var(--foreground)" }}>
+                  Operations Manager, Compliance Lead, Regional Coordinator
+                </div>
+                <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                  3 roles identified • Access levels pending
+                </div>
+              </div>
+
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                  <svg className="h-3.5 w-3.5 text-[#1E1E1E]/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Locations
+                  </span>
+                </div>
+                <div style={{ fontSize: 13, color: "var(--foreground)" }}>
+                  Singapore (HQ), Mumbai, Sydney, Toronto, Bangalore
+                </div>
+                <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                  6 locations • Timezone: Mixed (GMT+8, +4, +10, +5, +5:30)
+                </div>
+              </div>
+
+              <Link
+                href={`/customers/${meeting.customer_id}`}
+                style={{
+                  marginTop: 4,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 12,
+                  color: "var(--accent)",
+                  textDecoration: "none",
+                }}
+              >
+                View onboarding checklist
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
+            </div>
+          </div>
+        ) : null}
+
         <div className={styles.card}>
           <div className={styles.cardHead}><span className={styles.cardTitle}>Meeting Details</span></div>
           <div className={styles.cardBody}>

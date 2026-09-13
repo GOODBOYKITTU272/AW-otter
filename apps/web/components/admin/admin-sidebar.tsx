@@ -26,16 +26,16 @@ export function AdminSidebar() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex w-64 shrink-0 flex-col border-r border-[#F5F5F5]/10 bg-[#1E1E1E]">
-      <Link href="/admin/overview" className="px-6 py-6 flex items-center gap-2 hover:opacity-80 transition-opacity">
-        <div className="h-8 w-8 rounded-lg bg-[#29FE29] flex items-center justify-center">
-          <span className="text-sm font-bold text-[#1E1E1E]">AW</span>
+    <nav className="flex w-64 shrink-0 flex-col border-r border-[#F5F5F5]/10 bg-[#0B1D33]">
+      <Link href="/admin/overview" className="px-6 py-6 flex items-center gap-2 hover:opacity-80 transition-opacity border-b border-[#F5F5F5]/10">
+        <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#2C76FF] to-[#29FE29] flex items-center justify-center shadow-lg">
+          <span className="text-sm font-bold text-white">AW</span>
         </div>
-        <div className="flex flex-col">
+        <div className="flex flex-col leading-tight">
           <span className="text-base font-bold tracking-tight text-white">
-            Apply Wizz
+            Wizz Echo
           </span>
-          <span className="text-xs font-medium text-[#29FE29]">Echo Admin</span>
+          <span className="text-xs font-medium text-[#29FE29]">Admin</span>
         </div>
       </Link>
 
