@@ -18,7 +18,8 @@ function capturingFetch(status: number, body: unknown) {
 }
 
 describe("listCloudRecordings", () => {
-  it("uses user-scoped API path /users/{userOid}/onlineMeetings/{id}/recordings", async () => {
+  it("uses user-scoped API path /users/{userOid}/onlineMeetings/{id}/recordings with GUID", async () => {
+    const userGuid = "6a184ab5-f989-4d9f-bad4-739731d3e936";
     const { fetchImpl, calls } = capturingFetch(200, {
       value: [
         {
@@ -39,24 +40,25 @@ describe("listCloudRecordings", () => {
 
     const recordings = await listCloudRecordings(
       "access-token",
-      "user@example.com",
+      userGuid,
       "meeting-123",
       fetchImpl,
     );
 
     expect(calls).toHaveLength(1);
-    expect(calls[0]).toContain("/users/user%40example.com/onlineMeetings/meeting-123/recordings");
+    expect(calls[0]).toContain(`/users/${userGuid}/onlineMeetings/meeting-123/recordings`);
     expect(calls[0]).not.toContain("/communications/");
     expect(recordings).toHaveLength(1);
     expect(recordings[0]?.id).toBe("rec-1");
   });
 
   it("returns empty array when no recordings exist", async () => {
+    const userGuid = "6a184ab5-f989-4d9f-bad4-739731d3e936";
     const { fetchImpl } = capturingFetch(200, { value: [] });
 
     const recordings = await listCloudRecordings(
       "access-token",
-      "user@example.com",
+      userGuid,
       "meeting-123",
       fetchImpl,
     );
@@ -64,19 +66,35 @@ describe("listCloudRecordings", () => {
     expect(recordings).toEqual([]);
   });
 
+  it("rejects email addresses as userOid (Graph requires GUID for app-only auth)", async () => {
+    const email = "user@example.com";
+    const { fetchImpl } = capturingFetch(400, {
+      error: { 
+        code: "BadRequest", 
+        message: "The userId in request URL is not a valid GUID." 
+      },
+    });
+
+    await expect(
+      listCloudRecordings("access-token", email, "meeting-123", fetchImpl),
+    ).rejects.toBeInstanceOf(GraphApiError);
+  });
+
   it("throws GraphApiError on 404 (meeting not found or access denied)", async () => {
+    const userGuid = "6a184ab5-f989-4d9f-bad4-739731d3e936";
     const { fetchImpl } = capturingFetch(404, {
       error: { code: "NotFound", message: "Requested API is not supported" },
     });
 
     await expect(
-      listCloudRecordings("access-token", "user@example.com", "meeting-123", fetchImpl),
+      listCloudRecordings("access-token", userGuid, "meeting-123", fetchImpl),
     ).rejects.toBeInstanceOf(GraphApiError);
   });
 });
 
 describe("getOnlineMeetingIdByJoinUrl", () => {
-  it("resolves online meeting ID from join URL using user-scoped API", async () => {
+  it("resolves online meeting ID from join URL using user-scoped API with GUID", async () => {
+    const userGuid = "6a184ab5-f989-4d9f-bad4-739731d3e936";
     const joinUrl = "https://teams.microsoft.com/l/meetup-join/19%3ameeting_abc123";
     const { fetchImpl, calls } = capturingFetch(200, {
       value: [{ id: "online-meeting-456" }],
@@ -84,25 +102,26 @@ describe("getOnlineMeetingIdByJoinUrl", () => {
 
     const meetingId = await getOnlineMeetingIdByJoinUrl(
       "access-token",
-      "organizer@example.com",
+      userGuid,
       joinUrl,
       fetchImpl,
     );
 
     expect(calls).toHaveLength(1);
-    expect(calls[0]).toContain("/users/organizer%40example.com/onlineMeetings");
+    expect(calls[0]).toContain(`/users/${userGuid}/onlineMeetings`);
     expect(calls[0]).toContain("$filter=");
     expect(calls[0]).toContain("JoinWebUrl");
     expect(meetingId).toBe("online-meeting-456");
   });
 
   it("returns null when no meeting matches the join URL", async () => {
+    const userGuid = "6a184ab5-f989-4d9f-bad4-739731d3e936";
     const joinUrl = "https://teams.microsoft.com/l/meetup-join/19%3ameeting_xyz";
     const { fetchImpl } = capturingFetch(200, { value: [] });
 
     const meetingId = await getOnlineMeetingIdByJoinUrl(
       "access-token",
-      "organizer@example.com",
+      userGuid,
       joinUrl,
       fetchImpl,
     );
@@ -111,12 +130,13 @@ describe("getOnlineMeetingIdByJoinUrl", () => {
   });
 
   it("escapes single quotes in join URL for OData filter", async () => {
+    const userGuid = "6a184ab5-f989-4d9f-bad4-739731d3e936";
     const joinUrl = "https://teams.example.com/join?q=test'value";
     const { fetchImpl, calls } = capturingFetch(200, { value: [] });
 
     await getOnlineMeetingIdByJoinUrl(
       "access-token",
-      "organizer@example.com",
+      userGuid,
       joinUrl,
       fetchImpl,
     );

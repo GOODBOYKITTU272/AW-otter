@@ -326,12 +326,14 @@ export async function listCloudRecordings(
 
 **Endpoint:** `GET /users/{userOid}/onlineMeetings/{onlineMeetingId}/recordings`
 
-**Note:** The `/communications/onlineMeetings/{id}/recordings` path returns 404. Use the user-scoped path with organizer's email/OID.
+**Note:** The `/communications/onlineMeetings/{id}/recordings` path returns 404. Use the user-scoped path.  
+**Critical:** `userOid` MUST be Azure AD object ID (GUID) from `calendar_connections.provider_user_id`, not email.
 
 **Dependencies:**
 - ✅ `graphRequest<T>()` helper exists (reusable)
 - ✅ Error normalization exists (reusable)
 - ✅ Admin consent for `OnlineMeetingRecording.Read.All` granted
+- ✅ Organizer→GUID resolution via `calendar_connections.scope_metadata->>'email'`
 
 ---
 
