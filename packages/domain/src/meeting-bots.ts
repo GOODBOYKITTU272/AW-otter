@@ -241,6 +241,7 @@ export async function processPendingBotJobs(
   serviceRoleClient: AppSupabaseClient,
   provider: MeetingBotProvider,
   limit = 10,
+  botAvatarUrl?: string,
 ): Promise<ProcessPendingResult> {
   const { data: jobs, error } = await serviceRoleClient
     .from("meeting_bot_jobs")
@@ -387,6 +388,7 @@ export async function processPendingBotJobs(
         meetingUrl: meeting.meeting_url,
         idempotencyKey: job.idempotency_key,
         botName,
+        botAvatarUrl,
       });
 
       // Confirm the real provider bot onto the row we claimed — guarded

@@ -59,7 +59,7 @@ describe("VexaMeetingBotProvider", () => {
       meetingUrl: teamsUrl,
       idempotencyKey: "idem-1",
       botName: "AW Echo · Test",
-      // botAvatarUrl: "https://echo.applywizz.ai/logo.png", // PREPARED: Infrastructure ready for when Vexa enables avatar API
+      botAvatarUrl: "https://echo.applywizz.ai/bot-avatar.png",
     });
 
     const [url, init] = fetchImpl.mock.calls[0] ?? [];
@@ -73,12 +73,40 @@ describe("VexaMeetingBotProvider", () => {
       meeting_url: teamsUrl,
       bot_name: "AW Echo · Test",
       transcribe_enabled: false,
-      // Avatar URL not included until Vexa API supports it (currently 404)
+      bot_avatar_url: "https://echo.applywizz.ai/bot-avatar.png",
     });
     expect(result).toEqual({
       providerBotId,
       status: "joined",
       raw: { status: "active", native_meeting_id: nativeMeetingId },
+    });
+  });
+
+  it("omits bot_avatar_url field when not provided", async () => {
+    const fetchImpl = vi.fn(
+      async (_input?: string | URL | Request, _init?: RequestInit) =>
+        response(201, { status: "active", native_meeting_id: nativeMeetingId }),
+    );
+    const provider = new VexaMeetingBotProvider(
+      { baseUrl: "https://api.vexa.test/", apiKey: "key" },
+      fetchImpl,
+    );
+
+    await provider.createBot({
+      meetingUrl: teamsUrl,
+      idempotencyKey: "idem-1",
+      botName: "AW Echo · Test",
+      // botAvatarUrl intentionally omitted
+    });
+
+    const [_url, init] = fetchImpl.mock.calls[0] ?? [];
+    const body = JSON.parse(String(init?.body));
+    expect(body).not.toHaveProperty("bot_avatar_url");
+    expect(body).toEqual({
+      platform: "teams",
+      meeting_url: teamsUrl,
+      bot_name: "AW Echo · Test",
+      transcribe_enabled: false,
     });
   });
 

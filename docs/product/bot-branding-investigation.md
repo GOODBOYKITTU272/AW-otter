@@ -28,13 +28,14 @@ Investigated Vexa's open-source repository and API documentation at docs.vexa.ai
 }
 ```
 
-#### ❌ Not Available Yet
+#### ✅ UPDATED (2026-09-13): Avatar Field Accepted
 
-**Avatar/Profile Picture** (`PUT /bots/{platform}/{id}/avatar`)
-- Endpoint exists in API specification
-- **Status:** Returns 404 in current v0.12 release
-- Per docs.vexa.ai/api/interactive-bots: "Avatar / virtual camera: sealed ❌ 404 - planned back in 0.12.x"
-- Vexa documentation confirms: "contract-sealed but not reachable through the API today"
+**Avatar/Profile Picture** (`bot_avatar_url` field on POST /bots)
+- **Status:** WORKING — Live probe confirms 201 Accepted
+- Self-hosted Vexa accepts `bot_avatar_url` in POST /bots request body
+- Field works even though OpenAPI schema is sparse
+- PUT `/bots/{platform}/{id}/avatar` still returns 404 (separate endpoint, not used)
+- **Implementation:** ENABLED in production (PR #32)
 
 **Custom Video Tile**
 - Teams actively blocks bot video publishing (GitHub issue #124)

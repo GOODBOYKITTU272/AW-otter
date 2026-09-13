@@ -82,6 +82,18 @@ export function toVexaEnv(env: ReturnType<typeof getVexaEnv>) {
   } as const;
 }
 
+/**
+ * Bot avatar URL for Teams meeting presence. Defaults to the hosted Apply
+ * Wizz logo but can be overridden via VEXA_BOT_AVATAR_URL env var for
+ * testing or custom branding. Returns undefined if explicitly set to empty
+ * string (disables avatar).
+ */
+export function getBotAvatarUrl(): string | undefined {
+  const envValue = process.env.VEXA_BOT_AVATAR_URL;
+  if (envValue === "") return undefined;
+  return envValue ?? "https://echo.applywizz.ai/bot-avatar.png";
+}
+
 export function getOpenAiEnv() {
   return {
     OPENAI_API_KEY: required("OPENAI_API_KEY", process.env.OPENAI_API_KEY),
