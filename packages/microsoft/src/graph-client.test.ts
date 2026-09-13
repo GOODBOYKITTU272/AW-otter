@@ -7,6 +7,7 @@ import {
   listUpcomingEvents,
   listUpcomingEventsForUser,
   renewSubscription,
+  patchOnlineMeetingLobbyBypass,
 } from "./graph-client";
 import { GraphApiError } from "./errors";
 import { MAX_SUBSCRIPTION_MINUTES } from "./config";
@@ -178,6 +179,66 @@ describe("getCalendarEvent", () => {
   it("throws a typed error on a real failure", async () => {
     await expect(
       getCalendarEvent("at", "evt-1", fakeFetch(500, { error: { code: "ServiceError" } })),
+    ).rejects.toBeInstanceOf(GraphApiError);
+  });
+});
+
+describe("patchOnlineMeetingLobbyBypass", () => {
+  function capturingFetch(status: number, body: unknown) {
+    const calls: Array<{ url: string; body: string }> = [];
+    const fetchImpl = async (input: string | URL | Request, init?: RequestInit) => {
+      calls.push({ 
+        url: typeof input === "string" ? input : input.toString(),
+        body: init?.body as string,
+      });
+      return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+    };
+    return { fetchImpl, calls };
+  }
+
+  it("PATCHes /users/{userOid}/onlineMeetings/{id} with lobbyBypassSettings scope=everyone", async () => {
+    const userOid = "6a184ab5-f989-4d9f-bad4-739731d3e936";
+    const meetingId = "MSoxOTptYWlsY29udGV4dEBhcHBseXdpenouYWk_thread.v2_19:meeting_abc123";
+    const { fetchImpl, calls } = capturingFetch(200, {});
+
+    await patchOnlineMeetingLobbyBypass("test-token", userOid, meetingId, fetchImpl as unknown as typeof fetch);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url).toContain(`/users/${userOid}/onlineMeetings/`);
+    expect(calls[0]?.url).toContain(encodeURIComponent(meetingId));
+    
+    const body = JSON.parse(calls[0]?.body ?? "{}");
+    expect(body.lobbyBypassSettings.scope).toBe("everyone");
+    expect(body.lobbyBypassSettings.isDialInBypassEnabled).toBe(false);
+  });
+
+  it("throws GraphApiError on permission denied (403)", async () => {
+    const { fetchImpl } = capturingFetch(403, { 
+      error: { code: "Forbidden", message: "Insufficient privileges" } 
+    });
+
+    await expect(
+      patchOnlineMeetingLobbyBypass(
+        "invalid-token", 
+        "user-oid", 
+        "meeting-id", 
+        fetchImpl as unknown as typeof fetch
+      )
+    ).rejects.toBeInstanceOf(GraphApiError);
+  });
+
+  it("throws GraphApiError on meeting not found (404)", async () => {
+    const { fetchImpl } = capturingFetch(404, { 
+      error: { code: "NotFound", message: "Online meeting not found" } 
+    });
+
+    await expect(
+      patchOnlineMeetingLobbyBypass(
+        "test-token", 
+        "user-oid", 
+        "nonexistent-meeting", 
+        fetchImpl as unknown as typeof fetch
+      )
     ).rejects.toBeInstanceOf(GraphApiError);
   });
 });

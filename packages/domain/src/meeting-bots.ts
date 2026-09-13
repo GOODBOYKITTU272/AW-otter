@@ -242,6 +242,7 @@ export async function processPendingBotJobs(
   provider: MeetingBotProvider,
   limit = 10,
   botAvatarUrl?: string,
+  graphAccessToken?: string,
 ): Promise<ProcessPendingResult> {
   const { data: jobs, error } = await serviceRoleClient
     .from("meeting_bot_jobs")
@@ -346,7 +347,7 @@ export async function processPendingBotJobs(
 
     const { data: meeting, error: meetingError } = await serviceRoleClient
       .from("meetings")
-      .select("meeting_url, owner_membership_id")
+      .select("meeting_url, owner_membership_id, online_meeting_id, organizer_email")
       .eq("id", job.meeting_id)
       .eq("organization_id", job.organization_id)
       .single();
@@ -382,6 +383,23 @@ export async function processPendingBotJobs(
     }
 
     const botName = generateBotDisplayName(ownerDisplayName);
+
+    // Track B′: Apply lobby bypass if enabled and meeting has online_meeting_id
+    if (
+      graphAccessToken &&
+      meeting.online_meeting_id &&
+      meeting.organizer_email
+    ) {
+      const { applyLobbyBypassIfEnabled } = await import("./lobby-bypass");
+      await applyLobbyBypassIfEnabled(
+        serviceRoleClient,
+        graphAccessToken,
+        job.meeting_id,
+        meeting.online_meeting_id,
+        meeting.organizer_email,
+        job.organization_id,
+      );
+    }
 
     try {
       const result = await provider.createBot({
