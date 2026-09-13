@@ -37,6 +37,40 @@ interface IngestResult {
   message?: string;
 }
 
+/**
+ * Resolve organizer email to Azure AD object ID (GUID) required for Graph API.
+ * 
+ * Graph's /users/{userOid}/onlineMeetings/... path requires an Azure AD object ID,
+ * not UPN/email. This looks up the provider_user_id from calendar_connections
+ * by matching the organizer email in scope_metadata.
+ * 
+ * @param serviceRoleClient - Supabase service role client
+ * @param organizerEmail - Organizer email from meeting record (case-insensitive)
+ * @returns Azure AD object ID (GUID) if found, null otherwise
+ */
+async function resolveOrganizerToGuid(
+  serviceRoleClient: ReturnType<typeof createSupabaseServiceRoleClient>,
+  organizerEmail: string,
+): Promise<string | null> {
+  // Query calendar_connections where scope_metadata->>'email' matches organizer_email (case-insensitive)
+  const { data } = await serviceRoleClient
+    .from("calendar_connections")
+    .select("provider_user_id, scope_metadata")
+    .eq("provider", "microsoft")
+    .eq("status", "active");
+
+  if (!data) return null;
+
+  // Filter in-memory for case-insensitive email match (JSONB email comparison)
+  const normalizedEmail = organizerEmail.toLowerCase();
+  const match = data.find((conn) => {
+    const metadata = conn.scope_metadata as { email?: string } | null;
+    return metadata?.email?.toLowerCase() === normalizedEmail;
+  });
+
+  return match?.provider_user_id ?? null;
+}
+
 async function ingestVideoForMeeting(
   serviceRoleClient: ReturnType<typeof createSupabaseServiceRoleClient>,
   meetingId: string,
@@ -80,11 +114,21 @@ async function ingestVideoForMeeting(
 
   // If online_meeting_id is missing but meeting_url exists, try to resolve it
   if (!onlineMeetingId && meeting.meeting_url) {
+    // First resolve organizer email to GUID for the lookup
+    const lookupUserOid = await resolveOrganizerToGuid(serviceRoleClient, meeting.organizer_email);
+    if (!lookupUserOid) {
+      return { 
+        meetingId, 
+        status: "error", 
+        message: `Cannot resolve organizer ${meeting.organizer_email} to Azure AD object ID - no active calendar connection found` 
+      };
+    }
+
     try {
       const { getOnlineMeetingIdByJoinUrl } = await import("@applywizz/microsoft");
       const resolvedId = await getOnlineMeetingIdByJoinUrl(
         graphAccessToken,
-        meeting.organizer_email,
+        lookupUserOid,
         meeting.meeting_url,
       );
       
@@ -109,6 +153,16 @@ async function ingestVideoForMeeting(
     return { meetingId, status: "skipped_no_online_id", message: "No online_meeting_id or meeting_url to resolve it" };
   }
 
+  // Resolve organizer email to Azure AD object ID (GUID) required by Graph API
+  const userOid = await resolveOrganizerToGuid(serviceRoleClient, meeting.organizer_email);
+  if (!userOid) {
+    return { 
+      meetingId, 
+      status: "error", 
+      message: `Cannot resolve organizer ${meeting.organizer_email} to Azure AD object ID - no active calendar connection found` 
+    };
+  }
+
   // Get storage client (cast to expected interface - actual Supabase storage is compatible)
   const storage = serviceRoleClient.storage.from(MEETING_RECORDINGS_BUCKET) as unknown as RecordingStorageClient;
 
@@ -117,7 +171,7 @@ async function ingestVideoForMeeting(
       organizationId: meeting.organization_id,
       meetingId: meeting.id,
       onlineMeetingId,
-      userOid: meeting.organizer_email,
+      userOid,
       graphAccessToken,
     });
 

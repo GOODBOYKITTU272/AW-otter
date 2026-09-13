@@ -117,7 +117,8 @@ This PR does NOT:
 **Purpose:** Fetch all cloud recordings for a specific online meeting  
 **Permissions Required:** `OnlineMeetingRecording.Read.All` (application)  
 **Documentation:** https://learn.microsoft.com/en-us/graph/api/onlinemeeting-list-recordings  
-**Note:** The `/communications/onlineMeetings/{id}/recordings` path returns 404. Use the user-scoped path with the organizer's OID or UPN.  
+**Note:** The `/communications/onlineMeetings/{id}/recordings` path returns 404. Use the user-scoped path.  
+**Important:** `{userOid}` MUST be an Azure AD object ID (GUID), not email/UPN. App-only auth rejects emails with "userId is not a valid GUID."  
 **Response:**
 ```json
 {
