@@ -61,9 +61,11 @@ const TRUTH_STATUS_TONE: Record<string, BadgeTone> = {
 export function MeetingRecap({
   recap,
   canEdit = true,
+  canViewRawTranscript = true,
 }: {
   recap: MeetingRecapData;
   canEdit?: boolean;
+  canViewRawTranscript?: boolean;
 }) {
   const [seekMs, setSeekMs] = useState<number | null>(null);
   const [currentPlaybackMs, setCurrentPlaybackMs] = useState<number>(0);
@@ -259,8 +261,8 @@ export function MeetingRecap({
         </section>
       )}
 
-      {/* Full Synchronized Transcript */}
-      {recap.transcriptSegments.length > 0 && (
+      {/* Full Synchronized Transcript - Only visible to managers and admins */}
+      {canViewRawTranscript && recap.transcriptSegments.length > 0 && (
         <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
           <details className="group">
             <summary className="cursor-pointer list-none border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
