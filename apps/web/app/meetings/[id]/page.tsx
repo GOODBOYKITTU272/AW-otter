@@ -152,6 +152,8 @@ export default async function MeetingDetailPage({
   });
 
   const isAdmin = membership.roleKey === "admin";
+  // Role gate: Only managers and admins can see raw transcripts
+  const canViewRawTranscript = membership.roleKey !== "account_manager";
   const recap = recapState?.status === "ready" ? recapState.recap : null;
   const segmentById = new Map(
     (segmentRows ?? []).map((s) => [
@@ -224,20 +226,26 @@ export default async function MeetingDetailPage({
                 meeting={meeting}
                 botJob={botJob}
                 isAdmin={isAdmin}
+                canViewRawTranscript={canViewRawTranscript}
               />
             ),
           },
-          {
-            key: "transcript",
-            label: "Transcript",
-            content: (
-              <TranscriptTab
-                segments={segmentRows ?? []}
-                transcript={transcript}
-                speakerMap={speakerMap}
-              />
-            ),
-          },
+          // Transcript tab: Only visible to managers and admins, hidden from account_managers
+          ...(canViewRawTranscript
+            ? [
+                {
+                  key: "transcript",
+                  label: "Transcript",
+                  content: (
+                    <TranscriptTab
+                      segments={segmentRows ?? []}
+                      transcript={transcript}
+                      speakerMap={speakerMap}
+                    />
+                  ),
+                },
+              ]
+            : []),
           {
             key: "actions",
             label: "Actions",
@@ -279,6 +287,7 @@ function OverviewTab({
   meeting,
   botJob,
   isAdmin,
+  canViewRawTranscript,
 }: {
   recap: MeetingRecapData | null;
   recapState: Awaited<ReturnType<typeof getMeetingRecapData>>;
@@ -298,6 +307,7 @@ function OverviewTab({
   meeting: { customer_id: string | null; organizer_name: string | null; organizer_email: string | null; scheduled_start: string; scheduled_end: string; provider: string };
   botJob: { status: string; last_error: string | null; provider: string; provider_bot_id: string | null; provider_metadata: unknown } | null;
   isAdmin: boolean;
+  canViewRawTranscript: boolean;
 }) {
   return (
     <div className={styles.body}>
@@ -446,27 +456,30 @@ function OverviewTab({
           )}
         </div>
 
-        <div className={styles.card}>
-          <div className={styles.cardHead}>
-            <span className={styles.cardTitle}>Transcript Preview</span>
+        {/* Transcript Preview: Only show to managers and admins */}
+        {canViewRawTranscript && (
+          <div className={styles.card}>
+            <div className={styles.cardHead}>
+              <span className={styles.cardTitle}>Transcript Preview</span>
+            </div>
+            {previewSegments.length > 0 ? (
+              <>
+                {previewSegments.map((s) => (
+                  <TranscriptLine
+                    key={s.id}
+                    speaker={s.speaker_label}
+                    interpretation={speakerMap?.get(s.speaker_label)}
+                    text={s.original_text}
+                    endMs={s.end_ms}
+                  />
+                ))}
+                <div style={{ marginTop: 8, fontSize: 12, color: "var(--accent)" }}>View full transcript in the Transcript tab &rarr;</div>
+              </>
+            ) : (
+              <p className={`${styles.cardBody} ${styles.muted}`}>Transcript will appear here once the recording is processed.</p>
+            )}
           </div>
-          {previewSegments.length > 0 ? (
-            <>
-              {previewSegments.map((s) => (
-                <TranscriptLine
-                  key={s.id}
-                  speaker={s.speaker_label}
-                  interpretation={speakerMap?.get(s.speaker_label)}
-                  text={s.original_text}
-                  endMs={s.end_ms}
-                />
-              ))}
-              <div style={{ marginTop: 8, fontSize: 12, color: "var(--accent)" }}>View full transcript in the Transcript tab &rarr;</div>
-            </>
-          ) : (
-            <p className={`${styles.cardBody} ${styles.muted}`}>Transcript will appear here once the recording is processed.</p>
-          )}
-        </div>
+        )}
       </div>
 
       <div className={styles.side}>

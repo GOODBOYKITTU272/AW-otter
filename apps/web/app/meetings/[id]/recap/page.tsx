@@ -46,7 +46,10 @@ export default async function MeetingRecapPage({
       Boolean(meeting?.owner_membership_id) &&
       meeting?.owner_membership_id === membership.membershipId;
 
-    return <MeetingRecap recap={state.recap} canEdit={canEdit} />;
+    // Role gate: Only managers and admins can see raw transcripts
+    const canViewRawTranscript = membership.roleKey !== "account_manager";
+
+    return <MeetingRecap recap={state.recap} canEdit={canEdit} canViewRawTranscript={canViewRawTranscript} />;
   }
 
   const errorCode =
