@@ -13,23 +13,23 @@ export function LandingPage() {
     <div className="min-h-screen bg-[#0B1D33] flex flex-col">
       {/* Header */}
       <header className="border-b border-white/10 bg-[#1E1E1E]/50 backdrop-blur-sm">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex min-h-[60px] items-center justify-between gap-2">
             <div className="flex items-center gap-3">
-              <div className="text-2xl font-bold text-[#29FE29]">
+              <div className="text-lg sm:text-2xl font-bold text-[#29FE29]">
                 Apply Wizz Echo
               </div>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-4">
               <Link
                 href="/login"
-                className="rounded-full bg-white/10 px-5 py-2 text-sm font-semibold text-white hover:bg-white/20 transition-colors"
+                className="min-h-[44px] rounded-full bg-white/10 px-4 sm:px-5 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-white/20 transition-colors flex items-center justify-center"
               >
                 Sign in
               </Link>
               <Link
                 href="/access-pending"
-                className="rounded-full bg-[#2C76FF] px-5 py-2 text-sm font-semibold text-white hover:bg-[#2C76FF]/90 transition-colors shadow-lg shadow-[#2C76FF]/20"
+                className="min-h-[44px] rounded-full bg-[#2C76FF] px-4 sm:px-5 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-[#2C76FF]/90 transition-colors shadow-lg shadow-[#2C76FF]/20 flex items-center justify-center"
               >
                 Request access
               </Link>
@@ -40,28 +40,28 @@ export function LandingPage() {
 
       {/* Hero Section */}
       <main className="flex-1">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="py-20 lg:py-32">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="py-12 sm:py-20 lg:py-32">
             <div className="mx-auto max-w-3xl text-center">
-              <h1 className="text-5xl font-bold tracking-tight text-white lg:text-7xl">
+              <h1 className="text-3xl sm:text-5xl font-bold tracking-tight text-white lg:text-7xl">
                 <span className="text-[#29FE29]">Echo</span> remembers{" "}
                 <span className="text-white">every</span> customer conversation
               </h1>
-              <p className="mt-6 text-lg leading-8 text-[#F5F5F5]/80">
+              <p className="mt-4 sm:mt-6 text-base sm:text-lg leading-7 sm:leading-8 text-[#F5F5F5]/80 px-4">
                 ApplyWizz Echo joins your customer meetings, captures every
                 detail, and keeps your team aligned—automatically. No more
                 manual notes, no more missed commitments.
               </p>
-              <div className="mt-10 flex items-center justify-center gap-6">
+              <div className="mt-8 sm:mt-10 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-4 sm:gap-6 px-4">
                 <Link
                   href="/login"
-                  className="rounded-full bg-[#29FE29] px-8 py-3.5 text-base font-semibold text-[#1E1E1E] hover:bg-[#29FE29]/90 transition-colors shadow-xl shadow-[#29FE29]/20"
+                  className="min-h-[48px] rounded-full bg-[#29FE29] px-8 py-3.5 text-base font-semibold text-[#1E1E1E] hover:bg-[#29FE29]/90 transition-colors shadow-xl shadow-[#29FE29]/20 flex items-center justify-center"
                 >
                   Get started
                 </Link>
                 <Link
                   href="/access-pending"
-                  className="rounded-full border border-white/20 px-8 py-3.5 text-base font-semibold text-white hover:bg-white/5 transition-colors"
+                  className="min-h-[48px] rounded-full border border-white/20 px-8 py-3.5 text-base font-semibold text-white hover:bg-white/5 transition-colors flex items-center justify-center"
                 >
                   Request invitation
                 </Link>
@@ -69,7 +69,7 @@ export function LandingPage() {
             </div>
 
             {/* Features Grid */}
-            <div className="mt-24 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-16 sm:mt-24 grid gap-6 sm:gap-8 sm:grid-cols-2 lg:grid-cols-3">
               <div className="rounded-2xl border border-white/10 bg-[#1E1E1E]/50 p-8 backdrop-blur-sm">
                 <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-[#2C76FF]/20">
                   <svg
@@ -150,11 +150,11 @@ export function LandingPage() {
             </div>
 
             {/* How It Works */}
-            <div className="mt-24">
-              <h2 className="text-center text-3xl font-bold text-white">
+            <div className="mt-16 sm:mt-24">
+              <h2 className="text-center text-2xl sm:text-3xl font-bold text-white">
                 How it works
               </h2>
-              <div className="mt-12 grid gap-8 sm:grid-cols-3">
+              <div className="mt-8 sm:mt-12 grid gap-8 sm:grid-cols-3">
                 <div className="text-center">
                   <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#29FE29]/20 text-2xl font-bold text-[#29FE29]">
                     1

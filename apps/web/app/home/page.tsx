@@ -216,14 +216,14 @@ export default async function AccountManagerHomePage() {
 
   return (
     <main className="flex flex-1 flex-col bg-[#F5F5F5]">
-      <header className="border-b border-[#1E1E1E]/10 bg-white px-8 py-4 shadow-sm sticky top-0 z-10">
-        <div className="flex items-center justify-between max-w-6xl mx-auto w-full">
-          <div className="flex items-center gap-3">
+      <header className="border-b border-[#1E1E1E]/10 bg-white px-4 sm:px-8 py-4 shadow-sm sticky top-0 z-10">
+        <div className="flex items-center justify-between max-w-6xl mx-auto w-full gap-4">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <Link href="/home" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
               <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-[#2C76FF] to-[#29FE29] flex items-center justify-center">
                 <span className="text-sm font-bold text-white">AW</span>
               </div>
-              <div className="flex flex-col leading-tight">
+              <div className="hidden sm:flex flex-col leading-tight">
                 <span className="text-base font-bold tracking-tight text-[#1E1E1E]">
                   Wizz Echo
                 </span>
@@ -233,14 +233,14 @@ export default async function AccountManagerHomePage() {
               </div>
             </Link>
           </div>
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3 sm:gap-6 shrink-0">
+            <div className="hidden sm:flex items-center gap-2">
               <div className="h-8 w-8 rounded-full bg-[#2C76FF]/10 flex items-center justify-center">
                 <span className="text-xs font-bold text-[#2C76FF]">
                   {membership.displayName.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase()}
                 </span>
               </div>
-              <div className="flex flex-col leading-tight">
+              <div className="hidden lg:flex flex-col leading-tight">
                 <span className="text-sm font-medium text-[#1E1E1E]">
                   {membership.displayName}
                 </span>
@@ -251,12 +251,12 @@ export default async function AccountManagerHomePage() {
           </div>
         </div>
       </header>
-      <div className="flex flex-1 flex-col gap-6 p-8 max-w-6xl mx-auto w-full">
+      <div className="flex flex-1 flex-col gap-4 sm:gap-6 p-4 sm:p-8 max-w-6xl mx-auto w-full">
         <div className="flex flex-col gap-2">
-          <h1 className="text-4xl font-bold tracking-tight text-[#1E1E1E]">
+          <h1 className="text-2xl sm:text-4xl font-bold tracking-tight text-[#1E1E1E]">
             {firstName}&apos;s day
           </h1>
-          <p className="text-base text-[#1E1E1E]/70">
+          <p className="text-sm sm:text-base text-[#1E1E1E]/70">
             {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
           </p>
         </div>

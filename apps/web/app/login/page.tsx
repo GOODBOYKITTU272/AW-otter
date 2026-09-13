@@ -93,15 +93,15 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-1 flex-col items-center justify-center gap-6 bg-gradient-to-br from-[#0B1D33] to-[#1E1E1E] px-6">
+    <main className="flex min-h-screen flex-1 flex-col items-center justify-center gap-6 bg-gradient-to-br from-[#0B1D33] to-[#1E1E1E] px-4 sm:px-6">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-3 mb-6 hover:opacity-80 transition-opacity">
+        <div className="text-center mb-6 sm:mb-8">
+          <Link href="/" className="inline-flex items-center gap-3 mb-4 sm:mb-6 hover:opacity-80 transition-opacity">
             <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#2C76FF] to-[#29FE29] flex items-center justify-center shadow-lg">
               <span className="text-xl font-bold text-white">AW</span>
             </div>
           </Link>
-          <h1 className="text-3xl font-bold tracking-tight text-white mb-2">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white mb-2">
             Sign in to Echo
           </h1>
           <p className="text-sm text-[#F5F5F5]/70">
@@ -109,7 +109,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#1E1E1E]/90 backdrop-blur-xl p-8 shadow-2xl">
+        <div className="rounded-2xl border border-white/10 bg-[#1E1E1E]/90 backdrop-blur-xl p-6 sm:p-8 shadow-2xl">
           <form onSubmit={handleSubmit} className="flex flex-col gap-6">
             {/* Email field */}
             <div className="flex flex-col gap-2">
