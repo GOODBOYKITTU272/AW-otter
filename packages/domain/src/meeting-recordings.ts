@@ -349,6 +349,7 @@ export interface EnsureGraphCloudRecordingInput {
   organizationId: string;
   meetingId: string;
   onlineMeetingId: string;
+  userOid: string;
   graphAccessToken: string;
   fetchImpl?: typeof fetch;
 }
@@ -390,6 +391,7 @@ export async function ensureGraphCloudRecording(
   // Poll for recording availability (Graph processing takes ~5-10 min after meeting ends)
   const graphRecording = await pollForCloudRecording(
     input.graphAccessToken,
+    input.userOid,
     input.onlineMeetingId,
     input.fetchImpl,
   );
@@ -419,6 +421,7 @@ export async function ensureGraphCloudRecording(
       graphRecordingId: graphRecording.id,
       graphOnlineMeetingId: graphRecording.meetingId,
       recordedAt: graphRecording.createdDateTime,
+      userOid: input.userOid,
     },
   });
 

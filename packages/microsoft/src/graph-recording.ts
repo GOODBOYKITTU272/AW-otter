@@ -89,17 +89,19 @@ async function graphRequest<T>(
  * - Admin consent granted in Azure Portal
  * 
  * @param accessToken - Application-level access token (not delegated)
+ * @param userOid - User object ID (organizer's Azure AD user ID)
  * @param onlineMeetingId - Graph online meeting ID (NOT calendar event ID)
  * @returns Array of recordings (most recent first), empty if no recordings exist
  * @throws GraphApiError if permissions denied or API error
  */
 export async function listCloudRecordings(
   accessToken: string,
+  userOid: string,
   onlineMeetingId: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<GraphCloudRecording[]> {
   const raw = await graphRequest<RawGraphRecordingsResponse>(
-    `/communications/onlineMeetings/${encodeURIComponent(onlineMeetingId)}/recordings`,
+    `/users/${encodeURIComponent(userOid)}/onlineMeetings/${encodeURIComponent(onlineMeetingId)}/recordings`,
     accessToken,
     { method: "GET" },
     fetchImpl,
@@ -221,10 +223,43 @@ export async function downloadGraphRecording(
 }
 
 /**
+ * Lookup online meeting by join URL to resolve the online meeting ID.
+ * 
+ * Prerequisites:
+ * - Application permission: OnlineMeetings.Read.All
+ * - Admin consent granted in Azure Portal
+ * 
+ * @param accessToken - Application-level access token (not delegated)
+ * @param userOid - User object ID (organizer's Azure AD user ID)
+ * @param joinWebUrl - Teams meeting join URL
+ * @returns Online meeting ID if found, null if not found
+ * @throws GraphApiError if permissions denied or API error
+ */
+export async function getOnlineMeetingIdByJoinUrl(
+  accessToken: string,
+  userOid: string,
+  joinWebUrl: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<string | null> {
+  const filter = `JoinWebUrl eq '${joinWebUrl.replace(/'/g, "''")}'`;
+  const raw = await graphRequest<{ value?: Array<{ id?: string }> }>(
+    `/users/${encodeURIComponent(userOid)}/onlineMeetings?$filter=${encodeURIComponent(filter)}`,
+    accessToken,
+    { method: "GET" },
+    fetchImpl,
+  );
+
+  const meetings = raw.value ?? [];
+  if (meetings.length === 0) return null;
+  return meetings[0]?.id ?? null;
+}
+
+/**
  * Poll for cloud recording availability with exponential backoff.
  * Cloud recordings typically available 5-10 minutes after meeting ends.
  * 
  * @param accessToken - Application-level access token
+ * @param userOid - User object ID (organizer's Azure AD user ID)
  * @param onlineMeetingId - Graph online meeting ID
  * @param fetchImpl - Fetch implementation (for testing)
  * @param maxAttempts - Max polling attempts (default 6 = 12 min total)
@@ -233,13 +268,14 @@ export async function downloadGraphRecording(
  */
 export async function pollForCloudRecording(
   accessToken: string,
+  userOid: string,
   onlineMeetingId: string,
   fetchImpl: typeof fetch = fetch,
   maxAttempts: number = 6,
   intervalMs: number = 2 * 60 * 1000, // 2 minutes
 ): Promise<GraphCloudRecording | null> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const recordings = await listCloudRecordings(accessToken, onlineMeetingId, fetchImpl);
+    const recordings = await listCloudRecordings(accessToken, userOid, onlineMeetingId, fetchImpl);
 
     if (recordings.length > 0) {
       // Return most recent recording (in case multiple exist)

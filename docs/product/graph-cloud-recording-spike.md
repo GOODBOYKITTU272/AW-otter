@@ -113,14 +113,15 @@ This PR does NOT:
 
 ### 3. List Cloud Recordings for Meeting (New — Core Implementation)
 
-**Endpoint:** `GET /communications/onlineMeetings/{onlineMeetingId}/recordings`  
+**Endpoint:** `GET /users/{userOid}/onlineMeetings/{onlineMeetingId}/recordings`  
 **Purpose:** Fetch all cloud recordings for a specific online meeting  
 **Permissions Required:** `OnlineMeetingRecording.Read.All` (application)  
 **Documentation:** https://learn.microsoft.com/en-us/graph/api/onlinemeeting-list-recordings  
+**Note:** The `/communications/onlineMeetings/{id}/recordings` path returns 404. Use the user-scoped path with the organizer's OID or UPN.  
 **Response:**
 ```json
 {
-  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#communications/onlineMeetings('...')/recordings",
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('...')/onlineMeetings('...')/recordings",
   "value": [
     {
       "id": "c1e0e1e0-0000-0000-0000-000000000000",
@@ -152,11 +153,12 @@ This PR does NOT:
 
 ### 4. Download Recording Content (New — Core Implementation)
 
-**Endpoint:** `GET /communications/onlineMeetings/{onlineMeetingId}/recordings/{recordingId}/content`  
+**Endpoint:** `GET /users/{userOid}/onlineMeetings/{onlineMeetingId}/recordings/{recordingId}/content`  
 **Purpose:** Download the actual MP4 file  
 **Permissions Required:** Same as list recordings (`OnlineMeetingRecording.Read.All`)  
 **Response:** Binary MP4 stream  
 **File Format:** MP4 (H.264 video + AAC audio), typically 200-500 MB per hour  
+**Note:** Use the same user-scoped path pattern as list recordings  
 **Expiration:** Download URL (from `recordingContentUrl`) expires ~1 hour after fetching; must download immediately
 
 **Status:** NOT currently implemented. Use streaming download pattern from `packages/meeting-bots/src/vexa/recordings.ts` (200MB limit + timeout).
