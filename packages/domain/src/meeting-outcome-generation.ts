@@ -24,8 +24,6 @@ export async function enqueuePendingOutcomeGeneration(
     return { enqueued: 0 };
   }
 
-  const transcriptIds = transcripts.map((t) => t.id);
-
   const { data: existingOutcomes, error: outcomesError } = await supabase
     .from("meeting_outcomes")
     .select("meeting_id")
