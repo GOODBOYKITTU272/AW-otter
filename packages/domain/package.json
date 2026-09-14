@@ -26,6 +26,8 @@
     "./transcription-fallback": "./src/transcription-fallback.ts",
     "./m8-language-eval": "./src/m8-language-eval.ts",
     "./meeting-intelligence": "./src/meeting-intelligence.ts",
+    "./meeting-outcome": "./src/meeting-outcome.ts",
+    "./meeting-outcome-generation": "./src/meeting-outcome-generation.ts",
     "./call-records": "./src/call-records.ts",
     "./customer-context": "./src/customer-context.ts",
     "./meeting-recap": "./src/meeting-recap.ts",
