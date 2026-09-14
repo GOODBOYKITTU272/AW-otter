@@ -86,6 +86,15 @@ Teams Recording → Vexa Audio → STT (Whisper/Sarvam) → Canonical English �
 - [ ] Meeting outcomes are generated automatically by background worker
 - [ ] Evidence segment IDs link to transcript segments
 
+## Empty `meeting_outcomes` is expected
+
+`SELECT * FROM meeting_outcomes` returning **Success. No rows returned** is correct until:
+
+1. The `20260914010001_meeting_outcomes_fathom_style` migration is applied to that database.
+2. `/api/internal/meeting-intelligence/process` (existing cron) or `/api/internal/meeting-outcome/process` runs.
+
+Overview does **not** wait on that table. It derives Summary / Decisions / Action items / Open questions from existing `ai_runs` + `call_records` when no outcome row exists.
+
 ## What's Wired vs Stubbed
 
 ### ✅ Fully Wired
