@@ -62,12 +62,17 @@ export async function POST(request: NextRequest) {
   try {
     queueResult = await processOutcomeQueue(serviceRoleClient, deps, 5);
   } catch (queueError) {
+    const message =
+      queueError instanceof Error ? queueError.message : String(queueError);
+    // Table not migrated yet — cron should not page as a 500.
+    if (/meeting_outcomes|42P01|PGRST205/i.test(message)) {
+      return NextResponse.json(
+        { enqueueResults, skipped: true, reason: "meeting_outcomes table not migrated" },
+        { status: 200 },
+      );
+    }
     return NextResponse.json(
-      {
-        enqueueResults,
-        queueError:
-          queueError instanceof Error ? queueError.message : String(queueError),
-      },
+      { enqueueResults, queueError: message },
       { status: 500 },
     );
   }

@@ -120,7 +120,12 @@ export default async function MeetingDetailPage({
     .maybeSingle();
 
   const recapState = await getMeetingRecapData(supabase, id);
-  const persistedOutcome = await getMeetingOutcome(supabase, id);
+  let persistedOutcome = null;
+  try {
+    persistedOutcome = await getMeetingOutcome(supabase, id);
+  } catch {
+    persistedOutcome = null;
+  }
 
   const intelligenceStatus =
     recapState?.status === "ready"

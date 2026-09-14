@@ -3,6 +3,7 @@ import type { Database, Json } from "@applywizz/database/types";
 import type { MeetingOutcomeProvider } from "@applywizz/ai";
 import {
   deriveMeetingOutcomeFromRecords,
+  isMissingOutcomesTable,
   type MeetingOutcomeData,
 } from "./meeting-outcome";
 
@@ -34,7 +35,10 @@ export async function enqueuePendingOutcomeGeneration(
       transcripts.map((t) => t.meeting_id),
     );
 
-  if (outcomesError) throw outcomesError;
+  if (outcomesError) {
+    if (isMissingOutcomesTable(outcomesError)) return { enqueued: 0 };
+    throw outcomesError;
+  }
 
   const existingMeetingIds = new Set(
     (existingOutcomes ?? []).map((o) => o.meeting_id),
@@ -105,7 +109,10 @@ async function listMeetingsMissingOutcomes(
       transcripts.map((t) => t.meeting_id),
     );
 
-  if (outcomesError) throw outcomesError;
+  if (outcomesError) {
+    if (isMissingOutcomesTable(outcomesError)) return [];
+    throw outcomesError;
+  }
 
   const existingMeetingIds = new Set(
     (existingOutcomes ?? []).map((o) => o.meeting_id),

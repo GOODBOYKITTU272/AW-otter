@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   deriveMeetingOutcomeFromRecords,
+  isMissingOutcomesTable,
   resolveMeetingOutcome,
   type MeetingOutcomeData,
 } from "./meeting-outcome";
@@ -138,5 +139,14 @@ describe("resolveMeetingOutcome", () => {
 
   it("returns null when neither a persisted row nor a recap summary exists", () => {
     expect(resolveMeetingOutcome(null, null)).toBeNull();
+  });
+});
+
+describe("isMissingOutcomesTable", () => {
+  it("treats a missing-table error as non-fatal so Meeting Detail can still render", () => {
+    expect(isMissingOutcomesTable({ code: "42P01", message: "relation does not exist" })).toBe(true);
+    expect(isMissingOutcomesTable({ code: "PGRST205", message: "Could not find the table" })).toBe(true);
+    expect(isMissingOutcomesTable({ message: "Could not find the table 'public.meeting_outcomes'" })).toBe(true);
+    expect(isMissingOutcomesTable({ code: "42501", message: "permission denied" })).toBe(false);
   });
 });

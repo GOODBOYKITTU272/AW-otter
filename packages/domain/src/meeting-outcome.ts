@@ -83,7 +83,7 @@ export function deriveMeetingOutcomeFromRecords(input: {
   };
 }
 
-function isMissingOutcomesTable(error: { code?: string; message?: string }): boolean {
+export function isMissingOutcomesTable(error: { code?: string; message?: string }): boolean {
   return (
     error.code === "42P01" ||
     error.code === "PGRST205" ||
