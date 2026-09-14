@@ -174,8 +174,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   className="w-full rounded-xl border border-white/10 bg-[#0B1D33]/80 px-4 py-3.5 pr-12 text-sm text-white placeholder-[#F5F5F5]/40 focus:border-[#2C76FF] focus:outline-none focus:ring-2 focus:ring-[#2C76FF]/30 transition-all min-h-[48px]"
-                  placeholder="Enter 6-digit code"
-                  maxLength={6}
+                  placeholder="Enter 6-digit code or password"
                 />
                 <button
                   type="button"
