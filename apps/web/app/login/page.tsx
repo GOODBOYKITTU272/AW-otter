@@ -2,7 +2,7 @@
 
 import { useState, useEffect, type FormEvent } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
-import { Eye, EyeOff, ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { ROLE_HOME_ROUTE, isSystemRoleKey } from "@applywizz/domain";
 import { isAllowedEmailDomain } from "@applywizz/auth";
 import Link from "next/link";
@@ -18,7 +18,6 @@ export default function LoginPage() {
   const [step, setStep] = useState<AuthStep>("email");
   const [email, setEmail] = useState("");
   const [emailOtp, setEmailOtp] = useState<string[]>(["", "", "", "", "", ""]);
-  const [totpSecret, setTotpSecret] = useState("");
   const [totpQrCode, setTotpQrCode] = useState("");
   const [totpCode, setTotpCode] = useState<string[]>(["", "", "", "", "", ""]);
   const [error, setError] = useState<string | null>(null);
@@ -140,7 +139,6 @@ export default function LoginPage() {
         return;
       }
 
-      setTotpSecret(enrollData.totp.secret);
       setTotpQrCode(enrollData.totp.qr_code);
       setStep("totp-enroll");
     } else {

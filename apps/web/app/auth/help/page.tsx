@@ -249,7 +249,7 @@ export default function AuthHelpPage() {
                   />
                 </svg>
                 <span>
-                  Lost access to your authenticator? We'll send you an email
+                  Lost access to your authenticator? We&apos;ll send you an email
                   code to verify your identity, then help you re-enroll.
                 </span>
               </div>
@@ -680,9 +680,9 @@ export default function AuthHelpPage() {
                     Authenticator reset complete!
                   </h2>
                   <p className="text-sm text-[#F5F5F5]/70">
-                    Your new Microsoft Authenticator (AW Echo) is ready. You can
-                    now sign in with your email and the code from your
-                    authenticator app.
+                  Your new Microsoft Authenticator (AW Echo) is ready. You
+                  can now sign in with your email and the code from your
+                  authenticator app.
                   </p>
                 </div>
               </div>
