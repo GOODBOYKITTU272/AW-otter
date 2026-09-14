@@ -22,7 +22,7 @@ async function fetchOpenRouterUsage(apiKey: string | undefined): Promise<number 
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 2000);
-    const res = await fetch("https://openrouter.ai/api/v1/auth/key", {
+    const res = await fetch("https://openrouter.ai/api/v1/key", {
       headers: { Authorization: `Bearer ${apiKey}` },
       signal: controller.signal,
       cache: "no-store",
@@ -124,13 +124,11 @@ export default async function AdminOverviewPage() {
     (acc, t) => acc + (t.usage_cost ?? 0),
     0
   );
+  // Only recorded usage_cost counts as spend. Never invent $/hr rates.
   const whisperCostUsd =
-    whisperTranscriptsCost > 0
-      ? whisperTranscriptsCost
-      : whisperHours > 0
-      ? Number((whisperHours * 0.36).toFixed(2))
-      : 0;
+    whisperTranscriptsCost > 0 ? Number(whisperTranscriptsCost.toFixed(2)) : 0;
   const whisperCostInr = Math.round(whisperCostUsd * USD_TO_INR);
+  const whisperSpendMetered = whisperTranscriptsCost > 0;
 
   // Sarvam AI (Indic & Multilingual Speech)
   const sarvamItems = transcriptList.filter((t) => t.provider === "sarvam");
@@ -143,15 +141,11 @@ export default async function AdminOverviewPage() {
     (acc, t) => acc + (t.usage_cost ?? 0),
     0
   );
-  // Sarvam pricing: ~₹16.5 / hr (~$0.20 / hr)
-  const sarvamCostInr =
-    sarvamTranscriptsCost > 0
-      ? Math.round(sarvamTranscriptsCost * USD_TO_INR)
-      : sarvamHours > 0
-      ? Math.round(sarvamHours * 16.5)
-      : 0;
+  // Sarvam provider currently writes usage_cost=null — do not guess ₹/hr.
   const sarvamCostUsd =
-    sarvamCostInr > 0 ? Number((sarvamCostInr / USD_TO_INR).toFixed(2)) : 0;
+    sarvamTranscriptsCost > 0 ? Number(sarvamTranscriptsCost.toFixed(2)) : 0;
+  const sarvamCostInr = Math.round(sarvamCostUsd * USD_TO_INR);
+  const sarvamSpendMetered = sarvamTranscriptsCost > 0;
 
   // Azure Speech
   const azureItems = transcriptList.filter(
@@ -162,11 +156,11 @@ export default async function AdminOverviewPage() {
     0
   );
   const azureHours = azureSeconds / 3600;
-  const azureCostUsd = azureItems.reduce(
-    (acc, t) => acc + (t.usage_cost ?? 0),
-    0
+  const azureCostUsd = Number(
+    azureItems.reduce((acc, t) => acc + (t.usage_cost ?? 0), 0).toFixed(2)
   );
   const azureCostInr = Math.round(azureCostUsd * USD_TO_INR);
+  const azureSpendMetered = azureCostUsd > 0;
 
   // LLM Tokens and AI Runs
   let totalPromptTokens = 0;
@@ -234,72 +228,96 @@ export default async function AdminOverviewPage() {
     100,
     Number(((totalSpendUsd / MONTHLY_BUDGET_CAP_USD) * 100).toFixed(1))
   );
+  const hasRecordedSpend = totalSpendUsd > 0;
   const budgetStatus =
-    budgetConsumedPercent >= 95
+    !hasRecordedSpend
+      ? "Not metered yet"
+      : budgetConsumedPercent >= 95
       ? "Critical"
       : budgetConsumedPercent >= 80
       ? "Warning"
       : "On Track";
   const budgetStatusTone =
-    budgetConsumedPercent >= 95
+    !hasRecordedSpend
+      ? "bg-[#F5F5F5] text-[#1E1E1E]/70 border-[#1E1E1E]/10"
+      : budgetConsumedPercent >= 95
       ? "bg-red-50 text-red-700 border-red-200"
       : budgetConsumedPercent >= 80
       ? "bg-amber-50 text-amber-700 border-amber-200"
       : "bg-emerald-50 text-emerald-700 border-emerald-200";
 
-  // Core AI & Speech Services with real-time telemetry and dual-currency spend
+  // Core AI & Speech Services — hours from DB; spend only when usage_cost recorded
   const services = [
     {
       name: "Vexa",
       subtitle: "Self-Hosted Meeting Bot",
       icon: "🤖",
-      status: isDatabaseReachable ? "Operational" : "Standby",
+      status: isDatabaseReachable
+        ? "Operational (Database responding)"
+        : "Unknown",
       costUsd: 0,
       costInr: 0,
       usageLabel: vexaUsageLabel,
-      spendLabel: "Zero Software Fee",
+      spendLabel: "Zero software fee (VM infra not metered here)",
       isFree: true,
       isIndicWave: false,
-      health: 99.8,
     },
     {
       name: "Whisper",
       subtitle: "English Speech-to-Text",
       icon: "📻",
-      status: isOpenRouterConfigured ? "Operational" : "Not Configured",
+      status: isOpenRouterConfigured
+        ? "Configured (Not verified)"
+        : "Not configured / Unknown",
       costUsd: whisperCostUsd,
       costInr: whisperCostInr,
-      usageLabel: `${whisperHours.toFixed(1)} Audio Hrs`,
-      spendLabel: whisperCostUsd > 0 ? "Live Usage Cost" : "Live Account Telemetry",
+      usageLabel:
+        whisperHours > 0
+          ? `${whisperHours.toFixed(1)} Audio Hrs (all-time DB)`
+          : "No transcript hours yet",
+      spendLabel: whisperSpendMetered
+        ? "Recorded usage_cost (DB)"
+        : "Not metered yet",
       isFree: false,
       isIndicWave: false,
-      health: 99.2,
     },
     {
       name: "Sarvam AI",
       subtitle: "Indic & Multilingual Speech",
       icon: "🔊",
-      status: isSarvamConfigured ? "Operational" : "Not Configured",
+      status: isSarvamConfigured
+        ? "Configured (Not verified)"
+        : "Not configured / Unknown",
       costUsd: sarvamCostUsd,
       costInr: sarvamCostInr,
-      usageLabel: `${sarvamHours.toFixed(1)} Indic Hrs`,
-      spendLabel: sarvamCostUsd > 0 ? "Live Usage Cost" : "Live Account Telemetry",
+      usageLabel:
+        sarvamHours > 0
+          ? `${sarvamHours.toFixed(1)} Indic Hrs (all-time DB)`
+          : "No transcript hours yet",
+      spendLabel: sarvamSpendMetered
+        ? "Recorded usage_cost (DB)"
+        : "Not metered yet",
       isFree: false,
       isIndicWave: true,
-      health: 98.6,
     },
     {
       name: "Azure Speech",
       subtitle: "Enterprise Cloud Transcriber",
       icon: "🎤",
-      status: isAzureConfigured ? "Operational" : "Not Configured",
+      status: isAzureConfigured
+        ? "Configured (Not verified)"
+        : "Not configured / Unknown",
       costUsd: azureCostUsd,
       costInr: azureCostInr,
-      usageLabel: `${azureHours.toFixed(1)} Audio Hrs`,
-      spendLabel: azureCostUsd > 0 ? "Live Usage Cost" : "Enterprise Quota",
-      isFree: azureCostUsd === 0,
+      usageLabel:
+        azureHours > 0
+          ? `${azureHours.toFixed(1)} Audio Hrs (all-time DB)`
+          : "No transcript hours yet",
+      spendLabel: azureSpendMetered
+        ? "Recorded usage_cost (DB)"
+        : "Not metered yet",
+      isFree: false,
       isIndicWave: false,
-      health: 99.9,
     },
   ];
 
@@ -486,7 +504,7 @@ export default async function AdminOverviewPage() {
                       ₹{totalSpendInr.toLocaleString("en-IN")}
                     </span>
                   </div>
-                  <p className="text-[11px] text-[#1E1E1E]/50 mt-1">Whisper + Sarvam + LLMs</p>
+                  <p className="text-[11px] text-[#1E1E1E]/50 mt-1">Recorded STT usage_cost + LLM (OpenRouter key or ai_runs)</p>
                 </div>
 
                 {/* Tokens */}
@@ -520,7 +538,7 @@ export default async function AdminOverviewPage() {
               <div>
                 <div className="flex items-center justify-between text-xs text-[#1E1E1E]/70 mb-2">
                   <span className="font-semibold text-[#1E1E1E]">Cost Breakdown by Provider</span>
-                  <span>{totalSpendUsd > 0 ? "100% accounted for" : "0% recorded"}</span>
+                  <span>{totalSpendUsd > 0 ? "From recorded costs only" : "0% recorded"}</span>
                 </div>
                 <div className="h-3 w-full rounded-full bg-[#F5F5F5] overflow-hidden flex">
                   {totalSpendUsd > 0 ? (
@@ -659,13 +677,13 @@ export default async function AdminOverviewPage() {
             <div className="w-full h-3 rounded-full bg-[#F5F5F5] overflow-hidden mb-3 border border-[#1E1E1E]/5">
               <div
                 className="h-full bg-gradient-to-r from-emerald-500 to-[#29FE29] rounded-full"
-                style={{ width: `${Math.min(100, Math.max(totalSpendUsd > 0 ? 2 : 0, budgetConsumedPercent))}%` }}
+                style={{ width: `${Math.min(100, Math.max(0, budgetConsumedPercent))}%` }}
               />
             </div>
 
             <p className="text-xs text-[#1E1E1E]/60 flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              Cap alerts automatically trigger at 80% and 95% spend.
+              Spend = recorded DB usage_cost + OpenRouter key usage when available. STT hours are all-time DB sums — not a live provider health check.
             </p>
           </div>
         </div>

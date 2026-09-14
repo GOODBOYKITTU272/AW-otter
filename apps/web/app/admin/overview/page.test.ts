@@ -111,7 +111,22 @@ describe("AdminOverviewPage honest health status", () => {
     expect(html).not.toContain(">Healthy<");
   });
 
-  it("renders 4 core AI & speech services with real-time dynamic spend, audio hours, and token telemetry", async () => {
+  it("source code never invents STT $/hr rates or unverified Operational badges", () => {
+    const source = readFileSync(
+      fileURLToPath(new URL("./page.tsx", import.meta.url)),
+      "utf8",
+    );
+    expect(source).not.toContain("0.36");
+    expect(source).not.toContain("16.5");
+    expect(source).not.toContain("Live Usage Cost");
+    expect(source).not.toContain('status: isOpenRouterConfigured ? "Operational"');
+    expect(source).not.toContain("health: 99");
+    expect(source).toContain("Configured (Not verified)");
+    expect(source).toContain("Not metered yet");
+    expect(source).toContain("https://openrouter.ai/api/v1/key");
+  });
+
+  it("shows DB hours + recorded usage_cost only; never labels estimates as live", async () => {
     vi.mocked(getAzureMaiEnv).mockReturnValue({
       isConfigured: true,
       AZURE_MAI_ENDPOINT: "https://mock.azure.com",
@@ -140,14 +155,14 @@ describe("AdminOverviewPage honest health status", () => {
                 {
                   provider: "sarvam",
                   usage_seconds: 1.8 * 3600,
-                  usage_cost: 0.35,
+                  usage_cost: null,
                   detected_language: "hi",
                   processing_status: "completed",
                 },
                 {
                   provider: "azure",
-                  usage_seconds: 0,
-                  usage_cost: 0,
+                  usage_seconds: 2.0 * 3600,
+                  usage_cost: null,
                   detected_language: "en",
                   processing_status: "completed",
                 },
@@ -199,22 +214,24 @@ describe("AdminOverviewPage honest health status", () => {
     const html = renderToStaticMarkup(jsx);
 
     expect(html).toContain("System Health &amp; Spend");
-    expect(html).toContain("Vexa");
     expect(html).toContain("12 Bot Sessions • Free");
-    expect(html).toContain("Whisper");
-    expect(html).toContain("14.2 Audio Hrs");
-    expect(html).toContain("Sarvam AI");
-    expect(html).toContain("1.8 Indic Hrs");
-    expect(html).toContain("₹29");
-    expect(html).toContain("Azure Speech");
-    expect(html).toContain("Live Usage Cost");
-    expect(html).toContain("AI Token Usage &amp; Spend");
+    expect(html).toContain("14.2 Audio Hrs (all-time DB)");
+    expect(html).toContain("1.8 Indic Hrs (all-time DB)");
+    expect(html).toContain("2.0 Audio Hrs (all-time DB)");
+    expect(html).toContain("Recorded usage_cost (DB)");
+    expect(html).toContain("Not metered yet");
+    expect(html).toContain("Configured (Not verified)");
+    expect(html).not.toContain("Live Usage Cost");
+    expect(html).not.toContain(">Operational<");
     expect(html).toContain("1.85M");
+    expect(html).toContain("$0.90");
+    // Sarvam/Azure null usage_cost must NOT invent ₹29 / rate-based spend
+    expect(html).not.toContain("₹29");
+    expect(html).toContain("AI Token Usage &amp; Spend");
     expect(html).toContain("Monthly Budget");
-    expect(html).toContain("9.8%");
   });
 
-  it("renders live zero-state telemetry gracefully when database has no records yet", async () => {
+  it("renders honest zero-state when database has no records yet", async () => {
     vi.mocked(getAzureMaiEnv).mockReturnValue({
       isConfigured: false,
       AZURE_MAI_ENDPOINT: undefined,
@@ -244,9 +261,10 @@ describe("AdminOverviewPage honest health status", () => {
 
     expect(html).toContain("$0.00");
     expect(html).toContain("₹0");
-    expect(html).toContain("0.0 Audio Hrs");
-    expect(html).toContain("0.0 Indic Hrs");
-    expect(html).toContain("0");
+    expect(html).toContain("No transcript hours yet");
+    expect(html).toContain("Not metered yet");
     expect(html).toContain("0.0%");
+    expect(html).not.toContain("Live Usage Cost");
+    expect(html).not.toContain(">Operational<");
   });
 });
