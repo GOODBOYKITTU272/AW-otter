@@ -13,19 +13,23 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 type LifecycleStatus = string;
 type BotStatus = string;
 
-// Human-friendly status mapping (Upcoming / Live / Done / Needs review / Failed)
+// Human-friendly status mapping (Upcoming / Live / Done / Ended / Cancelled)
 function meetingStatusBadge(
   lifecycle: LifecycleStatus,
   botStatus: BotStatus | undefined,
+  scheduledEnd?: string,
+  hasCompletedTranscript?: boolean,
 ) {
   if (lifecycle === "cancelled")
     return <StatusBadge tone="neutral">Cancelled</StatusBadge>;
-  if (lifecycle === "completed")
+  if (lifecycle === "completed" || lifecycle === "ended" || hasCompletedTranscript)
     return <StatusBadge tone="success">Done</StatusBadge>;
   if (botStatus === "joined")
     return <StatusBadge tone="info">Live now</StatusBadge>;
   if (botStatus === "joining")
     return <StatusBadge tone="warning">Joining...</StatusBadge>;
+  if (scheduledEnd && new Date(scheduledEnd).getTime() < Date.now())
+    return <StatusBadge tone="neutral">Ended</StatusBadge>;
   return <StatusBadge tone="info">Upcoming</StatusBadge>;
 }
 
@@ -170,8 +174,13 @@ function nextActionCell(
     );
   }
   
-  // Done: Meeting completed with transcript
-  if (meeting.lifecycle_status === "completed" && transcript?.processing_status === "completed") {
+  // Done: Meeting completed or ended with transcript
+  const isDone =
+    meeting.lifecycle_status === "completed" ||
+    meeting.lifecycle_status === "ended" ||
+    transcript?.processing_status === "completed";
+
+  if (isDone && transcript?.processing_status === "completed") {
     if (intelligenceRunStatus === "completed") {
       return (
         <span className="text-sm text-zinc-500 dark:text-zinc-400">
@@ -234,7 +243,7 @@ export default async function AdminMeetingsPage() {
     supabase
       .from("meetings")
       .select(
-        "id, title, scheduled_start, lifecycle_status, customer_id, customer_link_status, needs_link_reason, call_type, owner_membership_id",
+        "id, title, scheduled_start, scheduled_end, lifecycle_status, customer_id, customer_link_status, needs_link_reason, call_type, owner_membership_id",
       )
       .order("scheduled_start", { ascending: false })
       .limit(50),
@@ -293,15 +302,29 @@ export default async function AdminMeetingsPage() {
   );
 
   // Metrics for overview cards
-  const upcomingCount = meetings.filter(
-    (m) => m.lifecycle_status === "upcoming",
-  ).length;
+  const nowMs = Date.now();
+  const upcomingCount = meetings.filter((m) => {
+    const isPast = m.scheduled_end ? new Date(m.scheduled_end).getTime() < nowMs : false;
+    const hasCompletedTranscript =
+      transcriptByMeetingId.get(m.id)?.processing_status === "completed";
+    return (
+      m.lifecycle_status === "upcoming" &&
+      !isPast &&
+      !hasCompletedTranscript
+    );
+  }).length;
   const liveCount = meetings.filter(
     (m) => latestBotJobByMeetingId.get(m.id)?.status === "joined",
   ).length;
-  const completedCount = meetings.filter(
-    (m) => m.lifecycle_status === "completed",
-  ).length;
+  const completedCount = meetings.filter((m) => {
+    const hasCompletedTranscript =
+      transcriptByMeetingId.get(m.id)?.processing_status === "completed";
+    return (
+      m.lifecycle_status === "completed" ||
+      m.lifecycle_status === "ended" ||
+      hasCompletedTranscript
+    );
+  }).length;
   const needsLinkCount = meetings.filter(
     (m) => m.customer_link_status === "needs_link",
   ).length;
@@ -363,6 +386,7 @@ export default async function AdminMeetingsPage() {
                 const botJob = latestBotJobByMeetingId.get(meeting.id);
                 const transcript = transcriptByMeetingId.get(meeting.id);
                 const intelligenceStatus = intelligenceRunByMeetingId.get(meeting.id);
+                const hasCompletedTranscript = transcript?.processing_status === "completed";
                 
                 return (
                   <tr
@@ -370,7 +394,12 @@ export default async function AdminMeetingsPage() {
                     className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50 transition-colors"
                   >
                     <td className="px-6 py-4">
-                      {meetingStatusBadge(meeting.lifecycle_status, botJob?.status)}
+                      {meetingStatusBadge(
+                        meeting.lifecycle_status,
+                        botJob?.status,
+                        meeting.scheduled_end,
+                        hasCompletedTranscript,
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <Link
