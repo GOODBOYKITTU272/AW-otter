@@ -13,6 +13,11 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 type LifecycleStatus = string;
 type BotStatus = string;
 
+function isScheduledPast(scheduledEnd?: string | null): boolean {
+  if (!scheduledEnd) return false;
+  return new Date(scheduledEnd).getTime() < Date.now();
+}
+
 // Human-friendly status mapping (Upcoming / Live / Done / Ended / Cancelled)
 function meetingStatusBadge(
   lifecycle: LifecycleStatus,
@@ -28,7 +33,7 @@ function meetingStatusBadge(
     return <StatusBadge tone="info">Live now</StatusBadge>;
   if (botStatus === "joining")
     return <StatusBadge tone="warning">Joining...</StatusBadge>;
-  if (scheduledEnd && new Date(scheduledEnd).getTime() < Date.now())
+  if (isScheduledPast(scheduledEnd))
     return <StatusBadge tone="neutral">Ended</StatusBadge>;
   return <StatusBadge tone="info">Upcoming</StatusBadge>;
 }
@@ -302,9 +307,8 @@ export default async function AdminMeetingsPage() {
   );
 
   // Metrics for overview cards
-  const nowMs = Date.now();
   const upcomingCount = meetings.filter((m) => {
-    const isPast = m.scheduled_end ? new Date(m.scheduled_end).getTime() < nowMs : false;
+    const isPast = isScheduledPast(m.scheduled_end);
     const hasCompletedTranscript =
       transcriptByMeetingId.get(m.id)?.processing_status === "completed";
     return (
