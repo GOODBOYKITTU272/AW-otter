@@ -58,6 +58,29 @@ export interface FeatureFlags {
    * Set via: ENABLE_LOBBY_BYPASS_PATCH=true in environment
    */
   enableLobbyBypassPatch: boolean;
+
+  /**
+   * Track A: Automatically add Echo as attendee to Apply Wizz–organized Teams meetings.
+   * 
+   * When TRUE:
+   * - Before bot join, PATCH /onlineMeetings/{id} to add Echo@Applywizz.ai to attendees list
+   * - Ensures Echo is on official attendee list (may help with lobby admission for invited attendees)
+   * - Requires Graph permission: OnlineMeetings.ReadWrite.All (app-only)
+   * - Idempotent: Graph deduplicates attendees automatically
+   * - Best-effort: bot join proceeds even if PATCH fails
+   * 
+   * When FALSE (default):
+   * - No attendee modification; bot joins as anonymous guest
+   * 
+   * Benefits:
+   * - Improves lobby admission when tenant policy admits "invited" attendees
+   * - Creates audit trail of Echo's participation
+   * - May improve meeting access permissions
+   * 
+   * Set via: ENABLE_ECHO_ATTENDEE_INVITE=true in environment
+   * Optionally configure: ECHO_UPN (default: Echo@Applywizz.ai), ECHO_OBJECT_ID
+   */
+  enableEchoAttendeeInvite: boolean;
 }
 
 /**
@@ -75,6 +98,9 @@ export function getFeatureFlags(): FeatureFlags {
 
     // Track B′: Lobby bypass PATCH OFF by default (requires OnlineMeetings.ReadWrite.All)
     enableLobbyBypassPatch: process.env.ENABLE_LOBBY_BYPASS_PATCH === "true",
+
+    // Track A: Echo attendee invite OFF by default (requires OnlineMeetings.ReadWrite.All)
+    enableEchoAttendeeInvite: process.env.ENABLE_ECHO_ATTENDEE_INVITE === "true",
   };
 }
 

@@ -8,6 +8,7 @@ import {
   listUpcomingEventsForUser,
   renewSubscription,
   patchOnlineMeetingLobbyBypass,
+  addEchoAttendeeToOnlineMeeting,
 } from "./graph-client";
 import { GraphApiError } from "./errors";
 import { MAX_SUBSCRIPTION_MINUTES } from "./config";
@@ -240,5 +241,104 @@ describe("patchOnlineMeetingLobbyBypass", () => {
         fetchImpl as unknown as typeof fetch
       )
     ).rejects.toBeInstanceOf(GraphApiError);
+  });
+});
+
+describe("addEchoAttendeeToOnlineMeeting", () => {
+  function capturingFetch(status: number, body: unknown) {
+    const calls: Array<{ url: string; body: string }> = [];
+    const fetchImpl = async (input: string | URL | Request, init?: RequestInit) => {
+      calls.push({ 
+        url: typeof input === "string" ? input : input.toString(),
+        body: init?.body as string,
+      });
+      return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+    };
+    return { fetchImpl, calls };
+  }
+
+  it("PATCHes /users/{userOid}/onlineMeetings/{id} with Echo attendee (UPN only)", async () => {
+    const userOid = "6a184ab5-f989-4d9f-bad4-739731d3e936";
+    const meetingId = "MSoxOTptYWlsY29udGV4dEBhcHBseXdpenouYWk_thread.v2_19:meeting_abc123";
+    const echoUpn = "Echo@Applywizz.ai";
+    const { fetchImpl, calls } = capturingFetch(200, {});
+
+    await addEchoAttendeeToOnlineMeeting("test-token", userOid, meetingId, echoUpn, null, fetchImpl as unknown as typeof fetch);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url).toContain(`/users/${userOid}/onlineMeetings/`);
+    expect(calls[0]?.url).toContain(encodeURIComponent(meetingId));
+    
+    const body = JSON.parse(calls[0]?.body ?? "{}");
+    expect(body.participants.attendees).toHaveLength(1);
+    expect(body.participants.attendees[0].upn).toBe(echoUpn);
+    expect(body.participants.attendees[0].identity).toBeUndefined();
+  });
+
+  it("PATCHes with Echo attendee (UPN + object ID)", async () => {
+    const userOid = "6a184ab5-f989-4d9f-bad4-739731d3e936";
+    const meetingId = "MSoxOTptYWlsY29udGV4dEBhcHBseXdpenouYWk_thread.v2_19:meeting_abc123";
+    const echoUpn = "Echo@Applywizz.ai";
+    const echoObjectId = "8b294bc6-1234-5678-abcd-456789fedcba";
+    const { fetchImpl, calls } = capturingFetch(200, {});
+
+    await addEchoAttendeeToOnlineMeeting("test-token", userOid, meetingId, echoUpn, echoObjectId, fetchImpl as unknown as typeof fetch);
+
+    expect(calls).toHaveLength(1);
+    
+    const body = JSON.parse(calls[0]?.body ?? "{}");
+    expect(body.participants.attendees).toHaveLength(1);
+    expect(body.participants.attendees[0].upn).toBe(echoUpn);
+    expect(body.participants.attendees[0].identity.user.id).toBe(echoObjectId);
+    expect(body.participants.attendees[0].identity.user.displayName).toBe("Echo");
+  });
+
+  it("throws GraphApiError on permission denied (403)", async () => {
+    const { fetchImpl } = capturingFetch(403, { 
+      error: { code: "Forbidden", message: "Insufficient privileges" } 
+    });
+
+    await expect(
+      addEchoAttendeeToOnlineMeeting(
+        "invalid-token", 
+        "user-oid", 
+        "meeting-id",
+        "Echo@Applywizz.ai",
+        null,
+        fetchImpl as unknown as typeof fetch
+      )
+    ).rejects.toBeInstanceOf(GraphApiError);
+  });
+
+  it("throws GraphApiError on meeting not found (404)", async () => {
+    const { fetchImpl } = capturingFetch(404, { 
+      error: { code: "NotFound", message: "Online meeting not found" } 
+    });
+
+    await expect(
+      addEchoAttendeeToOnlineMeeting(
+        "test-token", 
+        "user-oid", 
+        "nonexistent-meeting",
+        "Echo@Applywizz.ai",
+        null,
+        fetchImpl as unknown as typeof fetch
+      )
+    ).rejects.toBeInstanceOf(GraphApiError);
+  });
+
+  it("is idempotent (adding Echo twice is safe)", async () => {
+    const userOid = "6a184ab5-f989-4d9f-bad4-739731d3e936";
+    const meetingId = "MSoxOTptYWlsY29udGV4dEBhcHBseXdpenouYWk_thread.v2_19:meeting_abc123";
+    const echoUpn = "Echo@Applywizz.ai";
+    const { fetchImpl } = capturingFetch(200, {});
+
+    // First call
+    await addEchoAttendeeToOnlineMeeting("test-token", userOid, meetingId, echoUpn, null, fetchImpl as unknown as typeof fetch);
+    
+    // Second call (should not throw)
+    await expect(
+      addEchoAttendeeToOnlineMeeting("test-token", userOid, meetingId, echoUpn, null, fetchImpl as unknown as typeof fetch)
+    ).resolves.toBeUndefined();
   });
 });

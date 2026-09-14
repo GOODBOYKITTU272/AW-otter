@@ -279,3 +279,65 @@ export async function patchOnlineMeetingLobbyBypass(
     fetchImpl,
   );
 }
+
+/**
+ * Add Echo as an attendee to a Teams online meeting.
+ * Track A: Ensure Echo is on the attendee list for Apply Wizz–organized meetings.
+ * 
+ * Requires Application permission: OnlineMeetings.ReadWrite.All
+ * 
+ * Microsoft Graph Schema:
+ * - PATCH /users/{userOid}/onlineMeetings/{onlineMeetingId}
+ * - Body: { participants: { attendees: [{ identity: { user: { id, displayName } }, upn }] } }
+ * 
+ * Idempotent: Adding an attendee already on the list is a no-op (Graph deduplicates).
+ * 
+ * References:
+ * - https://learn.microsoft.com/en-us/graph/api/onlinemeeting-update
+ * 
+ * @param accessToken - App-only access token with OnlineMeetings.ReadWrite.All
+ * @param userOid - Organizer's Azure AD object ID (GUID, NOT email/UPN)
+ * @param onlineMeetingId - Graph online meeting ID (from meeting.online_meeting_id)
+ * @param echoUpn - Echo's User Principal Name (e.g., Echo@Applywizz.ai or Echo@applywizz.ai)
+ * @param echoObjectId - Echo's Azure AD object ID (GUID), if available
+ * @param fetchImpl - Fetch implementation (for testing)
+ * @throws GraphApiError if permission denied, meeting not found, or API error
+ */
+export async function addEchoAttendeeToOnlineMeeting(
+  accessToken: string,
+  userOid: string,
+  onlineMeetingId: string,
+  echoUpn: string,
+  echoObjectId: string | null,
+  fetchImpl: typeof fetch = fetch,
+): Promise<void> {
+  const attendeePayload: {
+    upn: string;
+    identity?: { user?: { id?: string; displayName?: string } };
+  } = {
+    upn: echoUpn,
+  };
+
+  if (echoObjectId) {
+    attendeePayload.identity = {
+      user: {
+        id: echoObjectId,
+        displayName: "Echo",
+      },
+    };
+  }
+
+  await graphRequest(
+    `/users/${encodeURIComponent(userOid)}/onlineMeetings/${encodeURIComponent(onlineMeetingId)}`,
+    accessToken,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        participants: {
+          attendees: [attendeePayload],
+        },
+      }),
+    },
+    fetchImpl,
+  );
+}
