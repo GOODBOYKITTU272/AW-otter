@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
@@ -29,15 +30,24 @@ export function AdminSidebar() {
 
   const sidebarContent = (
     <>
-      <Link href="/admin/overview" className="px-6 py-6 flex items-center gap-2 hover:opacity-80 transition-opacity border-b border-[#F5F5F5]/10" onClick={() => setMobileMenuOpen(false)}>
-        <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#2C76FF] to-[#29FE29] flex items-center justify-center shadow-lg">
-          <span className="text-sm font-bold text-white">AW</span>
-        </div>
+      <Link
+        href="/admin/overview"
+        className="px-6 py-5 flex items-center gap-3 hover:opacity-80 transition-opacity border-b border-[#F5F5F5]/10"
+        onClick={() => setMobileMenuOpen(false)}
+      >
+        <Image
+          src="/logo.png"
+          alt="Apply Wizz Echo"
+          width={38}
+          height={38}
+          className="h-9 w-9 rounded-xl object-contain shadow-md shrink-0"
+          priority
+        />
         <div className="flex flex-col leading-tight">
           <span className="text-base font-bold tracking-tight text-white">
-            Wizz Echo
+            Apply Wizz Echo
           </span>
-          <span className="text-xs font-medium text-[#29FE29]">Admin</span>
+          <span className="text-xs font-semibold text-[#29FE29]">Admin</span>
         </div>
       </Link>
 
