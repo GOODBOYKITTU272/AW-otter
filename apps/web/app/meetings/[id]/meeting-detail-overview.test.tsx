@@ -1,6 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { render } from "@testing-library/react";
-import MeetingDetailPage from "./page";
 
 /**
  * Tests that the Overview tab is CEO-presentable:

@@ -225,13 +225,7 @@ export default async function MeetingDetailPage({
                 decisions={decisions}
                 actions={actions}
                 segmentById={segmentById}
-                integrityReport={integrityReport}
-                meetingId={id}
                 meeting={meeting}
-                botJob={botJob}
-                isAdmin={isAdmin}
-                canViewRawTranscript={canViewRawTranscript}
-                needsReviewCount={needsReviewCount}
               />
             ),
           },
@@ -306,13 +300,7 @@ function OverviewTab({
   decisions,
   actions,
   segmentById,
-  integrityReport,
-  meetingId,
   meeting,
-  botJob,
-  isAdmin,
-  canViewRawTranscript,
-  needsReviewCount,
 }: {
   outcome: MeetingOutcomeData | null;
   recap: MeetingRecapData | null;
@@ -320,18 +308,7 @@ function OverviewTab({
   decisions: CallRecordRecapItem[];
   actions: CallRecordRecapItem[];
   segmentById: Map<string, TranscriptSegmentData>;
-  integrityReport?: {
-    overall_verdict: string;
-    summary: string;
-    confidence_score_avg: number | null;
-    suspected_background_media: boolean;
-  } | null;
-  meetingId?: string;
   meeting: { customer_id: string | null; organizer_name: string | null; organizer_email: string | null; scheduled_start: string; scheduled_end: string; provider: string };
-  botJob: { status: string; last_error: string | null; provider: string; provider_bot_id: string | null; provider_metadata: unknown } | null;
-  isAdmin: boolean;
-  canViewRawTranscript: boolean;
-  needsReviewCount: number;
 }) {
   return (
     <div className={styles.body}>
