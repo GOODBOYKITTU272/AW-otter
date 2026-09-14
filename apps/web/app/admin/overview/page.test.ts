@@ -14,10 +14,11 @@ vi.mock("@/lib/supabase/server", () => ({
 
 vi.mock("@/env/server", () => ({
   getAzureMaiEnv: vi.fn(),
+  getSarvamEnv: vi.fn(),
 }));
 
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { getAzureMaiEnv } from "@/env/server";
+import { getAzureMaiEnv, getSarvamEnv } from "@/env/server";
 import AdminOverviewPage from "./page";
 
 describe("AdminOverviewPage honest health status", () => {
@@ -26,6 +27,10 @@ describe("AdminOverviewPage honest health status", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     process.env = { ...originalEnv };
+    vi.mocked(getSarvamEnv).mockReturnValue({
+      isConfigured: false,
+      SARVAM_API_KEY: undefined,
+    });
   });
 
   it("source code never hardcodes 'Healthy' or tone='success' for Azure Speech or OpenRouter", () => {
@@ -106,12 +111,16 @@ describe("AdminOverviewPage honest health status", () => {
     expect(html).not.toContain(">Healthy<");
   });
 
-  it("renders 4 core AI & speech services with dual-currency spend and Sarvam AI", async () => {
+  it("renders 4 core AI & speech services with honest unmetered spend labels", async () => {
     vi.mocked(getAzureMaiEnv).mockReturnValue({
       isConfigured: true,
       AZURE_MAI_ENDPOINT: "https://mock.azure.com",
       AZURE_MAI_KEY: "secret",
       AZURE_MAI_REGION: "eastus",
+    });
+    vi.mocked(getSarvamEnv).mockReturnValue({
+      isConfigured: true,
+      SARVAM_API_KEY: "mock",
     });
 
     vi.mocked(getSupabaseServerClient).mockResolvedValue({
@@ -129,21 +138,19 @@ describe("AdminOverviewPage honest health status", () => {
     const jsx = await AdminOverviewPage();
     const html = renderToStaticMarkup(jsx);
 
-    // Core AI & Speech Cards
     expect(html).toContain("System Health &amp; Spend");
     expect(html).toContain("Vexa");
     expect(html).toContain("Free / Open-Source (Azure VM)");
     expect(html).toContain("Whisper");
-    expect(html).toContain("14.2 Audio Hrs");
     expect(html).toContain("Sarvam AI");
-    expect(html).toContain("1.8 Indic Hrs");
-    expect(html).toContain("₹29");
     expect(html).toContain("Azure Speech");
-
-    // Spend Cockpit & Budget
+    expect(html).toContain("Not metered yet");
+    expect(html).toContain("Configured (Not verified)");
+    expect(html).not.toContain("14.2 Audio Hrs");
+    expect(html).not.toContain("1.85M");
+    expect(html).not.toContain("9.8%");
+    expect(html).not.toContain("Live Usage Cost");
     expect(html).toContain("AI Token Usage &amp; Spend");
-    expect(html).toContain("1.85M");
     expect(html).toContain("Monthly Budget");
-    expect(html).toContain("9.8%");
   });
 });

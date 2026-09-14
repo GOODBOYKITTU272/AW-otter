@@ -1,7 +1,46 @@
 import { StatusBadge } from "@/components/admin/status-badge";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { getAzureMaiEnv } from "@/env/server";
+import { getAzureMaiEnv, getSarvamEnv } from "@/env/server";
 import Link from "next/link";
+
+const USD_TO_INR = 84.2;
+const MONTHLY_BUDGET_CAP_USD = 250;
+const MONTHLY_BUDGET_CAP_INR = 21000;
+
+function formatTokens(count: number): string {
+  if (count >= 1_000_000) {
+    return `${(count / 1_000_000).toFixed(2)}M`;
+  }
+  if (count >= 1_000) {
+    return `${(count / 1_000).toFixed(1)}K`;
+  }
+  return count.toLocaleString();
+}
+
+async function fetchOpenRouterUsage(apiKey: string | undefined): Promise<number | null> {
+  if (!apiKey) return null;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const res = await fetch("https://openrouter.ai/api/v1/auth/key", {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: controller.signal,
+      cache: "no-store",
+    });
+    clearTimeout(timeoutId);
+    if (!res.ok) return null;
+    const body = (await res.json()) as {
+      data?: {
+        usage_monthly?: number;
+        usage?: number;
+      };
+    };
+    const usage = body?.data?.usage_monthly ?? body?.data?.usage;
+    return typeof usage === "number" && Number.isFinite(usage) ? usage : null;
+  } catch {
+    return null;
+  }
+}
 
 export default async function AdminOverviewPage() {
   const supabase = await getSupabaseServerClient();
@@ -29,56 +68,234 @@ export default async function AdminOverviewPage() {
     .order("first_seen_at", { ascending: false })
     .limit(4);
 
-  const isAzureConfigured = getAzureMaiEnv().isConfigured;
+  const isAzureConfigured = Boolean(getAzureMaiEnv()?.isConfigured);
   const isOpenRouterConfigured = Boolean(process.env.OPENROUTER_API_KEY);
+  const isSarvamConfigured = Boolean(getSarvamEnv()?.isConfigured);
+  const isVexaConfigured = Boolean(
+    process.env.VEXA_BASE_URL || process.env.VEXA_API_KEY
+  );
   const isDatabaseReachable = Boolean(memberships !== null);
 
-  // Core AI & Speech Services with health and dual-currency spend
+  // Real-time telemetry queries
+  const [
+    { data: transcripts },
+    { data: aiRuns },
+    { count: totalMeetingsCount },
+    { count: botJobsCount },
+  ] = await Promise.all([
+    supabase
+      .from("meeting_transcripts")
+      .select("provider, usage_seconds, usage_cost, detected_language, processing_status"),
+    supabase
+      .from("ai_runs")
+      .select("usage_metadata, status, model"),
+    supabase
+      .from("meetings")
+      .select("id", { count: "exact", head: true }),
+    supabase
+      .from("meeting_bot_jobs")
+      .select("id", { count: "exact", head: true }),
+  ]);
+
+  const openRouterLiveUsage = isOpenRouterConfigured
+    ? await fetchOpenRouterUsage(process.env.OPENROUTER_API_KEY)
+    : null;
+
+  // Vexa Bot Usage
+  const totalBotJobs = botJobsCount ?? 0;
+  const vexaUsageLabel =
+    totalBotJobs > 0
+      ? `${totalBotJobs} Bot Session${totalBotJobs === 1 ? "" : "s"} • Free`
+      : "Free / Open-Source (Azure VM)";
+
+  // Transcription Provider Totals
+  const transcriptList = transcripts ?? [];
+
+  // Whisper (OpenRouter / Whisper STT)
+  const whisperItems = transcriptList.filter(
+    (t) => t.provider === "whisper" || t.provider === "openrouter"
+  );
+  const whisperSeconds = whisperItems.reduce(
+    (acc, t) => acc + (t.usage_seconds ?? 0),
+    0
+  );
+  const whisperHours = whisperSeconds / 3600;
+  const whisperTranscriptsCost = whisperItems.reduce(
+    (acc, t) => acc + (t.usage_cost ?? 0),
+    0
+  );
+  const whisperCostUsd =
+    whisperTranscriptsCost > 0
+      ? whisperTranscriptsCost
+      : whisperHours > 0
+      ? Number((whisperHours * 0.36).toFixed(2))
+      : 0;
+  const whisperCostInr = Math.round(whisperCostUsd * USD_TO_INR);
+
+  // Sarvam AI (Indic & Multilingual Speech)
+  const sarvamItems = transcriptList.filter((t) => t.provider === "sarvam");
+  const sarvamSeconds = sarvamItems.reduce(
+    (acc, t) => acc + (t.usage_seconds ?? 0),
+    0
+  );
+  const sarvamHours = sarvamSeconds / 3600;
+  const sarvamTranscriptsCost = sarvamItems.reduce(
+    (acc, t) => acc + (t.usage_cost ?? 0),
+    0
+  );
+  // Sarvam pricing: ~₹16.5 / hr (~$0.20 / hr)
+  const sarvamCostInr =
+    sarvamTranscriptsCost > 0
+      ? Math.round(sarvamTranscriptsCost * USD_TO_INR)
+      : sarvamHours > 0
+      ? Math.round(sarvamHours * 16.5)
+      : 0;
+  const sarvamCostUsd =
+    sarvamCostInr > 0 ? Number((sarvamCostInr / USD_TO_INR).toFixed(2)) : 0;
+
+  // Azure Speech
+  const azureItems = transcriptList.filter(
+    (t) => t.provider === "azure" || t.provider === "azure-mai"
+  );
+  const azureSeconds = azureItems.reduce(
+    (acc, t) => acc + (t.usage_seconds ?? 0),
+    0
+  );
+  const azureHours = azureSeconds / 3600;
+  const azureCostUsd = azureItems.reduce(
+    (acc, t) => acc + (t.usage_cost ?? 0),
+    0
+  );
+  const azureCostInr = Math.round(azureCostUsd * USD_TO_INR);
+
+  // LLM Tokens and AI Runs
+  let totalPromptTokens = 0;
+  let totalCompletionTokens = 0;
+  let totalTokens = 0;
+  let llmDbCostUsd = 0;
+
+  for (const run of aiRuns ?? []) {
+    const meta = run.usage_metadata as {
+      prompt_tokens?: number;
+      completion_tokens?: number;
+      total_tokens?: number;
+      cost?: number;
+    } | null;
+    if (meta) {
+      const pTokens = Number(meta.prompt_tokens ?? 0);
+      const cTokens = Number(meta.completion_tokens ?? 0);
+      const tTokens = Number(meta.total_tokens ?? (pTokens + cTokens));
+      totalPromptTokens += pTokens;
+      totalCompletionTokens += cTokens;
+      totalTokens += tTokens;
+      llmDbCostUsd += Number(meta.cost ?? 0);
+    }
+  }
+
+  // If OpenRouter live key endpoint returned actual monthly spend, reconcile
+  let llmCostUsd = llmDbCostUsd;
+  if (openRouterLiveUsage !== null && openRouterLiveUsage > 0) {
+    const remainingOpenRouter = openRouterLiveUsage - whisperCostUsd;
+    llmCostUsd = remainingOpenRouter > 0 ? remainingOpenRouter : openRouterLiveUsage;
+  }
+
+  // Total AI Spend
+  const totalSpendUsd = Number(
+    (whisperCostUsd + sarvamCostUsd + azureCostUsd + llmCostUsd).toFixed(2)
+  );
+  const totalSpendInr = Math.round(totalSpendUsd * USD_TO_INR);
+
+  // Average per meeting
+  const meetingsCount = totalMeetingsCount ?? (memberships ? 1 : 0);
+  const avgCostPerMeetingUsd =
+    meetingsCount > 0 ? Number((totalSpendUsd / meetingsCount).toFixed(2)) : 0;
+  const avgCostPerMeetingInr = Number(
+    (avgCostPerMeetingUsd * USD_TO_INR).toFixed(2)
+  );
+
+  // Cost breakdown percentages
+  let whisperPct = 0;
+  let sarvamPct = 0;
+  let llmPct = 0;
+  if (totalSpendUsd > 0) {
+    whisperPct = Math.min(
+      100,
+      Math.round((whisperCostUsd / totalSpendUsd) * 100)
+    );
+    sarvamPct = Math.min(
+      100,
+      Math.round((sarvamCostUsd / totalSpendUsd) * 100)
+    );
+    llmPct = Math.max(0, 100 - whisperPct - sarvamPct);
+  }
+
+  // Monthly Budget Cap
+  const budgetConsumedPercent = Math.min(
+    100,
+    Number(((totalSpendUsd / MONTHLY_BUDGET_CAP_USD) * 100).toFixed(1))
+  );
+  const budgetStatus =
+    budgetConsumedPercent >= 95
+      ? "Critical"
+      : budgetConsumedPercent >= 80
+      ? "Warning"
+      : "Not metered yet";
+  const budgetStatusTone =
+    budgetConsumedPercent >= 95
+      ? "bg-red-50 text-red-700 border-red-200"
+      : budgetConsumedPercent >= 80
+      ? "bg-amber-50 text-amber-700 border-amber-200"
+      : "bg-emerald-50 text-emerald-700 border-emerald-200";
+
+  // Core AI & Speech Services — spend/usage not metered yet (no fabricated metrics)
   const services = [
     {
       name: "Vexa",
       subtitle: "Self-Hosted Meeting Bot",
       icon: "🤖",
-      status: "Operational",
-      costUsd: 0.0,
+      status: isDatabaseReachable ? "Operational (Database responding)" : "Unknown",
+      costUsd: 0,
       costInr: 0,
       usageLabel: "Free / Open-Source (Azure VM)",
+      spendLabel: "Not metered yet",
       isFree: true,
-      health: 99.8,
+      isIndicWave: false,
     },
     {
       name: "Whisper",
       subtitle: "English Speech-to-Text",
       icon: "📻",
-      status: "Operational",
-      costUsd: 0.9,
-      costInr: 75,
-      usageLabel: "14.2 Audio Hrs",
+      status: isOpenRouterConfigured ? "Configured (Not verified)" : "Not configured / Unknown",
+      costUsd: 0,
+      costInr: 0,
+      usageLabel: "Audio hrs not metered yet",
+      spendLabel: "Not metered yet",
       isFree: false,
-      health: 99.2,
+      isIndicWave: false,
     },
     {
       name: "Sarvam AI",
       subtitle: "Indic & Multilingual Speech",
       icon: "🔊",
-      status: "Operational",
-      costUsd: 0.35,
-      costInr: 29,
-      usageLabel: "1.8 Indic Hrs",
+      status: isSarvamConfigured ? "Configured (Not verified)" : "Not configured / Unknown",
+      costUsd: 0,
+      costInr: 0,
+      usageLabel: "Indic hrs not metered yet",
+      spendLabel: "Not metered yet",
       isFree: false,
       isIndicWave: true,
-      health: 98.6,
     },
     {
       name: "Azure Speech",
       subtitle: "Enterprise Cloud Transcriber",
       icon: "🎤",
-      status: "Operational",
-      costUsd: 0.0,
+      status: isAzureConfigured ? "Configured (Not verified)" : "Not configured / Unknown",
+      costUsd: 0,
       costInr: 0,
-      usageLabel: "0.0 Audio Hrs",
-      isFree: true,
-      health: 99.9,
+      usageLabel: "Audio hrs not metered yet",
+      spendLabel: "Not metered yet",
+      isFree: false,
+      isIndicWave: false,
     },
   ];
 
@@ -214,7 +431,7 @@ export default async function AdminOverviewPage() {
                           </span>
                         </div>
                         <p className="text-[11px] text-[#1E1E1E]/50 mt-0.5">
-                          {service.isFree ? "Zero Software Fee" : "Live Usage Cost"}
+                          {service.spendLabel}
                         </p>
                       </div>
 
@@ -258,8 +475,12 @@ export default async function AdminOverviewPage() {
                 <div className="p-4 rounded-xl bg-[#F5F5F5]/40 border border-[#1E1E1E]/10">
                   <span className="text-xs font-medium text-[#1E1E1E]/60">Total Cost</span>
                   <div className="flex items-baseline gap-2 mt-1">
-                    <span className="text-2xl font-bold text-[#1E1E1E]">$24.60</span>
-                    <span className="text-sm font-semibold text-emerald-700">₹2,072</span>
+                    <span className="text-2xl font-bold text-[#1E1E1E]">
+                      ${totalSpendUsd.toFixed(2)}
+                    </span>
+                    <span className="text-sm font-semibold text-emerald-700">
+                      ₹{totalSpendInr.toLocaleString("en-IN")}
+                    </span>
                   </div>
                   <p className="text-[11px] text-[#1E1E1E]/50 mt-1">Whisper + Sarvam + LLMs</p>
                 </div>
@@ -268,7 +489,9 @@ export default async function AdminOverviewPage() {
                 <div className="p-4 rounded-xl bg-[#F5F5F5]/40 border border-[#1E1E1E]/10">
                   <span className="text-xs font-medium text-[#1E1E1E]/60">Total Tokens</span>
                   <div className="flex items-baseline gap-2 mt-1">
-                    <span className="text-2xl font-bold text-[#2C76FF]">1.85M</span>
+                    <span className="text-2xl font-bold text-[#2C76FF]">
+                      {formatTokens(totalTokens)}
+                    </span>
                     <span className="text-xs font-medium text-[#1E1E1E]/60">Tokens</span>
                   </div>
                   <p className="text-[11px] text-[#1E1E1E]/50 mt-1">Recaps &amp; Grounded Q&amp;A</p>
@@ -278,8 +501,12 @@ export default async function AdminOverviewPage() {
                 <div className="p-4 rounded-xl bg-[#F5F5F5]/40 border border-[#1E1E1E]/10">
                   <span className="text-xs font-medium text-[#1E1E1E]/60">Average per Meeting</span>
                   <div className="flex items-baseline gap-2 mt-1">
-                    <span className="text-2xl font-bold text-[#1E1E1E]">$0.18</span>
-                    <span className="text-sm font-semibold text-[#1E1E1E]/60">₹15.15</span>
+                    <span className="text-2xl font-bold text-[#1E1E1E]">
+                      ${avgCostPerMeetingUsd.toFixed(2)}
+                    </span>
+                    <span className="text-sm font-semibold text-[#1E1E1E]/60">
+                      ₹{avgCostPerMeetingInr.toFixed(2)}
+                    </span>
                   </div>
                   <p className="text-[11px] text-[#1E1E1E]/50 mt-1">vs ₹450 saved recruiter labor</p>
                 </div>
@@ -289,25 +516,31 @@ export default async function AdminOverviewPage() {
               <div>
                 <div className="flex items-center justify-between text-xs text-[#1E1E1E]/70 mb-2">
                   <span className="font-semibold text-[#1E1E1E]">Cost Breakdown by Provider</span>
-                  <span>100% accounted for</span>
+                  <span>{totalSpendUsd > 0 ? "100% accounted for" : "0% recorded"}</span>
                 </div>
                 <div className="h-3 w-full rounded-full bg-[#F5F5F5] overflow-hidden flex">
-                  <div className="bg-[#2C76FF] h-full" style={{ width: "37%" }} title="Whisper: 37%" />
-                  <div className="bg-amber-500 h-full" style={{ width: "14%" }} title="Sarvam AI: 14%" />
-                  <div className="bg-purple-600 h-full" style={{ width: "49%" }} title="LLM Intelligence: 49%" />
+                  {totalSpendUsd > 0 ? (
+                    <>
+                      <div className="bg-[#2C76FF] h-full" style={{ width: `${whisperPct}%` }} title={`Whisper: ${whisperPct}%`} />
+                      <div className="bg-amber-500 h-full" style={{ width: `${sarvamPct}%` }} title={`Sarvam AI: ${sarvamPct}%`} />
+                      <div className="bg-purple-600 h-full" style={{ width: `${llmPct}%` }} title={`LLM Intelligence: ${llmPct}%`} />
+                    </>
+                  ) : (
+                    <div className="bg-[#1E1E1E]/10 h-full w-full" title="No usage recorded yet" />
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-4 mt-3 text-xs text-[#1E1E1E]/70">
                   <div className="flex items-center gap-1.5">
                     <div className="h-2.5 w-2.5 rounded-full bg-[#2C76FF]" />
-                    <span>Whisper STT (37%)</span>
+                    <span>Whisper STT ({whisperPct}%)</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="h-2.5 w-2.5 rounded-full bg-amber-500" />
-                    <span>Sarvam AI (14%)</span>
+                    <span>Sarvam AI ({sarvamPct}%)</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="h-2.5 w-2.5 rounded-full bg-purple-600" />
-                    <span>LLM Intelligence (49%)</span>
+                    <span>LLM Intelligence ({llmPct}%)</span>
                   </div>
                 </div>
               </div>
@@ -397,7 +630,7 @@ export default async function AdminOverviewPage() {
               <h2 className="text-lg font-bold text-[#1E1E1E]">Monthly Budget</h2>
             </div>
             <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-              On Track
+              Not metered yet
             </span>
           </div>
 
@@ -405,23 +638,23 @@ export default async function AdminOverviewPage() {
             <div className="flex items-baseline justify-between mb-2">
               <div>
                 <p className="text-xs font-medium text-[#1E1E1E]/60">Budget Consumed</p>
-                <p className="text-2xl font-bold text-[#1E1E1E]">9.8%</p>
+                <p className="text-2xl font-bold text-[#1E1E1E]">0%</p>
               </div>
               <div className="text-right">
                 <p className="text-xs font-medium text-[#1E1E1E]/60">Spend / Cap</p>
-                <p className="text-sm font-bold text-[#1E1E1E]">$24.60 / $250</p>
-                <p className="text-xs font-semibold text-[#1E1E1E]/50">₹2,072 / ₹21,000</p>
+                <p className="text-sm font-bold text-[#1E1E1E]">$0.00 / $250</p>
+                <p className="text-xs font-semibold text-[#1E1E1E]/50">₹0 / ₹21,000</p>
               </div>
             </div>
 
             {/* Progress bar */}
             <div className="w-full h-3 rounded-full bg-[#F5F5F5] overflow-hidden mb-3 border border-[#1E1E1E]/5">
-              <div className="h-full bg-gradient-to-r from-emerald-500 to-[#29FE29] rounded-full" style={{ width: "9.8%" }} />
+              <div className="h-full bg-gradient-to-r from-emerald-500 to-[#29FE29] rounded-full" style={{ width: "0%" }} />
             </div>
 
             <p className="text-xs text-[#1E1E1E]/60 flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              Cap alerts automatically trigger at 80% and 95% spend.
+              Budget meter idle until real provider spend aggregates are wired.
             </p>
           </div>
         </div>
