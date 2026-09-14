@@ -325,6 +325,41 @@ describe("processPendingBotJobs", () => {
     );
   });
 
+  it("passes botAvatarUrl through to the provider's createBot", async () => {
+    const supabase = createFakeSupabase({
+      meeting_bot_jobs: (call) => {
+        if (call.op === "select")
+          return ok([
+            {
+              id: "job-1",
+              meeting_id: "m1",
+              organization_id: "org-1",
+              idempotency_key: "m1:1",
+              retry_count: 0,
+            },
+          ]);
+        return ok({ id: "job-1" });
+      },
+      meetings: meetingsHandler({ meeting_url: "https://teams.example/x" }),
+      meeting_lifecycle_events: () => ok(null),
+    });
+    const provider = new FakeMeetingBotProvider();
+    const createBotSpy = vi.spyOn(provider, "createBot");
+
+    await processPendingBotJobs(
+      supabase,
+      provider,
+      10,
+      "https://echo.applywizz.ai/bot-avatar.png",
+    );
+
+    expect(createBotSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        botAvatarUrl: "https://echo.applywizz.ai/bot-avatar.png",
+      }),
+    );
+  });
+
   it("cancels the just-created provider bot if the job was cancelled while createBot was in flight", async () => {
     let updateCount = 0;
     const supabase = createFakeSupabase({
