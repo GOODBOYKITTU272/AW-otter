@@ -5,6 +5,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { Eye, EyeOff } from "lucide-react";
 import { ROLE_HOME_ROUTE, isSystemRoleKey } from "@applywizz/domain";
 import Link from "next/link";
+import Image from "next/image";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -124,9 +125,16 @@ export default function LoginPage() {
     <main className="flex min-h-screen flex-1 flex-col items-center justify-center gap-6 bg-gradient-to-br from-[#0B1D33] to-[#1E1E1E] px-4 sm:px-6">
       <div className="w-full max-w-md">
         <div className="text-center mb-6 sm:mb-8">
-          <Link href="/" className="inline-flex items-center gap-3 mb-4 sm:mb-6 hover:opacity-80 transition-opacity">
-            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#2C76FF] to-[#29FE29] flex items-center justify-center shadow-lg">
-              <span className="text-xl font-bold text-white">AW</span>
+          <Link href="/" className="inline-flex items-center justify-center mb-4 sm:mb-6 hover:opacity-80 transition-opacity">
+            <div className="p-2.5 rounded-2xl bg-white shadow-xl">
+              <Image
+                src="/logo_Applywizz.png"
+                alt="Apply Wizz"
+                width={160}
+                height={42}
+                className="h-9 w-auto object-contain"
+                priority
+              />
             </div>
           </Link>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white mb-2">

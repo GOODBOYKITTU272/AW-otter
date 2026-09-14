@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 /**
  * Branded marketing landing page for unauthenticated users.
@@ -16,6 +17,14 @@ export function LandingPage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex min-h-[60px] items-center justify-between gap-2">
             <div className="flex items-center gap-3">
+              <Image
+                src="/logo.png"
+                alt="Apply Wizz Echo"
+                width={36}
+                height={36}
+                className="h-9 w-9 rounded-xl object-contain shadow-md"
+                priority
+              />
               <div className="text-lg sm:text-2xl font-bold text-[#29FE29]">
                 Apply Wizz Echo
               </div>
