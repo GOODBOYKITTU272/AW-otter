@@ -5,6 +5,7 @@ import { applyLobbyBypassIfEnabled, type AppSupabaseClient } from "./lobby-bypas
 vi.mock("./feature-flags", () => ({
   getFeatureFlags: vi.fn(() => ({
     enableLobbyBypassPatch: true,
+    enableEchoAttendeeInvite: false,
     enableVideoRecording: false,
     enableAudioRecording: true,
   })),
@@ -77,6 +78,7 @@ describe("applyLobbyBypassIfEnabled", () => {
     const { getFeatureFlags } = await import("./feature-flags");
     vi.mocked(getFeatureFlags).mockReturnValueOnce({
       enableLobbyBypassPatch: false,
+      enableEchoAttendeeInvite: false,
       enableVideoRecording: false,
       enableAudioRecording: true,
     });
