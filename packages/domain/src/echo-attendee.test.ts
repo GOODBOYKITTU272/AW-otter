@@ -1,18 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
-import { applyLobbyBypassIfEnabled, type AppSupabaseClient } from "./lobby-bypass";
+import { addEchoAttendeeIfEnabled, type AppSupabaseClient } from "./echo-attendee";
 
 // Mock the feature flags and Microsoft Graph client
 vi.mock("./feature-flags", () => ({
   getFeatureFlags: vi.fn(() => ({
-    enableLobbyBypassPatch: true,
-    enableEchoAttendeeInvite: false,
+    enableEchoAttendeeInvite: true,
+    enableLobbyBypassPatch: false,
     enableVideoRecording: false,
     enableAudioRecording: true,
   })),
 }));
 
 vi.mock("@applywizz/microsoft", () => ({
-  patchOnlineMeetingLobbyBypass: vi.fn(async () => undefined),
+  addEchoAttendeeToOnlineMeeting: vi.fn(async () => undefined),
 }));
 
 // Minimal fake Supabase client for testing
@@ -65,6 +65,10 @@ function createFakeSupabase(
       },
       maybeSingle: resolve,
       single: resolve,
+      // Handle promise-like behavior for queries without explicit terminator
+      then: (onFulfilled: (value: unknown) => unknown) => {
+        return Promise.resolve(resolve()).then(onFulfilled);
+      },
     };
 
     return builder;
@@ -73,23 +77,23 @@ function createFakeSupabase(
   return { from } as unknown as AppSupabaseClient;
 }
 
-describe("applyLobbyBypassIfEnabled", () => {
+describe("addEchoAttendeeIfEnabled", () => {
   it("skips when feature flag is disabled", async () => {
     const { getFeatureFlags } = await import("./feature-flags");
     vi.mocked(getFeatureFlags).mockReturnValueOnce({
-      enableLobbyBypassPatch: false,
       enableEchoAttendeeInvite: false,
+      enableLobbyBypassPatch: false,
       enableVideoRecording: false,
       enableAudioRecording: true,
     });
 
-    const { patchOnlineMeetingLobbyBypass } = await import("@applywizz/microsoft");
-    const patchSpy = vi.mocked(patchOnlineMeetingLobbyBypass);
-    patchSpy.mockClear();
+    const { addEchoAttendeeToOnlineMeeting } = await import("@applywizz/microsoft");
+    const addSpy = vi.mocked(addEchoAttendeeToOnlineMeeting);
+    addSpy.mockClear();
 
     const supabase = createFakeSupabase({});
 
-    await applyLobbyBypassIfEnabled(
+    await addEchoAttendeeIfEnabled(
       supabase,
       "test-token",
       "meeting-1",
@@ -98,13 +102,13 @@ describe("applyLobbyBypassIfEnabled", () => {
       "org-1",
     );
 
-    expect(patchSpy).not.toHaveBeenCalled();
+    expect(addSpy).not.toHaveBeenCalled();
   });
 
   it("logs audit event when organizer GUID cannot be resolved", async () => {
-    const { patchOnlineMeetingLobbyBypass } = await import("@applywizz/microsoft");
-    const patchSpy = vi.mocked(patchOnlineMeetingLobbyBypass);
-    patchSpy.mockClear();
+    const { addEchoAttendeeToOnlineMeeting } = await import("@applywizz/microsoft");
+    const addSpy = vi.mocked(addEchoAttendeeToOnlineMeeting);
+    addSpy.mockClear();
 
     const auditInsertSpy = vi.fn((..._args: unknown[]) => ({ data: null, error: null }));
     const supabase = createFakeSupabase({
@@ -113,7 +117,7 @@ describe("applyLobbyBypassIfEnabled", () => {
         call.op === "insert" ? auditInsertSpy(call.payload) : { data: null, error: null },
     });
 
-    await applyLobbyBypassIfEnabled(
+    await addEchoAttendeeIfEnabled(
       supabase,
       "test-token",
       "meeting-1",
@@ -122,10 +126,10 @@ describe("applyLobbyBypassIfEnabled", () => {
       "org-1",
     );
 
-    expect(patchSpy).not.toHaveBeenCalled();
+    expect(addSpy).not.toHaveBeenCalled();
     expect(auditInsertSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: "meeting.lobby_bypass_skipped_no_guid",
+        action: "meeting.echo_attendee_skipped_no_guid",
         entity_type: "meeting",
         entity_id: "meeting-1",
       }),

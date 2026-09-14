@@ -385,6 +385,7 @@ export async function processPendingBotJobs(
     const botName = generateBotDisplayName(ownerDisplayName);
 
     // Track B′: Apply lobby bypass if enabled and meeting has online_meeting_id
+    // Track A: Add Echo as attendee if enabled
     if (
       graphAccessToken &&
       meeting.online_meeting_id &&
@@ -392,6 +393,16 @@ export async function processPendingBotJobs(
     ) {
       const { applyLobbyBypassIfEnabled } = await import("./lobby-bypass");
       await applyLobbyBypassIfEnabled(
+        serviceRoleClient,
+        graphAccessToken,
+        job.meeting_id,
+        meeting.online_meeting_id,
+        meeting.organizer_email,
+        job.organization_id,
+      );
+
+      const { addEchoAttendeeIfEnabled } = await import("./echo-attendee");
+      await addEchoAttendeeIfEnabled(
         serviceRoleClient,
         graphAccessToken,
         job.meeting_id,
