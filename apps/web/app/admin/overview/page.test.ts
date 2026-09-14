@@ -111,7 +111,7 @@ describe("AdminOverviewPage honest health status", () => {
     expect(html).not.toContain(">Healthy<");
   });
 
-  it("renders 4 core AI & speech services with honest unmetered spend labels", async () => {
+  it("renders 4 core AI & speech services with real-time dynamic spend, audio hours, and token telemetry", async () => {
     vi.mocked(getAzureMaiEnv).mockReturnValue({
       isConfigured: true,
       AZURE_MAI_ENDPOINT: "https://mock.azure.com",
@@ -122,6 +122,110 @@ describe("AdminOverviewPage honest health status", () => {
       isConfigured: true,
       SARVAM_API_KEY: "mock",
     });
+    process.env.OPENROUTER_API_KEY = "sk-mock-key";
+
+    vi.mocked(getSupabaseServerClient).mockResolvedValue({
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === "meeting_transcripts") {
+          return {
+            select: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  provider: "whisper",
+                  usage_seconds: 14.2 * 3600,
+                  usage_cost: 0.9,
+                  detected_language: "en",
+                  processing_status: "completed",
+                },
+                {
+                  provider: "sarvam",
+                  usage_seconds: 1.8 * 3600,
+                  usage_cost: 0.35,
+                  detected_language: "hi",
+                  processing_status: "completed",
+                },
+                {
+                  provider: "azure",
+                  usage_seconds: 0,
+                  usage_cost: 0,
+                  detected_language: "en",
+                  processing_status: "completed",
+                },
+              ],
+            }),
+          };
+        }
+        if (table === "ai_runs") {
+          return {
+            select: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  usage_metadata: {
+                    prompt_tokens: 1_200_000,
+                    completion_tokens: 650_000,
+                    total_tokens: 1_850_000,
+                    cost: 23.35,
+                  },
+                  status: "completed",
+                  model: "anthropic/claude-3.5-sonnet",
+                },
+              ],
+            }),
+          };
+        }
+        if (table === "meetings") {
+          return {
+            select: vi.fn().mockResolvedValue({ count: 137 }),
+          };
+        }
+        if (table === "meeting_bot_jobs") {
+          return {
+            select: vi.fn().mockResolvedValue({ count: 12 }),
+          };
+        }
+        return {
+          select: vi.fn().mockReturnThis(),
+          gte: vi.fn().mockReturnThis(),
+          lte: vi.fn().mockResolvedValue({ data: [] }),
+          eq: vi.fn().mockReturnThis(),
+          order: vi.fn().mockReturnThis(),
+          limit: vi.fn().mockResolvedValue({ data: [] }),
+          maybeSingle: vi.fn().mockResolvedValue({ data: null }),
+        };
+      }),
+    } as unknown as Awaited<ReturnType<typeof getSupabaseServerClient>>);
+
+    const jsx = await AdminOverviewPage();
+    const html = renderToStaticMarkup(jsx);
+
+    expect(html).toContain("System Health &amp; Spend");
+    expect(html).toContain("Vexa");
+    expect(html).toContain("12 Bot Sessions • Free");
+    expect(html).toContain("Whisper");
+    expect(html).toContain("14.2 Audio Hrs");
+    expect(html).toContain("Sarvam AI");
+    expect(html).toContain("1.8 Indic Hrs");
+    expect(html).toContain("₹29");
+    expect(html).toContain("Azure Speech");
+    expect(html).toContain("Live Usage Cost");
+    expect(html).toContain("AI Token Usage &amp; Spend");
+    expect(html).toContain("1.85M");
+    expect(html).toContain("Monthly Budget");
+    expect(html).toContain("9.8%");
+  });
+
+  it("renders live zero-state telemetry gracefully when database has no records yet", async () => {
+    vi.mocked(getAzureMaiEnv).mockReturnValue({
+      isConfigured: false,
+      AZURE_MAI_ENDPOINT: undefined,
+      AZURE_MAI_KEY: undefined,
+      AZURE_MAI_REGION: undefined,
+    });
+    vi.mocked(getSarvamEnv).mockReturnValue({
+      isConfigured: false,
+      SARVAM_API_KEY: undefined,
+    });
+    delete process.env.OPENROUTER_API_KEY;
 
     vi.mocked(getSupabaseServerClient).mockResolvedValue({
       from: vi.fn().mockReturnValue({
@@ -138,19 +242,11 @@ describe("AdminOverviewPage honest health status", () => {
     const jsx = await AdminOverviewPage();
     const html = renderToStaticMarkup(jsx);
 
-    expect(html).toContain("System Health &amp; Spend");
-    expect(html).toContain("Vexa");
-    expect(html).toContain("Free / Open-Source (Azure VM)");
-    expect(html).toContain("Whisper");
-    expect(html).toContain("Sarvam AI");
-    expect(html).toContain("Azure Speech");
-    expect(html).toContain("Not metered yet");
-    expect(html).toContain("Configured (Not verified)");
-    expect(html).not.toContain("14.2 Audio Hrs");
-    expect(html).not.toContain("1.85M");
-    expect(html).not.toContain("9.8%");
-    expect(html).not.toContain("Live Usage Cost");
-    expect(html).toContain("AI Token Usage &amp; Spend");
-    expect(html).toContain("Monthly Budget");
+    expect(html).toContain("$0.00");
+    expect(html).toContain("₹0");
+    expect(html).toContain("0.0 Audio Hrs");
+    expect(html).toContain("0.0 Indic Hrs");
+    expect(html).toContain("0");
+    expect(html).toContain("0.0%");
   });
 });
