@@ -12,6 +12,34 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  async function handleResetPassword() {
+    if (!email.trim()) {
+      setError("Please enter your email above first to receive your login setup link.");
+      return;
+    }
+    setResetting(true);
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/auth/set-password`,
+      });
+      if (resetError) {
+        setError(resetError.message);
+      } else {
+        setSuccessMessage(`Password setup link sent to ${email}! Check your inbox.`);
+      }
+    } catch {
+      setError("Failed to send reset link. Please try again.");
+    } finally {
+      setResetting(false);
+    }
+  }
 
   useEffect(() => {
     async function checkExistingSession() {
@@ -164,11 +192,44 @@ export default function LoginPage() {
               </div>
               <button
                 type="button"
+                onClick={() => setShowHelp(!showHelp)}
                 className="text-xs text-[#2C76FF] hover:underline self-start mt-1 min-h-[44px] flex items-center"
               >
-                ? Need help with authenticator
+                ? Need help with authenticator code
               </button>
+              {showHelp && (
+                <div className="rounded-xl border border-white/10 bg-[#0B1D33]/90 p-4 text-xs text-[#F5F5F5]/80 space-y-2">
+                  <p className="font-semibold text-white">How login works:</p>
+                  <p>
+                    Echo accounts use a 6-character access code (password) set during your initial invite.
+                  </p>
+                  <p>
+                    If you haven&apos;t configured your code yet or need to reset it,{" "}
+                    <button
+                      type="button"
+                      onClick={handleResetPassword}
+                      disabled={resetting}
+                      className="text-[#29FE29] font-bold underline hover:opacity-80 disabled:opacity-50"
+                    >
+                      {resetting ? "Sending reset link…" : "click here to email a reset link"}
+                    </button>
+                    .
+                  </p>
+                </div>
+              )}
             </div>
+
+            {successMessage ? (
+              <div
+                role="status"
+                className="rounded-xl border border-[#29FE29]/30 bg-[#29FE29]/10 px-4 py-3.5 text-sm text-[#29FE29] flex items-center gap-3"
+              >
+                <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                {successMessage}
+              </div>
+            ) : null}
 
             {error ? (
               <div
@@ -221,7 +282,15 @@ export default function LoginPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
               <span>
-                First-time setup? Check your email for the initial invite. <Link href="/auth/set-password" className="text-[#2C76FF] hover:underline">Resend email OTP</Link>
+                First-time setup or forgot code?{" "}
+                <button
+                  type="button"
+                  onClick={handleResetPassword}
+                  disabled={resetting}
+                  className="text-[#2C76FF] hover:underline font-semibold disabled:opacity-50"
+                >
+                  {resetting ? "Sending link…" : "Resend setup link"}
+                </button>
               </span>
             </div>
           </div>
