@@ -163,8 +163,8 @@ export default function LoginPage() {
 
     const supabase = getSupabaseBrowserClient();
     const { data: factors } = await supabase.auth.mfa.listFactors();
-    const unverifiedFactor = factors?.totp?.find(
-      (f) => f.status === "unverified",
+    const unverifiedFactor = factors?.all?.find(
+      (f) => f.factor_type === "totp" && f.status === "unverified",
     );
 
     if (!unverifiedFactor) {
@@ -291,7 +291,7 @@ export default function LoginPage() {
 
   function handleEmailOtpChange(index: number, value: string) {
     if (!/^\d*$/.test(value)) return;
-    if (value.length > 1) value = value[0];
+    if (value.length > 1) value = value.slice(0, 1);
 
     const newOtp = [...emailOtp];
     newOtp[index] = value;
@@ -307,7 +307,7 @@ export default function LoginPage() {
 
   function handleTotpCodeChange(index: number, value: string) {
     if (!/^\d*$/.test(value)) return;
-    if (value.length > 1) value = value[0];
+    if (value.length > 1) value = value.slice(0, 1);
 
     const newCode = [...totpCode];
     newCode[index] = value;
