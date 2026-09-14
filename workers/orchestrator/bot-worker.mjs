@@ -93,7 +93,11 @@ async function tick() {
   }
 }
 
-console.log(`[bot-worker] starting, tick every ${TICK_INTERVAL_MS}ms`);
+const resolvedBotAvatarUrl = getBotAvatarUrl();
+console.log(`[bot-worker] starting, tick every ${TICK_INTERVAL_MS}ms`, {
+  botAvatarUrl: resolvedBotAvatarUrl ?? "(disabled/empty)",
+  vexaBotAvatarEnv: process.env.VEXA_BOT_AVATAR_URL === undefined ? "NOT_SET" : (process.env.VEXA_BOT_AVATAR_URL === "" ? "SET_EMPTY" : "SET"),
+});
 
 // M17B: graceful shutdown, same small pattern added to
 // workers/transcription-worker/transcription-worker.mjs — never aborts an
