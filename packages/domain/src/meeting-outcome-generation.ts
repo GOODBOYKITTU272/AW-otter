@@ -320,6 +320,7 @@ async function upsertMeetingOutcome(
       action_items: outcome.actionItems as unknown as Json,
       open_questions: outcome.openQuestions as unknown as Json,
       model: outcome.model,
+      generated_at: outcome.generatedAt ?? new Date().toISOString(),
       usage_metadata: {
         promptTokens: usage.promptTokens,
         completionTokens: usage.completionTokens,

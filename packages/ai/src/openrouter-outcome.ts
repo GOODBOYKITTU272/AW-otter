@@ -75,7 +75,10 @@ function buildUserPrompt(input: MeetingOutcomeInput): string {
     .map((s) => `[${s.id}] ${s.speakerLabel}: ${s.text}`)
     .join("\n");
 
-  return `Extract the meeting outcome from this transcript. Use only the bracketed segment UUIDs as evidenceSegmentIds.\n\n${transcriptLines}`;
+  return `Extract the meeting outcome from this transcript. Use only the bracketed segment UUIDs as evidenceSegmentIds.
+Capture naming, logo/branding, concurrency capacity targets, dispatch timing, and storage/trigger plans as decisions or action items when proposed — not only as open questions.
+
+${transcriptLines}`;
 }
 
 /** Keep only segment IDs that exist in the input transcript. */
