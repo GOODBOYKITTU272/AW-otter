@@ -8,7 +8,11 @@ import {
   type MeetingRecapData,
   type TranscriptSegmentData,
 } from "@applywizz/domain/meeting-recap";
-import { getMeetingOutcome, type MeetingOutcomeData } from "@applywizz/domain/meeting-outcome";
+import {
+  getMeetingOutcome,
+  resolveMeetingOutcome,
+  type MeetingOutcomeData,
+} from "@applywizz/domain/meeting-outcome";
 import { ConfirmRejectActions } from "@/components/customer-truth/confirm-reject-actions";
 import { ResolveAction } from "@/components/actions/resolve-action";
 import { requireRole } from "@/lib/require-role";
@@ -17,6 +21,7 @@ import { MediaPlayer } from "@/components/recap/media-player";
 
 import styles from "./meeting-detail.module.css";
 import { MeetingDetailTabs } from "./meeting-detail-tabs";
+import { canViewRawTranscript as roleCanViewRawTranscript } from "./meeting-detail-access";
 import { computeProcessingTimeline, type TimelineStep } from "./timeline";
 
 /**
@@ -92,13 +97,6 @@ export default async function MeetingDetailPage({
     : { data: [], error: null };
   if (segmentsError) throw segmentsError;
 
-  const { data: lifecycleEvents, error: eventsError } = await supabase
-    .from("meeting_lifecycle_events")
-    .select("id, event_type, occurred_at, source")
-    .eq("meeting_id", id)
-    .order("occurred_at", { ascending: false });
-  if (eventsError) throw eventsError;
-
   const { data: speakerInterpretations } = await supabase
     .from("meeting_speaker_interpretations")
     .select("raw_speaker_tag, business_role, interpreted_name, confirmed_by_human")
@@ -122,7 +120,12 @@ export default async function MeetingDetailPage({
     .maybeSingle();
 
   const recapState = await getMeetingRecapData(supabase, id);
-  const outcome = await getMeetingOutcome(supabase, id);
+  let persistedOutcome = null;
+  try {
+    persistedOutcome = await getMeetingOutcome(supabase, id);
+  } catch {
+    persistedOutcome = null;
+  }
 
   const intelligenceStatus =
     recapState?.status === "ready"
@@ -154,9 +157,9 @@ export default async function MeetingDetailPage({
   });
 
   const isAdmin = membership.roleKey === "admin";
-  // Role gate: Only managers and admins can see raw transcripts
-  const canViewRawTranscript = membership.roleKey !== "account_manager";
+  const canViewRawTranscript = roleCanViewRawTranscript(membership.roleKey);
   const recap = recapState?.status === "ready" ? recapState.recap : null;
+  const outcome = resolveMeetingOutcome(persistedOutcome, recap);
   const segmentById = new Map(
     (segmentRows ?? []).map((s) => [
       s.id,
@@ -176,6 +179,7 @@ export default async function MeetingDetailPage({
   const openActionsCount = actions.filter((a) => a.status === "detected").length;
   const truthDeltas = recap?.result.customerTruthDeltas.filter((d) => !d.noChange) ?? [];
   const pendingTruthCount = truthDeltas.filter((d) => d.status === "proposed").length;
+  const needsReviewCount = (segmentRows ?? []).filter((s) => s.needs_review).length;
 
   const statusMeta = deriveStatusBadge(timeline);
 
@@ -220,16 +224,14 @@ export default async function MeetingDetailPage({
                 recapState={recapState}
                 decisions={decisions}
                 actions={actions}
-                truthDeltas={truthDeltas}
                 segmentById={segmentById}
-                previewSegments={(segmentRows ?? []).slice(0, 2)}
-                speakerMap={speakerMap}
                 integrityReport={integrityReport}
                 meetingId={id}
                 meeting={meeting}
                 botJob={botJob}
                 isAdmin={isAdmin}
                 canViewRawTranscript={canViewRawTranscript}
+                needsReviewCount={needsReviewCount}
               />
             ),
           },
@@ -297,26 +299,21 @@ function OverviewTab({
   recapState,
   decisions,
   actions,
-  truthDeltas,
   segmentById,
-  previewSegments,
-  speakerMap,
   integrityReport,
   meetingId,
   meeting,
   botJob,
   isAdmin,
   canViewRawTranscript,
+  needsReviewCount,
 }: {
   outcome: MeetingOutcomeData | null;
   recap: MeetingRecapData | null;
   recapState: Awaited<ReturnType<typeof getMeetingRecapData>>;
   decisions: CallRecordRecapItem[];
   actions: CallRecordRecapItem[];
-  truthDeltas: MeetingRecapData["result"]["customerTruthDeltas"];
   segmentById: Map<string, TranscriptSegmentData>;
-  previewSegments: { id: string; speaker_label: string; original_text: string; end_ms: number }[];
-  speakerMap?: Map<string, { name: string | null; role: string; confirmed: boolean }>;
   integrityReport?: {
     overall_verdict: string;
     summary: string;
@@ -328,6 +325,7 @@ function OverviewTab({
   botJob: { status: string; last_error: string | null; provider: string; provider_bot_id: string | null; provider_metadata: unknown } | null;
   isAdmin: boolean;
   canViewRawTranscript: boolean;
+  needsReviewCount: number;
 }) {
   return (
     <div className={styles.body}>
@@ -476,16 +474,15 @@ function OverviewTab({
           )}
         </div>
 
-        {/* Open Questions - outcome only */}
-        {outcome && (
-          <div className={styles.card}>
-            <div className={styles.cardHead}>
-              <span className={styles.cardTitle}>Open Questions</span>
-              {outcome.openQuestions.filter(q => q.status === "open").length > 0 && (
-                <span className={styles.adminPill}>{outcome.openQuestions.filter(q => q.status === "open").length}</span>
-              )}
-            </div>
-            {outcome.openQuestions.length > 0 ? (
+        <div className={styles.card}>
+          <div className={styles.cardHead}>
+            <span className={styles.cardTitle}>Open Questions</span>
+            {outcome && outcome.openQuestions.filter((q) => q.status === "open").length > 0 && (
+              <span className={styles.adminPill}>{outcome.openQuestions.filter((q) => q.status === "open").length}</span>
+            )}
+          </div>
+          {outcome ? (
+            outcome.openQuestions.length > 0 ? (
               <ul className={styles.list}>
                 {outcome.openQuestions.map((q, idx) => (
                   <li key={idx} className={styles.listItem}>
@@ -502,19 +499,25 @@ function OverviewTab({
               </ul>
             ) : (
               <p className={`${styles.cardBody} ${styles.muted}`}>No open questions.</p>
-            )}
-          </div>
-        )}
+            )
+          ) : (
+            <p className={`${styles.cardBody} ${styles.muted}`}>Available once analysis completes.</p>
+          )}
+        </div>
 
-        {/* Transcript Preview - show link to needs review segments if applicable */}
-        {canViewRawTranscript && previewSegments.length > 0 && (
+        {canViewRawTranscript && (
           <div className={styles.card}>
             <div className={styles.cardHead}>
               <span className={styles.cardTitle}>Transcript</span>
+              {needsReviewCount > 0 ? (
+                <Link href="?tab=transcript" className={styles.adminPill} style={{ color: "var(--warning)" }}>
+                  {needsReviewCount} need review
+                </Link>
+              ) : null}
             </div>
             <div style={{ padding: "8px 0", fontSize: 12, color: "var(--text-secondary)" }}>
-              <Link href={`?tab=transcript`} style={{ color: "var(--accent)", textDecoration: "none" }}>
-                View full transcript &rarr;
+              <Link href="?tab=transcript" style={{ color: "var(--accent)", textDecoration: "none" }}>
+                View full transcript →
               </Link>
             </div>
           </div>
@@ -915,8 +918,4 @@ function formatTimestamp(ms: number) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-}
-
-function humanizeEventType(eventType: string) {
-  return eventType.replaceAll(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }

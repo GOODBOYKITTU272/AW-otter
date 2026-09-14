@@ -68,25 +68,21 @@ create trigger meeting_outcomes_validate_org
   before insert or update on public.meeting_outcomes
   for each row execute function public.validate_meeting_outcome_org_consistency();
 
--- RLS: meeting_outcomes visibility follows meetings visibility
+-- RLS: meeting_outcomes visibility follows meetings visibility.
+-- Writes are service-role only (worker / intelligence backfill), same
+-- pattern as meeting_recordings.
 alter table public.meeting_outcomes enable row level security;
+
+revoke all on public.meeting_outcomes from anon, authenticated, service_role;
+grant select on public.meeting_outcomes to authenticated;
+grant select, insert, update on public.meeting_outcomes to service_role;
 
 create policy meeting_outcomes_select
   on public.meeting_outcomes for select
+  to authenticated
   using (
     exists (
       select 1 from public.meetings m
       where m.id = meeting_outcomes.meeting_id
     )
   );
-
--- Only service_role can write (background worker)
-create policy meeting_outcomes_insert
-  on public.meeting_outcomes for insert
-  with check (false);
-
-create policy meeting_outcomes_update
-  on public.meeting_outcomes for update
-  using (false);
-
-grant select on public.meeting_outcomes to authenticated;
