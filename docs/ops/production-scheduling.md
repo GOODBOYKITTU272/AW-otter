@@ -41,3 +41,19 @@ Both `workers/orchestrator/bot-worker.mjs` (pre-existing, M6) and the new `worke
 ## Known limitation: a fully-dead worker can't report its own death
 
 The Docker `HEALTHCHECK` and container-orchestrator restart policy are the correct layer for "is the transcription worker process alive" — a process that has crashed entirely cannot write an incident about its own crash. If the worker is down long enough for a job it had claimed to go stale, M16's existing stuck-job detection (`/admin/operations`) surfaces that downstream effect, which is the honest, available signal — not a direct "worker is down" alert. This is a structural property of the design, not something this checkpoint can close without external monitoring on the container itself (out of scope — no such monitoring infrastructure exists to wire into yet).
+
+## Hobby plan gap: workers-VM HTTP tick
+
+Vercel Hobby does **not** execute the full `vercel.json` cron set in production (only `microsoft-subscriptions/renew` has been observed live). The durable substitute lives on **applywizz-signal-workers-vm** (`20.219.134.86`, not the Vexa VM):
+
+- Script (source of truth in repo): `scripts/tick-internal-queues.sh`
+- Deployed path: `/home/awworker/applywizz-signal/bin/tick-internal-queues.sh`
+- Cron: `* * * * * /home/awworker/applywizz-signal/bin/tick-internal-queues.sh`
+- Log: `/home/awworker/applywizz-signal/logs/internal-ticks.log`
+- Auth: `x-internal-queue-secret: $INTERNAL_QUEUE_SECRET` (same as other `/api/internal/*` routes)
+- Base URL: `APP_BASE_URL` (production: `https://echo.applywizz.ai`)
+
+Current tick paths include calendar-events, meeting-policy, **meeting-outcome**, meeting-intelligence, and operations/recover. Overlapping minute runs are skipped via `flock` (`INTERNAL_TICK_LOCK`).
+
+Bot orchestration and transcription continue to run as Docker workers on the same VM (`bot-worker`, `transcription-worker`), calling domain code directly rather than HTTP.
+
