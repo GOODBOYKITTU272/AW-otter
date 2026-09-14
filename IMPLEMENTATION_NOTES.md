@@ -73,7 +73,10 @@ Teams Recording → Vexa Audio → STT (Whisper/Sarvam) → Canonical English �
 4. **Trigger outcome generation (manual):**
    ```bash
    curl -X POST http://localhost:3000/api/internal/meeting-outcome/process \
-     -H "Authorization: Bearer YOUR_INTERNAL_SECRET"
+     -H "x-internal-queue-secret: $INTERNAL_QUEUE_SECRET"
+   # Production (workers VM tick, every minute): scripts/tick-internal-queues.sh
+   #   APP_BASE_URL=https://echo.applywizz.ai
+   #   header x-internal-queue-secret from INTERNAL_QUEUE_SECRET
    ```
 
 ### Verification Checklist
