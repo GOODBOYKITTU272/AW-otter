@@ -225,13 +225,7 @@ export default async function MeetingDetailPage({
                 decisions={decisions}
                 actions={actions}
                 segmentById={segmentById}
-                integrityReport={integrityReport}
-                meetingId={id}
                 meeting={meeting}
-                botJob={botJob}
-                isAdmin={isAdmin}
-                canViewRawTranscript={canViewRawTranscript}
-                needsReviewCount={needsReviewCount}
               />
             ),
           },
@@ -282,6 +276,12 @@ export default async function MeetingDetailPage({
                 segmentById={segmentById}
                 openActionsCount={openActionsCount}
                 pendingTruthCount={pendingTruthCount}
+                integrityReport={integrityReport}
+                meetingId={id}
+                botJob={botJob}
+                outcome={outcome}
+                isAdmin={isAdmin}
+                needsReviewCount={needsReviewCount}
               />
             ),
           },
@@ -300,13 +300,7 @@ function OverviewTab({
   decisions,
   actions,
   segmentById,
-  integrityReport,
-  meetingId,
   meeting,
-  botJob,
-  isAdmin,
-  canViewRawTranscript,
-  needsReviewCount,
 }: {
   outcome: MeetingOutcomeData | null;
   recap: MeetingRecapData | null;
@@ -314,71 +308,11 @@ function OverviewTab({
   decisions: CallRecordRecapItem[];
   actions: CallRecordRecapItem[];
   segmentById: Map<string, TranscriptSegmentData>;
-  integrityReport?: {
-    overall_verdict: string;
-    summary: string;
-    confidence_score_avg: number | null;
-    suspected_background_media: boolean;
-  } | null;
-  meetingId?: string;
   meeting: { customer_id: string | null; organizer_name: string | null; organizer_email: string | null; scheduled_start: string; scheduled_end: string; provider: string };
-  botJob: { status: string; last_error: string | null; provider: string; provider_bot_id: string | null; provider_metadata: unknown } | null;
-  isAdmin: boolean;
-  canViewRawTranscript: boolean;
-  needsReviewCount: number;
 }) {
   return (
     <div className={styles.body}>
       <div className={styles.main}>
-        {integrityReport && integrityReport.overall_verdict !== "good" && (
-          <div
-            className={styles.card}
-            style={{
-              borderColor:
-                integrityReport.overall_verdict === "transcription_unreliable" ||
-                integrityReport.overall_verdict === "poor_audio"
-                  ? "var(--danger)"
-                  : "var(--warning)",
-              backgroundColor:
-                integrityReport.overall_verdict === "transcription_unreliable" ||
-                integrityReport.overall_verdict === "poor_audio"
-                  ? "rgba(239, 68, 68, 0.06)"
-                  : "rgba(245, 158, 11, 0.06)",
-            }}
-          >
-            <div className={styles.cardHead}>
-              <span className={styles.cardTitle} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span>Quality Truth Alert:</span>
-                <Badge
-                  tone={
-                    integrityReport.overall_verdict === "transcription_unreliable" ||
-                    integrityReport.overall_verdict === "poor_audio"
-                      ? "critical"
-                      : "warning"
-                  }
-                >
-                  {integrityReport.overall_verdict}
-                </Badge>
-              </span>
-              {integrityReport.confidence_score_avg != null && (
-                <span className={styles.muted} style={{ fontSize: 12 }}>
-                  Confidence: {Math.round(integrityReport.confidence_score_avg * 100)}%
-                </span>
-              )}
-            </div>
-            <div className={styles.cardBody}>
-              <p style={{ margin: 0, fontSize: 13 }}>{integrityReport.summary}</p>
-              {meetingId && (
-                <div style={{ marginTop: 8, fontSize: 12 }}>
-                  <Link href={`/meetings/${meetingId}/recap`} style={{ color: "var(--accent)" }}>
-                    Inspect evidence flags & review in Recap &rarr;
-                  </Link>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-        
         {/* Summary Card - prefer outcome, fallback to recap */}
         <div className={styles.card}>
           <div className={styles.cardHead}><span className={styles.cardTitle}>Summary</span></div>
@@ -403,7 +337,7 @@ function OverviewTab({
                 ))}
               </ul>
             ) : (
-              <p className={`${styles.cardBody} ${styles.muted}`}>No decisions detected in this call.</p>
+              <p className={`${styles.cardBody} ${styles.muted}`}>No key decisions were recorded.</p>
             )
           ) : recap ? (
             decisions.length > 0 ? (
@@ -417,7 +351,7 @@ function OverviewTab({
                 ))}
               </ul>
             ) : (
-              <p className={`${styles.cardBody} ${styles.muted}`}>No decisions detected in this call.</p>
+              <p className={`${styles.cardBody} ${styles.muted}`}>No key decisions were recorded.</p>
             )
           ) : (
             <p className={`${styles.cardBody} ${styles.muted}`}>Available once analysis completes.</p>
@@ -448,7 +382,7 @@ function OverviewTab({
                 ))}
               </ul>
             ) : (
-              <p className={`${styles.cardBody} ${styles.muted}`}>No action items detected.</p>
+              <p className={`${styles.cardBody} ${styles.muted}`}>No action items were assigned.</p>
             )
           ) : recap ? (
             actions.length > 0 ? (
@@ -467,7 +401,7 @@ function OverviewTab({
                 ))}
               </ul>
             ) : (
-              <p className={`${styles.cardBody} ${styles.muted}`}>No action items detected.</p>
+              <p className={`${styles.cardBody} ${styles.muted}`}>No action items were assigned.</p>
             )
           ) : (
             <p className={`${styles.cardBody} ${styles.muted}`}>Actions will be extracted once analysis completes.</p>
@@ -498,78 +432,37 @@ function OverviewTab({
                 ))}
               </ul>
             ) : (
-              <p className={`${styles.cardBody} ${styles.muted}`}>No open questions.</p>
+              <p className={`${styles.cardBody} ${styles.muted}`}>All questions were resolved.</p>
             )
           ) : (
             <p className={`${styles.cardBody} ${styles.muted}`}>Available once analysis completes.</p>
           )}
         </div>
-
-        {canViewRawTranscript && (
-          <div className={styles.card}>
-            <div className={styles.cardHead}>
-              <span className={styles.cardTitle}>Transcript</span>
-              {needsReviewCount > 0 ? (
-                <Link href="?tab=transcript" className={styles.adminPill} style={{ color: "var(--warning)" }}>
-                  {needsReviewCount} need review
-                </Link>
-              ) : null}
-            </div>
-            <div style={{ padding: "8px 0", fontSize: 12, color: "var(--text-secondary)" }}>
-              <Link href="?tab=transcript" style={{ color: "var(--accent)", textDecoration: "none" }}>
-                View full transcript →
-              </Link>
-            </div>
-          </div>
-        )}
       </div>
 
       <div className={styles.side}>
-        {/* Recording Player */}
-        {botJob?.status === "completed" && (
-          <div className={styles.card}>
-            <div className={styles.cardHead}><span className={styles.cardTitle}>Recording</span></div>
-            <div style={{ padding: 0, overflow: "hidden" }}>
-              <MediaPlayer meetingId={meetingId} />
-            </div>
-          </div>
-        )}
-
-        {/* Meeting Details */}
+        {/* Meeting Facts */}
         <div className={styles.card}>
-          <div className={styles.cardHead}><span className={styles.cardTitle}>Meeting Details</span></div>
+          <div className={styles.cardHead}><span className={styles.cardTitle}>Meeting facts</span></div>
           <div className={styles.cardBody}>
-            <div>{meeting.organizer_name ?? meeting.organizer_email ?? "—"} · Organizer</div>
-            <div className={styles.muted}>{formatRange(meeting.scheduled_start, meeting.scheduled_end)}</div>
-            <div className={styles.muted}>{formatProvider(meeting.provider)}</div>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 700, color: "var(--text-tertiary)", marginBottom: 4 }}>Organizer</div>
+              <div>{meeting.organizer_name ?? meeting.organizer_email ?? "—"}</div>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 700, color: "var(--text-tertiary)", marginBottom: 4 }}>When</div>
+              <div>{formatMeetingDateTime(meeting.scheduled_start)}</div>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 700, color: "var(--text-tertiary)", marginBottom: 4 }}>Duration</div>
+              <div>{formatDuration(meeting.scheduled_start, meeting.scheduled_end)}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 700, color: "var(--text-tertiary)", marginBottom: 4 }}>Platform</div>
+              <div>{formatProvider(meeting.provider)}</div>
+            </div>
           </div>
         </div>
-
-        {isAdmin && (
-          <div className={styles.card}>
-            <div className={styles.cardHead}>
-              <span className={styles.cardTitle}>Technical Details</span>
-              <span className={styles.adminPill}>Admin</span>
-            </div>
-            <div className={styles.technicalDetails}>
-              bot_status: {botJob?.status ?? "none"}
-              <br />
-              provider: {botJob?.provider ?? "—"}
-              <br />
-              provider_bot_id: {botJob?.provider_bot_id ?? "—"}
-              <br />
-              {botJob?.last_error ? <>last_error: {botJob.last_error}<br /></> : null}
-              {outcome && (
-                <>
-                  outcome_model: {outcome.model}
-                  <br />
-                  outcome_generated: {formatDateTime(outcome.generatedAt)}
-                  <br />
-                </>
-              )}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -680,6 +573,12 @@ function InsightsTab({
   segmentById,
   openActionsCount,
   pendingTruthCount,
+  integrityReport,
+  meetingId,
+  botJob,
+  outcome,
+  isAdmin,
+  needsReviewCount,
 }: {
   actions: CallRecordRecapItem[];
   decisions: CallRecordRecapItem[];
@@ -687,10 +586,83 @@ function InsightsTab({
   segmentById: Map<string, TranscriptSegmentData>;
   openActionsCount: number;
   pendingTruthCount: number;
+  integrityReport?: {
+    overall_verdict: string;
+    summary: string;
+    confidence_score_avg: number | null;
+    suspected_background_media: boolean;
+  } | null;
+  meetingId: string;
+  botJob: { status: string; last_error: string | null; provider: string; provider_bot_id: string | null; provider_metadata: unknown } | null;
+  outcome: MeetingOutcomeData | null;
+  isAdmin: boolean;
+  needsReviewCount: number;
 }) {
   return (
     <div className={styles.panelPad}>
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        {/* Quality & Transcript Health */}
+        {(integrityReport && integrityReport.overall_verdict !== "good") || needsReviewCount > 0 ? (
+          <div>
+            <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: "var(--text)" }}>
+              Quality & Transcript Health
+            </h3>
+            {integrityReport && integrityReport.overall_verdict !== "good" && (
+              <div
+                className={styles.card}
+                style={{
+                  borderColor:
+                    integrityReport.overall_verdict === "transcription_unreliable" ||
+                    integrityReport.overall_verdict === "poor_audio"
+                      ? "var(--critical)"
+                      : "var(--warning)",
+                  backgroundColor:
+                    integrityReport.overall_verdict === "transcription_unreliable" ||
+                    integrityReport.overall_verdict === "poor_audio"
+                      ? "var(--critical-tint)"
+                      : "var(--warning-tint)",
+                }}
+              >
+                <div className={styles.cardHead}>
+                  <span className={styles.cardTitle} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span>Quality Alert</span>
+                    <Badge
+                      tone={
+                        integrityReport.overall_verdict === "transcription_unreliable" ||
+                        integrityReport.overall_verdict === "poor_audio"
+                          ? "critical"
+                          : "warning"
+                      }
+                    >
+                      {integrityReport.overall_verdict}
+                    </Badge>
+                  </span>
+                  {integrityReport.confidence_score_avg != null && (
+                    <span className={styles.muted} style={{ fontSize: 12 }}>
+                      Confidence: {Math.round(integrityReport.confidence_score_avg * 100)}%
+                    </span>
+                  )}
+                </div>
+                <div className={styles.cardBody}>
+                  <p style={{ margin: 0, fontSize: 13 }}>{integrityReport.summary}</p>
+                </div>
+              </div>
+            )}
+            {needsReviewCount > 0 && (
+              <div className={styles.card} style={{ marginTop: 12 }}>
+                <div className={styles.cardHead}>
+                  <span className={styles.cardTitle}>Transcript Review</span>
+                  <Badge tone="warning">{needsReviewCount} segments</Badge>
+                </div>
+                <div className={styles.cardBody}>
+                  <Link href={`/meetings/${meetingId}?tab=transcript`} style={{ color: "var(--accent)" }}>
+                    View transcript segments that need review &rarr;
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : null}
         {/* Actions Section */}
         <div>
           <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: "var(--text)" }}>
@@ -753,6 +725,35 @@ function InsightsTab({
             <p className={styles.muted}>No customer truth updates from this meeting.</p>
           )}
         </div>
+
+        {/* Admin Technical Details */}
+        {isAdmin && (
+          <div>
+            <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: "var(--text)" }}>
+              Technical Details
+              <span className={styles.adminPill} style={{ marginLeft: 8 }}>Admin</span>
+            </h3>
+            <div className={styles.card}>
+              <div className={styles.technicalDetails}>
+                bot_status: {botJob?.status ?? "none"}
+                <br />
+                provider: {botJob?.provider ?? "—"}
+                <br />
+                provider_bot_id: {botJob?.provider_bot_id ?? "—"}
+                <br />
+                {botJob?.last_error ? <>last_error: {botJob.last_error}<br /></> : null}
+                {outcome && (
+                  <>
+                    outcome_model: {outcome.model}
+                    <br />
+                    outcome_generated: {formatDateTime(outcome.generatedAt)}
+                    <br />
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -918,4 +919,19 @@ function formatTimestamp(ms: number) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function formatMeetingDateTime(value: string) {
+  return new Intl.DateTimeFormat("en-US", { 
+    month: "short", 
+    day: "numeric", 
+    year: "numeric",
+    hour: "numeric", 
+    minute: "2-digit" 
+  }).format(new Date(value));
+}
+
+function formatDuration(start: string, end: string) {
+  const minutes = Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000);
+  return `${minutes} minutes`;
 }
