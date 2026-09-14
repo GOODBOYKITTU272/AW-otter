@@ -374,7 +374,7 @@ export default async function AdminMeetingsPage() {
                     </td>
                     <td className="px-6 py-4">
                       <Link
-                        href={`/admin/meetings/${meeting.id}`}
+                        href={`/meetings/${meeting.id}`}
                         className="font-medium text-[#2C76FF] hover:underline"
                       >
                         {meeting.title}
