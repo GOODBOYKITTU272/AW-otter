@@ -81,9 +81,10 @@ Updated `workers/orchestrator/bot-worker.mjs` to:
 ### Manual Verification
 
 After deployment:
-1. ✅ Verify bot creation via worker includes `bot_avatar_url` in `provider_metadata`
-2. ✅ Verify bot joins Teams meeting with Apply Wizz logo instead of generic icon
-3. ✅ Verify `https://echo.applywizz.ai/bot-avatar.png` returns 200 OK (~211KB)
+1. ✅ Verify worker logs show resolved `botAvatarUrl=https://echo.applywizz.ai/bot-avatar.png` at startup
+2. ✅ Verify new `meeting_bot_jobs.provider_metadata.bot_avatar_url_sent` is that URL (Vexa create response does **not** echo `bot_avatar_url`; absence of a provider-echoed field is not proof of NOT SENT)
+3. ✅ Verify bot joins Teams meeting with Apply Wizz logo instead of AA/generic initials — if URL was SENT and Teams still shows initials, that is a Vexa/Teams rendering limitation, not a missing Echo send
+4. ✅ Verify `https://echo.applywizz.ai/bot-avatar.png` returns 200 OK (~211KB)
 
 ## Why This Was Missed in PR #32
 

@@ -417,7 +417,14 @@ export async function processPendingBotJobs(
         .update({
           provider_bot_id: result.providerBotId,
           scheduled_at: new Date().toISOString(),
-          provider_metadata: result.raw as never,
+          // Vexa create response does not echo bot_avatar_url; persist what WE sent
+          // so ops can verify SENT vs omitted without relying on provider echo.
+          provider_metadata: {
+            ...(typeof result.raw === "object" && result.raw !== null
+              ? (result.raw as Record<string, unknown>)
+              : { raw: result.raw }),
+            bot_avatar_url_sent: botAvatarUrl ?? null,
+          } as never,
         })
         .eq("id", job.id)
         .eq("organization_id", job.organization_id)

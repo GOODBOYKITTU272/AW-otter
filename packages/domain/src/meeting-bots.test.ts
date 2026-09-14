@@ -326,6 +326,7 @@ describe("processPendingBotJobs", () => {
   });
 
   it("passes botAvatarUrl through to the provider's createBot", async () => {
+    const updates: unknown[] = [];
     const supabase = createFakeSupabase({
       meeting_bot_jobs: (call) => {
         if (call.op === "select")
@@ -338,6 +339,7 @@ describe("processPendingBotJobs", () => {
               retry_count: 0,
             },
           ]);
+        if (call.op === "update") updates.push(call.payload);
         return ok({ id: "job-1" });
       },
       meetings: meetingsHandler({ meeting_url: "https://teams.example/x" }),
@@ -357,6 +359,16 @@ describe("processPendingBotJobs", () => {
       expect.objectContaining({
         botAvatarUrl: "https://echo.applywizz.ai/bot-avatar.png",
       }),
+    );
+    // Vexa create response does not echo bot_avatar_url; we persist what we sent.
+    expect(updates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          provider_metadata: expect.objectContaining({
+            bot_avatar_url_sent: "https://echo.applywizz.ai/bot-avatar.png",
+          }),
+        }),
+      ]),
     );
   });
 
