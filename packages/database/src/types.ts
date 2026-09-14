@@ -1098,6 +1098,79 @@ export type Database = {
           },
         ]
       }
+      meeting_outcomes: {
+        Row: {
+          action_items: Json
+          created_at: string
+          generated_at: string
+          id: string
+          key_decisions: Json
+          meeting_id: string
+          model: string
+          open_questions: Json
+          organization_id: string
+          prompt_version: string
+          summary: string
+          transcript_id: string
+          updated_at: string
+          usage_metadata: Json
+        }
+        Insert: {
+          action_items?: Json
+          created_at?: string
+          generated_at?: string
+          id?: string
+          key_decisions?: Json
+          meeting_id: string
+          model: string
+          open_questions?: Json
+          organization_id: string
+          prompt_version?: string
+          summary: string
+          transcript_id: string
+          updated_at?: string
+          usage_metadata?: Json
+        }
+        Update: {
+          action_items?: Json
+          created_at?: string
+          generated_at?: string
+          id?: string
+          key_decisions?: Json
+          meeting_id?: string
+          model?: string
+          open_questions?: Json
+          organization_id?: string
+          prompt_version?: string
+          summary?: string
+          transcript_id?: string
+          updated_at?: string
+          usage_metadata?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_outcomes_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: true
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_outcomes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_outcomes_transcript_id_fkey"
+            columns: ["transcript_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_transcripts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meeting_lifecycle_events: {
         Row: {
           bot_job_id: string | null

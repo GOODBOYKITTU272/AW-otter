@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@applywizz/database/types";
 
-export type AppSupabaseClient = SupabaseClient<Database>;
+type AppSupabaseClient = SupabaseClient<Database>;
 
 export interface MeetingOutcomeDecision {
   text: string;

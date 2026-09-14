@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@applywizz/database/types";
 import type { MeetingOutcomeProvider } from "@applywizz/ai";
 
-export type AppSupabaseClient = SupabaseClient<Database>;
+type AppSupabaseClient = SupabaseClient<Database>;
 
 /**
  * Enqueues meeting outcome generation for all completed transcripts
