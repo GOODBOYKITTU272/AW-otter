@@ -1,61 +1,22 @@
 "use client";
 
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
-import { Eye, EyeOff, ArrowLeft } from "lucide-react";
-import { ROLE_HOME_ROUTE, isSystemRoleKey } from "@applywizz/domain";
+import { ArrowLeft } from "lucide-react";
 import { isAllowedEmailDomain } from "@applywizz/auth";
 import Link from "next/link";
 
-type AuthStep =
-  | "email"
-  | "email-otp"
-  | "totp-enroll"
-  | "totp-verify"
-  | "totp-login";
+type HelpStep = "email" | "email-otp" | "totp-reenroll" | "success";
 
-export default function LoginPage() {
-  const [step, setStep] = useState<AuthStep>("email");
+export default function AuthHelpPage() {
+  const [step, setStep] = useState<HelpStep>("email");
   const [email, setEmail] = useState("");
   const [emailOtp, setEmailOtp] = useState<string[]>(["", "", "", "", "", ""]);
-  const [totpSecret, setTotpSecret] = useState("");
   const [totpQrCode, setTotpQrCode] = useState("");
   const [totpCode, setTotpCode] = useState<string[]>(["", "", "", "", "", ""]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function checkExistingSession() {
-      const supabase = getSupabaseBrowserClient();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (session) {
-        const { data: membership } = await supabase
-          .from("organization_memberships")
-          .select("role_id")
-          .eq("user_id", session.user.id)
-          .eq("status", "active")
-          .maybeSingle();
-
-        if (membership) {
-          const { data: role } = await supabase
-            .from("roles")
-            .select("key")
-            .eq("id", membership.role_id)
-            .maybeSingle();
-
-          const roleKey = role?.key;
-          if (roleKey && isSystemRoleKey(roleKey)) {
-            window.location.assign(ROLE_HOME_ROUTE[roleKey]);
-          }
-        }
-      }
-    }
-    checkExistingSession();
-  }, []);
 
   async function handleEmailSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -124,33 +85,31 @@ export default function LoginPage() {
     }
 
     const { data: factors } = await supabase.auth.mfa.listFactors();
-    const totpFactor = factors?.totp?.find((f) => f.status === "verified");
+    const existingFactors = factors?.totp ?? [];
 
-    if (!totpFactor) {
-      const { data: enrollData, error: enrollError } =
-        await supabase.auth.mfa.enroll({
-          factorType: "totp",
-          issuer: "AW Echo",
-          friendlyName: "AW Echo",
-        });
-
-      if (enrollError || !enrollData) {
-        setError("Failed to initialize authenticator setup.");
-        setSubmitting(false);
-        return;
-      }
-
-      setTotpSecret(enrollData.totp.secret);
-      setTotpQrCode(enrollData.totp.qr_code);
-      setStep("totp-enroll");
-    } else {
-      setStep("totp-login");
+    for (const factor of existingFactors) {
+      await supabase.auth.mfa.unenroll({ factorId: factor.id });
     }
 
+    const { data: enrollData, error: enrollError } =
+      await supabase.auth.mfa.enroll({
+        factorType: "totp",
+        issuer: "AW Echo",
+        friendlyName: "AW Echo",
+      });
+
+    if (enrollError || !enrollData) {
+      setError("Failed to initialize authenticator setup.");
+      setSubmitting(false);
+      return;
+    }
+
+    setTotpQrCode(enrollData.totp.qr_code);
+    setStep("totp-reenroll");
     setSubmitting(false);
   }
 
-  async function handleTotpEnrollSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleTotpReenrollSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
@@ -197,97 +156,8 @@ export default function LoginPage() {
       return;
     }
 
-    await redirectToHome(supabase);
-  }
-
-  async function handleTotpLoginSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSubmitting(true);
-    setError(null);
-
-    const code = totpCode.join("");
-    if (code.length !== 6) {
-      setError("Please enter the complete 6-digit code.");
-      setSubmitting(false);
-      return;
-    }
-
-    const supabase = getSupabaseBrowserClient();
-    const { data: factors } = await supabase.auth.mfa.listFactors();
-    const verifiedFactor = factors?.totp?.find((f) => f.status === "verified");
-
-    if (!verifiedFactor) {
-      setError("No verified authenticator found. Please re-enroll.");
-      setSubmitting(false);
-      return;
-    }
-
-    const { error: challengeError, data: challengeData } =
-      await supabase.auth.mfa.challenge({
-        factorId: verifiedFactor.id,
-      });
-
-    if (challengeError || !challengeData) {
-      setError("Failed to verify code.");
-      setSubmitting(false);
-      return;
-    }
-
-    const { error: verifyError } = await supabase.auth.mfa.verify({
-      factorId: verifiedFactor.id,
-      challengeId: challengeData.id,
-      code,
-    });
-
-    if (verifyError) {
-      setError("Invalid code. Please try again.");
-      setSubmitting(false);
-      return;
-    }
-
-    await redirectToHome(supabase);
-  }
-
-  async function redirectToHome(supabase: ReturnType<typeof getSupabaseBrowserClient>) {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session) {
-      setError("Session not found. Please try again.");
-      setSubmitting(false);
-      return;
-    }
-
-    const { data: membership } = await supabase
-      .from("organization_memberships")
-      .select("role_id")
-      .eq("user_id", session.user.id)
-      .eq("status", "active")
-      .maybeSingle();
-
-    if (!membership) {
-      window.location.assign("/access-pending");
-      return;
-    }
-
-    const { data: role } = await supabase
-      .from("roles")
-      .select("key")
-      .eq("id", membership.role_id)
-      .maybeSingle();
-
-    const roleKey = role?.key;
-
-    if (!roleKey || !isSystemRoleKey(roleKey)) {
-      setError(
-        "Your account role is not recognized. Please contact your administrator.",
-      );
-      setSubmitting(false);
-      return;
-    }
-
-    window.location.assign(ROLE_HOME_ROUTE[roleKey]);
+    setStep("success");
+    setSubmitting(false);
   }
 
   function handleEmailOtpChange(index: number, value: string) {
@@ -322,7 +192,7 @@ export default function LoginPage() {
     }
   }
 
-  function handleBackToEmail() {
+  function handleBackToStart() {
     setStep("email");
     setEmail("");
     setEmailOtp(["", "", "", "", "", ""]);
@@ -336,7 +206,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-6 sm:mb-8">
           <Link
-            href="/"
+            href="/login"
             className="inline-flex items-center gap-3 mb-4 sm:mb-6 hover:opacity-80 transition-opacity"
           >
             <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#2C76FF] to-[#29FE29] flex items-center justify-center shadow-lg">
@@ -344,26 +214,46 @@ export default function LoginPage() {
             </div>
           </Link>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white mb-2">
-            {step === "email" && "Sign in to Echo"}
+            {step === "email" && "Need help signing in"}
             {step === "email-otp" && "Enter 6-digit email OTP"}
-            {step === "totp-enroll" && "Set up Microsoft Authenticator"}
-            {step === "totp-login" && "Enter 6-digit code from Microsoft Authenticator"}
+            {step === "totp-reenroll" && "Re-enroll Microsoft Authenticator"}
+            {step === "success" && "Authenticator reset complete"}
           </h1>
           <p className="text-sm text-[#F5F5F5]/70">
             {step === "email" &&
-              "Only @applywizz.ai emails can sign in."}
+              "Enter your email to reset your authenticator."}
             {step === "email-otp" &&
               "Check your inbox (and spam) for the code we sent."}
-            {step === "totp-enroll" &&
-              "Scan the QR code with the Microsoft Authenticator app."}
-            {step === "totp-login" &&
-              "Confirm with one TOTP code → done"}
+            {step === "totp-reenroll" &&
+              "Scan the QR code with Microsoft Authenticator."}
+            {step === "success" &&
+              "You can now sign in with your new authenticator."}
           </p>
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-[#1E1E1E]/90 backdrop-blur-xl p-6 sm:p-8 shadow-2xl">
           {step === "email" && (
             <form onSubmit={handleEmailSubmit} className="flex flex-col gap-6">
+              <div className="flex items-start gap-2 text-xs text-[#2C76FF] bg-[#2C76FF]/10 rounded-lg px-4 py-3">
+                <svg
+                  className="h-4 w-4 shrink-0 mt-0.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <span>
+                  Lost access to your authenticator? We'll send you an email
+                  code to verify your identity, then help you re-enroll.
+                </span>
+              </div>
+
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-semibold text-white flex items-center gap-2">
                   <svg
@@ -484,24 +374,14 @@ export default function LoginPage() {
                 )}
               </button>
 
-              <div className="flex items-start gap-2 text-xs text-[#2C76FF] bg-[#2C76FF]/10 rounded-lg px-4 py-3">
-                <svg
-                  className="h-4 w-4 shrink-0 mt-0.5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
+              <div className="flex flex-col gap-2 mt-2">
+                <Link
+                  href="/login"
+                  className="flex items-center justify-center gap-2 text-sm text-[#2C76FF] hover:underline"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                <span>
-                  Invite-only. Only <strong>@applywizz.ai</strong> email
-                  addresses are permitted.
-                </span>
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to Sign In
+                </Link>
               </div>
             </form>
           )}
@@ -513,11 +393,11 @@ export default function LoginPage() {
             >
               <button
                 type="button"
-                onClick={handleBackToEmail}
+                onClick={handleBackToStart}
                 className="flex items-center gap-2 text-sm text-[#2C76FF] hover:underline self-start"
               >
                 <ArrowLeft className="h-4 w-4" />
-                Back to Sign In
+                Back
               </button>
 
               <div className="flex flex-col gap-2">
@@ -614,9 +494,9 @@ export default function LoginPage() {
             </form>
           )}
 
-          {step === "totp-enroll" && (
+          {step === "totp-reenroll" && (
             <form
-              onSubmit={handleTotpEnrollSubmit}
+              onSubmit={handleTotpReenrollSubmit}
               className="flex flex-col gap-6"
             >
               <div className="flex flex-col items-center gap-4">
@@ -774,47 +654,15 @@ export default function LoginPage() {
                   </>
                 )}
               </button>
-
-              <div className="flex items-start gap-2 text-xs text-[#F5F5F5]/60 rounded-lg px-4 py-3 border border-white/10">
-                <svg
-                  className="h-4 w-4 shrink-0 mt-0.5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                <span>
-                  After setup, every login = email + AW Echo authenticator
-                  code. No permanent shared password for AMs.
-                </span>
-              </div>
             </form>
           )}
 
-          {step === "totp-login" && (
-            <form
-              onSubmit={handleTotpLoginSubmit}
-              className="flex flex-col gap-6"
-            >
-              <button
-                type="button"
-                onClick={handleBackToEmail}
-                className="flex items-center gap-2 text-sm text-[#2C76FF] hover:underline self-start"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Back to Sign In
-              </button>
-
-              <div className="flex flex-col gap-2">
-                <label className="text-sm font-semibold text-white flex items-center gap-2">
+          {step === "success" && (
+            <div className="flex flex-col gap-6">
+              <div className="flex flex-col items-center gap-4 text-center">
+                <div className="h-16 w-16 rounded-full bg-[#29FE29]/20 flex items-center justify-center">
                   <svg
-                    className="h-4 w-4 text-[#29FE29]"
+                    className="h-8 w-8 text-[#29FE29]"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -823,102 +671,29 @@ export default function LoginPage() {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                      d="M5 13l4 4L19 7"
                     />
                   </svg>
-                  Authenticator code (AW Echo)
-                </label>
-                <div className="flex gap-2 justify-between">
-                  {totpCode.map((digit, index) => (
-                    <input
-                      key={index}
-                      id={`totp-${index}`}
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={1}
-                      value={digit}
-                      onChange={(e) =>
-                        handleTotpCodeChange(index, e.target.value)
-                      }
-                      className="w-12 h-12 rounded-xl border border-white/10 bg-[#0B1D33]/80 text-center text-lg font-bold text-white focus:border-[#2C76FF] focus:outline-none focus:ring-2 focus:ring-[#2C76FF]/30 transition-all"
-                    />
-                  ))}
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white mb-2">
+                    Authenticator reset complete!
+                  </h2>
+                  <p className="text-sm text-[#F5F5F5]/70">
+                    Your new Microsoft Authenticator (AW Echo) is ready. You can
+                    now sign in with your email and the code from your
+                    authenticator app.
+                  </p>
                 </div>
               </div>
 
-              {error && (
-                <div
-                  role="alert"
-                  className="rounded-xl border border-[#FF5C5C]/30 bg-[#FF5C5C]/10 px-4 py-3.5 text-sm text-[#FF5C5C] flex items-center gap-3"
-                >
-                  <svg
-                    className="h-5 w-5 shrink-0"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                    />
-                  </svg>
-                  {error}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="mt-2 rounded-xl bg-[#29FE29] px-6 py-4 text-base font-bold text-[#1E1E1E] hover:bg-[#29FE29]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xl shadow-[#29FE29]/20 flex items-center justify-center gap-2 min-h-[56px]"
+              <Link
+                href="/login"
+                className="mt-2 rounded-xl bg-[#29FE29] px-6 py-4 text-base font-bold text-[#1E1E1E] hover:bg-[#29FE29]/90 transition-all shadow-xl shadow-[#29FE29]/20 flex items-center justify-center gap-2 min-h-[56px]"
               >
-                {submitting ? (
-                  <>
-                    <svg
-                      className="animate-spin h-5 w-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      />
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      />
-                    </svg>
-                    Signing in…
-                  </>
-                ) : (
-                  <>
-                    Sign in
-                    <svg
-                      className="h-5 w-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13 7l5 5m0 0l-5 5m5-5H6"
-                      />
-                    </svg>
-                  </>
-                )}
-              </button>
-
-              <div className="flex items-start gap-2 text-xs text-[#F5F5F5]/60 rounded-lg px-4 py-3 border border-white/10">
+                Go to Sign In
                 <svg
-                  className="h-4 w-4 shrink-0 mt-0.5"
+                  className="h-5 w-5"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -927,20 +702,11 @@ export default function LoginPage() {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={2}
-                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                    d="M13 7l5 5m0 0l-5 5m5-5H6"
                   />
                 </svg>
-                <span>
-                  Lost access to your authenticator?{" "}
-                  <Link
-                    href="/auth/help"
-                    className="text-[#2C76FF] hover:underline font-semibold"
-                  >
-                    Get help
-                  </Link>
-                </span>
-              </div>
-            </form>
+              </Link>
+            </div>
           )}
         </div>
       </div>
