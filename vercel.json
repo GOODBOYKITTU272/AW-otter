@@ -1,4 +1,5 @@
 {
+  "regions": ["bom1"],
   "crons": [
     { "path": "/api/internal/calendar-events/process", "schedule": "* * * * *" },
     { "path": "/api/internal/meeting-bots/tick", "schedule": "* * * * *" },
