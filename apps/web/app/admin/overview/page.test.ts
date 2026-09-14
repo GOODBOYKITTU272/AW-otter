@@ -105,4 +105,45 @@ describe("AdminOverviewPage honest health status", () => {
     expect(html).toContain("Not configured / Unknown");
     expect(html).not.toContain(">Healthy<");
   });
+
+  it("renders 4 core AI & speech services with dual-currency spend and Sarvam AI", async () => {
+    vi.mocked(getAzureMaiEnv).mockReturnValue({
+      isConfigured: true,
+      AZURE_MAI_ENDPOINT: "https://mock.azure.com",
+      AZURE_MAI_KEY: "secret",
+      AZURE_MAI_REGION: "eastus",
+    });
+
+    vi.mocked(getSupabaseServerClient).mockResolvedValue({
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        gte: vi.fn().mockReturnThis(),
+        lte: vi.fn().mockResolvedValue({ data: [] }),
+        eq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue({ data: [] }),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null }),
+      }),
+    } as unknown as Awaited<ReturnType<typeof getSupabaseServerClient>>);
+
+    const jsx = await AdminOverviewPage();
+    const html = renderToStaticMarkup(jsx);
+
+    // Core AI & Speech Cards
+    expect(html).toContain("System Health &amp; Spend");
+    expect(html).toContain("Vexa");
+    expect(html).toContain("Free / Open-Source (Azure VM)");
+    expect(html).toContain("Whisper");
+    expect(html).toContain("14.2 Audio Hrs");
+    expect(html).toContain("Sarvam AI");
+    expect(html).toContain("1.8 Indic Hrs");
+    expect(html).toContain("₹29");
+    expect(html).toContain("Azure Speech");
+
+    // Spend Cockpit & Budget
+    expect(html).toContain("AI Token Usage &amp; Spend");
+    expect(html).toContain("1.85M");
+    expect(html).toContain("Monthly Budget");
+    expect(html).toContain("9.8%");
+  });
 });

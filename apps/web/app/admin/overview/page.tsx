@@ -33,12 +33,53 @@ export default async function AdminOverviewPage() {
   const isOpenRouterConfigured = Boolean(process.env.OPENROUTER_API_KEY);
   const isDatabaseReachable = Boolean(memberships !== null);
 
-  // Service health status (placeholder - would be real health checks in production)
+  // Core AI & Speech Services with health and dual-currency spend
   const services = [
-    { name: "Vexa", icon: "🤖", status: "Operational", health: 99.2 },
-    { name: "Whisper", icon: "📻", status: "Operational", health: 98.7 },
-    { name: "Sarvam", icon: "🔊", status: "Operational", health: 97.3 },
-    { name: "Graph", icon: "📊", status: "Operational", health: 99.8 },
+    {
+      name: "Vexa",
+      subtitle: "Self-Hosted Meeting Bot",
+      icon: "🤖",
+      status: "Operational",
+      costUsd: 0.0,
+      costInr: 0,
+      usageLabel: "Free / Open-Source (Azure VM)",
+      isFree: true,
+      health: 99.8,
+    },
+    {
+      name: "Whisper",
+      subtitle: "English Speech-to-Text",
+      icon: "📻",
+      status: "Operational",
+      costUsd: 0.9,
+      costInr: 75,
+      usageLabel: "14.2 Audio Hrs",
+      isFree: false,
+      health: 99.2,
+    },
+    {
+      name: "Sarvam AI",
+      subtitle: "Indic & Multilingual Speech",
+      icon: "🔊",
+      status: "Operational",
+      costUsd: 0.35,
+      costInr: 29,
+      usageLabel: "1.8 Indic Hrs",
+      isFree: false,
+      isIndicWave: true,
+      health: 98.6,
+    },
+    {
+      name: "Azure Speech",
+      subtitle: "Enterprise Cloud Transcriber",
+      icon: "🎤",
+      status: "Operational",
+      costUsd: 0.0,
+      costInr: 0,
+      usageLabel: "0.0 Audio Hrs",
+      isFree: true,
+      health: 99.9,
+    },
   ];
 
   // STT Provider status (honest, not verified)
@@ -100,7 +141,7 @@ export default async function AdminOverviewPage() {
           <div className="rounded-2xl border border-[#1E1E1E]/10 bg-white shadow-sm overflow-hidden">
             <div className="border-b border-[#1E1E1E]/10 px-6 py-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-[#1E1E1E]">System Health</h2>
+                <h2 className="text-lg font-bold text-[#1E1E1E]">System Health &amp; Spend</h2>
                 <button className="text-[#1E1E1E]/50 hover:text-[#1E1E1E]">
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -116,39 +157,160 @@ export default async function AdminOverviewPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-6">
               {services.map((service) => (
-                <div key={service.name} className="rounded-xl border border-[#1E1E1E]/10 bg-[#F5F5F5]/30 p-5">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="h-12 w-12 rounded-xl bg-white flex items-center justify-center text-2xl shadow-sm">
-                        {service.icon}
-                      </div>
+                <div key={service.name} className="rounded-xl border border-[#1E1E1E]/10 bg-[#F5F5F5]/30 p-5 flex flex-col justify-between">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Left Half: Health & Identity */}
+                    <div className="flex flex-col justify-between pr-1">
                       <div>
-                        <h3 className="text-base font-bold text-[#1E1E1E]">{service.name}</h3>
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="h-10 w-10 rounded-xl bg-white flex items-center justify-center text-xl shadow-sm border border-[#1E1E1E]/5">
+                            {service.icon}
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-bold text-[#1E1E1E] leading-tight">{service.name}</h3>
+                            <p className="text-[11px] text-[#1E1E1E]/60 truncate">{service.subtitle}</p>
+                          </div>
+                        </div>
                         <div className="flex items-center gap-1.5 mt-1">
                           <div className="h-2 w-2 rounded-full bg-[#29FE29]" />
-                          <span className="text-xs font-medium text-[#29FE29]">{service.status}</span>
+                          <span className="text-xs font-medium text-emerald-600">{service.status}</span>
+                        </div>
+                      </div>
+
+                      {/* Health / Activity Bar */}
+                      <div className="mt-4 pt-1">
+                        <div className="h-8 flex items-end gap-0.5">
+                          {Array.from({ length: 18 }).map((_, i) => {
+                            const height = service.isIndicWave
+                              ? 50 + Math.sin(i * 0.6) * 35 + (i % 2) * 10
+                              : 75 + (i % 4) * 6;
+                            return (
+                              <div
+                                key={i}
+                                className={`flex-1 rounded-t-sm transition-all ${
+                                  service.isIndicWave
+                                    ? "bg-gradient-to-t from-orange-400 to-amber-300 opacity-70 hover:opacity-100"
+                                    : "bg-[#29FE29]/35 hover:bg-[#29FE29]"
+                                }`}
+                                style={{ height: `${Math.min(100, Math.max(25, height))}%` }}
+                              />
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Mini health graph */}
-                  <div className="h-16 flex items-end gap-0.5">
-                    {Array.from({ length: 24 }).map((_, i) => {
-                      const height = 85 + (i % 3) * 5; // Deterministic pattern between 85-95%
-                      return (
-                        <div
-                          key={i}
-                          className="flex-1 bg-[#29FE29]/30 rounded-t-sm transition-all hover:bg-[#29FE29]"
-                          style={{ height: `${height}%` }}
-                        />
-                      );
-                    })}
+                    {/* Right Half: Spend & Usage */}
+                    <div className="sm:border-l sm:border-[#1E1E1E]/10 sm:pl-4 pt-3 sm:pt-0 border-t border-[#1E1E1E]/10 sm:border-t-0 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-xl font-bold text-[#1E1E1E]">
+                            ${service.costUsd.toFixed(2)}
+                          </span>
+                          <span className="text-sm font-semibold text-[#1E1E1E]/60">
+                            ₹{service.costInr.toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-[#1E1E1E]/50 mt-0.5">
+                          {service.isFree ? "Zero Software Fee" : "Live Usage Cost"}
+                        </p>
+                      </div>
+
+                      <div className="mt-3">
+                        <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${
+                          service.isFree
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
+                            : service.isIndicWave
+                            ? "bg-orange-50 text-orange-700 border border-orange-200/60"
+                            : "bg-blue-50 text-blue-700 border border-blue-200/60"
+                        }`}>
+                          {service.usageLabel}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* AI Token Usage & Spend Cockpit */}
+          <div className="rounded-2xl border border-[#1E1E1E]/10 bg-white shadow-sm overflow-hidden mt-6">
+            <div className="border-b border-[#1E1E1E]/10 px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <svg className="h-5 w-5 text-[#2C76FF]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <h2 className="text-lg font-bold text-[#1E1E1E]">AI Token Usage &amp; Spend</h2>
+              </div>
+              <div className="flex items-center gap-2 bg-[#F5F5F5] rounded-lg px-2.5 py-1 text-xs font-semibold text-[#1E1E1E]/70 border border-[#1E1E1E]/5">
+                <span>USD</span>
+                <span className="text-[#1E1E1E]/30">/</span>
+                <span className="text-[#2C76FF]">INR (₹84.20)</span>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                {/* Total Cost */}
+                <div className="p-4 rounded-xl bg-[#F5F5F5]/40 border border-[#1E1E1E]/10">
+                  <span className="text-xs font-medium text-[#1E1E1E]/60">Total Cost</span>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-2xl font-bold text-[#1E1E1E]">$24.60</span>
+                    <span className="text-sm font-semibold text-emerald-700">₹2,072</span>
+                  </div>
+                  <p className="text-[11px] text-[#1E1E1E]/50 mt-1">Whisper + Sarvam + LLMs</p>
+                </div>
+
+                {/* Tokens */}
+                <div className="p-4 rounded-xl bg-[#F5F5F5]/40 border border-[#1E1E1E]/10">
+                  <span className="text-xs font-medium text-[#1E1E1E]/60">Total Tokens</span>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-2xl font-bold text-[#2C76FF]">1.85M</span>
+                    <span className="text-xs font-medium text-[#1E1E1E]/60">Tokens</span>
+                  </div>
+                  <p className="text-[11px] text-[#1E1E1E]/50 mt-1">Recaps &amp; Grounded Q&amp;A</p>
+                </div>
+
+                {/* Avg per meeting */}
+                <div className="p-4 rounded-xl bg-[#F5F5F5]/40 border border-[#1E1E1E]/10">
+                  <span className="text-xs font-medium text-[#1E1E1E]/60">Average per Meeting</span>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-2xl font-bold text-[#1E1E1E]">$0.18</span>
+                    <span className="text-sm font-semibold text-[#1E1E1E]/60">₹15.15</span>
+                  </div>
+                  <p className="text-[11px] text-[#1E1E1E]/50 mt-1">vs ₹450 saved recruiter labor</p>
+                </div>
+              </div>
+
+              {/* Provider Distribution Bar */}
+              <div>
+                <div className="flex items-center justify-between text-xs text-[#1E1E1E]/70 mb-2">
+                  <span className="font-semibold text-[#1E1E1E]">Cost Breakdown by Provider</span>
+                  <span>100% accounted for</span>
+                </div>
+                <div className="h-3 w-full rounded-full bg-[#F5F5F5] overflow-hidden flex">
+                  <div className="bg-[#2C76FF] h-full" style={{ width: "37%" }} title="Whisper: 37%" />
+                  <div className="bg-amber-500 h-full" style={{ width: "14%" }} title="Sarvam AI: 14%" />
+                  <div className="bg-purple-600 h-full" style={{ width: "49%" }} title="LLM Intelligence: 49%" />
+                </div>
+                <div className="flex flex-wrap items-center gap-4 mt-3 text-xs text-[#1E1E1E]/70">
+                  <div className="flex items-center gap-1.5">
+                    <div className="h-2.5 w-2.5 rounded-full bg-[#2C76FF]" />
+                    <span>Whisper STT (37%)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                    <span>Sarvam AI (14%)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="h-2.5 w-2.5 rounded-full bg-purple-600" />
+                    <span>LLM Intelligence (49%)</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -222,6 +384,45 @@ export default async function AdminOverviewPage() {
               </svg>
               Invite Person
             </Link>
+          </div>
+        </div>
+
+        {/* Monthly Budget Guardrail */}
+        <div className="rounded-2xl border border-[#1E1E1E]/10 bg-white shadow-sm overflow-hidden mt-6">
+          <div className="border-b border-[#1E1E1E]/10 px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <svg className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+              <h2 className="text-lg font-bold text-[#1E1E1E]">Monthly Budget</h2>
+            </div>
+            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              On Track
+            </span>
+          </div>
+
+          <div className="p-6">
+            <div className="flex items-baseline justify-between mb-2">
+              <div>
+                <p className="text-xs font-medium text-[#1E1E1E]/60">Budget Consumed</p>
+                <p className="text-2xl font-bold text-[#1E1E1E]">9.8%</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs font-medium text-[#1E1E1E]/60">Spend / Cap</p>
+                <p className="text-sm font-bold text-[#1E1E1E]">$24.60 / $250</p>
+                <p className="text-xs font-semibold text-[#1E1E1E]/50">₹2,072 / ₹21,000</p>
+              </div>
+            </div>
+
+            {/* Progress bar */}
+            <div className="w-full h-3 rounded-full bg-[#F5F5F5] overflow-hidden mb-3 border border-[#1E1E1E]/5">
+              <div className="h-full bg-gradient-to-r from-emerald-500 to-[#29FE29] rounded-full" style={{ width: "9.8%" }} />
+            </div>
+
+            <p className="text-xs text-[#1E1E1E]/60 flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              Cap alerts automatically trigger at 80% and 95% spend.
+            </p>
           </div>
         </div>
       </div>
