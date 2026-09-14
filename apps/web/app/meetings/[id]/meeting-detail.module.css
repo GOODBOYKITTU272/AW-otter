@@ -1,29 +1,30 @@
 /*
- * Design tokens scoped to this page only (per the approved spec, Section G) —
- * not touched: app/globals.css or the Tailwind config. Rolling these out
- * app-wide is a later, separately-approved step; this keeps blast radius to
- * exactly the new Meeting Detail screen.
+ * Meeting Detail — Apply Wizz brand tokens (scoped to this page).
+ * Force LIGHT content canvas regardless of OS dark mode.
+ * Sidebar shell (ops-dark #0B1D33) is provided by meetings/layout for Admin.
+ * Brand: content #F5F5F5 / white cards, accent #2C76FF, CTA #29FE29 (sparingly).
  */
 .root {
-  --bg: #fafafb;
+  --bg: #f5f5f5;
   --surface: #ffffff;
-  --surface-sunken: #f4f5f7;
+  --surface-sunken: #f0f0f0;
   --border: #e4e7ec;
   --border-strong: #d0d5dd;
-  --text: #16181d;
+  --text: #1e1e1e;
   --text-secondary: #5b6472;
   --text-tertiary: #8a94a6;
-  --accent: #2451d9;
-  --accent-tint: #edf1fd;
+  --accent: #2c76ff;
+  --accent-tint: #eaf2ff;
   --success: #0f7b3e;
   --success-tint: #e7f6ec;
   --warning: #9a5b00;
   --warning-tint: #fdf3dd;
   --critical: #b42318;
   --critical-tint: #fdebea;
-  --info: #175cd3;
-  --info-tint: #eff4ff;
+  --info: #2c76ff;
+  --info-tint: #eaf2ff;
   --neutral-tint: #f2f4f7;
+  --cta: #29fe29;
   --radius-sm: 6px;
   --radius-md: 10px;
   --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
@@ -32,32 +33,8 @@
   color: var(--text);
   font-size: 14px;
   line-height: 1.55;
-  min-height: 100vh;
-}
-
-@media (prefers-color-scheme: dark) {
-  .root:not([data-theme="light"]) {
-    --bg: #0b0d12;
-    --surface: #12151c;
-    --surface-sunken: #0e1015;
-    --border: #262b36;
-    --border-strong: #333a48;
-    --text: #e7e9ee;
-    --text-secondary: #9aa1ae;
-    --text-tertiary: #6d7482;
-    --accent: #6c93f5;
-    --accent-tint: #172140;
-    --success: #4ade80;
-    --success-tint: #12271a;
-    --warning: #f0b94c;
-    --warning-tint: #2b2109;
-    --critical: #f27166;
-    --critical-tint: #2b1513;
-    --info: #7da6f5;
-    --info-tint: #14203d;
-    --neutral-tint: #1a1e27;
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  }
+  min-height: 100%;
+  flex: 1;
 }
 
 .backLink {
@@ -65,7 +42,7 @@
   color: var(--text-secondary);
   text-decoration: none;
 }
-.backLink:hover { text-decoration: underline; }
+.backLink:hover { text-decoration: underline; color: var(--accent); }
 
 .backLinkWrap {
   padding: 14px 16px 0;
@@ -83,13 +60,14 @@
   gap: 20px;
   padding: 20px 16px 16px;
   border-bottom: 1px solid var(--border);
+  background: var(--surface);
 }
 @media (min-width: 640px) {
   .header {
     padding: 20px 28px 16px;
   }
 }
-.title { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; }
+.title { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
 .meta {
   font-size: 12.5px;
   color: var(--text-secondary);
@@ -215,6 +193,7 @@
 .body {
   display: grid;
   grid-template-columns: 1.6fr 1fr;
+  background: var(--bg);
 }
 .main {
   padding: 22px 16px;
@@ -275,7 +254,7 @@
   border-bottom: 1px dashed var(--border);
 }
 .listItem:last-child { border-bottom: none; }
-.listItemTitle { font-size: 13px; font-weight: 600; }
+.listItemTitle { font-size: 13px; font-weight: 600; color: var(--text); }
 .listItemMeta { font-size: 11.5px; color: var(--text-tertiary); margin-top: 2px; }
 
 .truthRow {
@@ -294,7 +273,7 @@
   font-style: italic;
   margin-top: 6px;
   padding-left: 10px;
-  border-left: 2px solid var(--border-strong);
+  border-left: 2px solid var(--accent);
 }
 
 .transcriptLine {
@@ -366,6 +345,27 @@
   border: 1px solid var(--border);
   border-radius: 100px;
   padding: 1px 7px;
+}
+
+.regenButton {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  min-height: 36px;
+}
+.regenButton:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.regenButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .panelPad { padding: 22px 16px; }

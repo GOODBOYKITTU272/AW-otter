@@ -6,6 +6,7 @@ import {
   isMissingOutcomesTable,
   type MeetingOutcomeData,
 } from "./meeting-outcome";
+import { groundMeetingOutcomeEvidence } from "./meeting-outcome-evidence";
 
 type AppSupabaseClient = SupabaseClient<Database>;
 
@@ -73,6 +74,7 @@ export async function processOutcomeQueue(
         supabase,
         transcript.meeting_id,
         deps.provider,
+        { forceLlm: false },
       );
       processed += 1;
       if (source === "derived") derived += 1;
@@ -85,6 +87,26 @@ export async function processOutcomeQueue(
   }
 
   return { processed, derived, generated, errors };
+}
+
+/**
+ * Admin / one-shot regenerate: overwrite the meeting_outcomes row.
+ * forceLlm=true always re-runs the Outcome LLM (preferred after prompt fixes).
+ * forceLlm=false prefers derive-from-intelligence when a completed ai_run exists.
+ */
+export async function regenerateMeetingOutcome(
+  supabase: AppSupabaseClient,
+  meetingId: string,
+  provider: MeetingOutcomeProvider,
+  options: { forceLlm?: boolean } = {},
+): Promise<{ source: "derived" | "generated" }> {
+  const source = await persistOutcomeForMeeting(
+    supabase,
+    meetingId,
+    provider,
+    { forceLlm: options.forceLlm ?? true },
+  );
+  return { source };
 }
 
 async function listMeetingsMissingOutcomes(
@@ -125,9 +147,12 @@ async function persistOutcomeForMeeting(
   supabase: AppSupabaseClient,
   meetingId: string,
   provider: MeetingOutcomeProvider,
+  options: { forceLlm: boolean },
 ): Promise<"derived" | "generated"> {
-  const derived = await tryPersistDerivedOutcome(supabase, meetingId);
-  if (derived) return "derived";
+  if (!options.forceLlm) {
+    const derived = await tryPersistDerivedOutcome(supabase, meetingId);
+    if (derived) return "derived";
+  }
   await generateOutcomeWithLlm(supabase, meetingId, provider);
   return "generated";
 }
@@ -156,7 +181,8 @@ async function tryPersistDerivedOutcome(
     .order("created_at", { ascending: true });
   if (recordsError) throw recordsError;
 
-  const outcome = deriveMeetingOutcomeFromRecords({
+  const segments = await loadOutcomeSegments(supabase, meetingId);
+  let outcome = deriveMeetingOutcomeFromRecords({
     summary: completedRun.summary,
     callRecords: (callRecordRows ?? []).map((row) => ({
       recordType: row.record_type,
@@ -171,6 +197,15 @@ async function tryPersistDerivedOutcome(
     generatedAt: completedRun.completed_at ?? undefined,
   });
 
+  if (segments.length > 0) {
+    outcome = {
+      ...groundMeetingOutcomeEvidence(outcome, segments),
+      model: outcome.model,
+      generatedAt: outcome.generatedAt,
+      source: outcome.source,
+    };
+  }
+
   await upsertMeetingOutcome(supabase, meetingId, outcome, {
     promptTokens: null,
     completionTokens: null,
@@ -184,6 +219,50 @@ async function generateOutcomeWithLlm(
   meetingId: string,
   provider: MeetingOutcomeProvider,
 ): Promise<void> {
+  const segments = await loadOutcomeSegments(supabase, meetingId);
+  if (segments.length === 0) {
+    throw new Error("No segments found for transcript");
+  }
+
+  const result = await provider.generate({
+    meetingId,
+    segments: segments.map((s) => ({
+      id: s.id,
+      text: s.text,
+      speakerLabel: s.speakerLabel,
+    })),
+  });
+
+  const grounded = groundMeetingOutcomeEvidence(
+    {
+      summary: result.outcome.summary,
+      keyDecisions: result.outcome.keyDecisions,
+      actionItems: result.outcome.actionItems,
+      openQuestions: result.outcome.openQuestions,
+    },
+    segments,
+  );
+
+  await upsertMeetingOutcome(
+    supabase,
+    meetingId,
+    {
+      summary: grounded.summary,
+      keyDecisions: grounded.keyDecisions,
+      actionItems: grounded.actionItems,
+      openQuestions: grounded.openQuestions,
+      model: result.model,
+      generatedAt: new Date().toISOString(),
+      source: "persisted",
+    },
+    result.usage,
+  );
+}
+
+async function loadOutcomeSegments(
+  supabase: AppSupabaseClient,
+  meetingId: string,
+): Promise<Array<{ id: string; text: string; speakerLabel: string }>> {
   const { data: transcript, error: transcriptError } = await supabase
     .from("meeting_transcripts")
     .select("id")
@@ -198,33 +277,12 @@ async function generateOutcomeWithLlm(
     .eq("transcript_id", transcript.id)
     .order("sequence_index", { ascending: true });
   if (segmentsError) throw segmentsError;
-  if (!segments || segments.length === 0) {
-    throw new Error("No segments found for transcript");
-  }
 
-  const result = await provider.generate({
-    meetingId,
-    segments: segments.map((s) => ({
-      id: s.id,
-      text: s.canonical_english_text ?? s.original_text,
-      speakerLabel: s.speaker_label,
-    })),
-  });
-
-  await upsertMeetingOutcome(
-    supabase,
-    meetingId,
-    {
-      summary: result.outcome.summary,
-      keyDecisions: result.outcome.keyDecisions,
-      actionItems: result.outcome.actionItems,
-      openQuestions: result.outcome.openQuestions,
-      model: result.model,
-      generatedAt: new Date().toISOString(),
-      source: "persisted",
-    },
-    result.usage,
-  );
+  return (segments ?? []).map((s) => ({
+    id: s.id,
+    text: s.canonical_english_text ?? s.original_text,
+    speakerLabel: s.speaker_label,
+  }));
 }
 
 async function upsertMeetingOutcome(

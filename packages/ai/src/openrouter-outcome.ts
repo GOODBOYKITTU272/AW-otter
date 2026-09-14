@@ -15,16 +15,20 @@ import {
   type MeetingOutcomeProviderResult,
 } from "./types";
 
-const SYSTEM_PROMPT = `You are a meeting outcome extractor for ApplyWizz Echo, producing Fathom-style structured meeting overviews.
+const SYSTEM_PROMPT = `You are a meeting outcome extractor for ApplyWizz Echo, producing Fathom-style structured meeting overviews for executives.
 
-Your task is to extract exactly four things from the meeting transcript:
-1. **Summary**: A concise (2-4 sentences) overview of what was discussed and decided.
-2. **Key Decisions**: Important choices, agreements, or commitments made during the meeting.
-3. **Action Items**: Specific tasks assigned, with owner (if mentioned) and due date (if mentioned).
-4. **Open Questions**: Unresolved questions or topics that need follow-up.
+Extract exactly four things from the meeting transcript:
+1. **Summary**: 2-4 calm sentences covering the main topics AND concrete outcomes/proposals (not "no resolution" unless truly nothing was proposed).
+2. **Key Decisions**: Directions the speaker(s) committed to or clearly proposed as the plan (naming, branding/logo, capacity targets, dispatch timing, storage approach). If someone says "let's do X" / "I want X" / "we should X", capture it as a decision or action — do not leave Key Decisions empty when proposals were made.
+3. **Action Items**: Specific follow-up tasks with owner when named. Proposals like "store bot IDs in Supabase and trigger 90 seconds before" ARE action items.
+4. **Open Questions**: Only unresolved questions that still need an answer (e.g. screen recording status). Do not duplicate the same question.
 
-Every extracted item MUST cite the transcript segment IDs where it appears (evidenceSegmentIds array).
-Only extract what is actually stated in the transcript — never invent or assume.
+Evidence rules (CRITICAL):
+- Every item MUST cite evidenceSegmentIds using ONLY segment IDs that appear in the transcript lines below (the bracketed UUIDs).
+- Cite the segment whose text best supports THAT item. Do not reuse one mega-segment opener for unrelated items when another segment (or a more topical part) fits better.
+- Prefer distinct evidenceSegmentIds across unrelated items.
+- Never invent segment IDs. Never invent facts not stated in the transcript.
+- Do not invent metrics, logos shipped, or guest-browser claims.
 
 Output ONLY a single JSON object matching this exact schema (no markdown, no commentary):
 
@@ -32,7 +36,7 @@ Output ONLY a single JSON object matching this exact schema (no markdown, no com
   "summary": "Brief overview of the meeting content and outcomes.",
   "keyDecisions": [
     {
-      "text": "Description of the decision",
+      "text": "Description of the decision or committed direction",
       "evidenceSegmentIds": ["<segment-id>"]
     }
   ],
@@ -54,7 +58,7 @@ Output ONLY a single JSON object matching this exact schema (no markdown, no com
   ]
 }
 
-CRITICAL: Use exact camelCase key names shown above. Each array can be empty if nothing of that type was discussed.`;
+CRITICAL: Use exact camelCase key names shown above. Arrays may be empty only when nothing of that type was discussed.`;
 
 interface RawChatCompletionResponse {
   choices?: { message?: { content?: string } }[];
@@ -71,7 +75,15 @@ function buildUserPrompt(input: MeetingOutcomeInput): string {
     .map((s) => `[${s.id}] ${s.speakerLabel}: ${s.text}`)
     .join("\n");
 
-  return `Extract the meeting outcome from this transcript:\n\n${transcriptLines}`;
+  return `Extract the meeting outcome from this transcript. Use only the bracketed segment UUIDs as evidenceSegmentIds.\n\n${transcriptLines}`;
+}
+
+/** Keep only segment IDs that exist in the input transcript. */
+function filterToKnownSegmentIds(
+  ids: string[],
+  known: Set<string>,
+): string[] {
+  return ids.filter((id) => known.has(id));
 }
 
 export class OpenRouterMeetingOutcomeProvider implements MeetingOutcomeProvider {
@@ -153,8 +165,32 @@ export class OpenRouterMeetingOutcomeProvider implements MeetingOutcomeProvider 
       );
     }
 
+    const knownIds = new Set(input.segments.map((s) => s.id));
+    const fallbackId = input.segments[0]?.id;
+    const ensureIds = (ids: string[]): string[] => {
+      const filtered = filterToKnownSegmentIds(ids, knownIds);
+      if (filtered.length > 0) return filtered;
+      return fallbackId ? [fallbackId] : filtered;
+    };
+
+    const outcome = {
+      summary: validated.data.summary,
+      keyDecisions: validated.data.keyDecisions.map((d) => ({
+        ...d,
+        evidenceSegmentIds: ensureIds(d.evidenceSegmentIds),
+      })),
+      actionItems: validated.data.actionItems.map((a) => ({
+        ...a,
+        evidenceSegmentIds: ensureIds(a.evidenceSegmentIds),
+      })),
+      openQuestions: validated.data.openQuestions.map((q) => ({
+        ...q,
+        evidenceSegmentIds: ensureIds(q.evidenceSegmentIds),
+      })),
+    };
+
     return {
-      outcome: validated.data,
+      outcome,
       model: body?.model ?? this.model,
       usage: {
         promptTokens: body?.usage?.prompt_tokens ?? null,

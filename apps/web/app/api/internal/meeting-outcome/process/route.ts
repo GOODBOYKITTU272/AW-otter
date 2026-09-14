@@ -3,6 +3,7 @@ import { createSupabaseServiceRoleClient } from "@applywizz/database/server";
 import {
   enqueuePendingOutcomeGeneration,
   processOutcomeQueue,
+  regenerateMeetingOutcome,
 } from "@applywizz/domain/meeting-outcome-generation";
 import { OpenRouterMeetingOutcomeProvider } from "@applywizz/ai";
 import { getOpenRouterEnv, getSupabaseServiceRoleKey } from "@/env/server";
@@ -30,6 +31,30 @@ export async function POST(request: NextRequest) {
       openRouterEnv.OPENROUTER_API_KEY,
     ),
   };
+
+  // One-shot admin/backfill: ?meetingId=<uuid>&force=1 regenerates a single meeting.
+  const meetingId = request.nextUrl.searchParams.get("meetingId");
+  const force = request.nextUrl.searchParams.get("force") !== "0";
+  if (meetingId) {
+    try {
+      const result = await regenerateMeetingOutcome(
+        serviceRoleClient,
+        meetingId,
+        deps.provider,
+        { forceLlm: force },
+      );
+      return NextResponse.json({ ok: true, meetingId, ...result }, { status: 200 });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (/meeting_outcomes|42P01|PGRST205/i.test(message)) {
+        return NextResponse.json(
+          { skipped: true, reason: "meeting_outcomes table not migrated" },
+          { status: 200 },
+        );
+      }
+      return NextResponse.json({ error: message, meetingId }, { status: 500 });
+    }
+  }
 
   const { data: organizations, error } = await serviceRoleClient
     .from("organizations")
