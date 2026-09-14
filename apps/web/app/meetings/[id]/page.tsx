@@ -8,6 +8,7 @@ import {
   type MeetingRecapData,
   type TranscriptSegmentData,
 } from "@applywizz/domain/meeting-recap";
+import { getMeetingOutcome, type MeetingOutcomeData } from "@applywizz/domain/meeting-outcome";
 import { ConfirmRejectActions } from "@/components/customer-truth/confirm-reject-actions";
 import { ResolveAction } from "@/components/actions/resolve-action";
 import { requireRole } from "@/lib/require-role";
@@ -121,6 +122,7 @@ export default async function MeetingDetailPage({
     .maybeSingle();
 
   const recapState = await getMeetingRecapData(supabase, id);
+  const outcome = await getMeetingOutcome(supabase, id);
 
   const intelligenceStatus =
     recapState?.status === "ready"
@@ -213,6 +215,7 @@ export default async function MeetingDetailPage({
             label: "Overview",
             content: (
               <OverviewTab
+                outcome={outcome}
                 recap={recap}
                 recapState={recapState}
                 decisions={decisions}
@@ -227,6 +230,26 @@ export default async function MeetingDetailPage({
                 botJob={botJob}
                 isAdmin={isAdmin}
                 canViewRawTranscript={canViewRawTranscript}
+              />
+            ),
+          },
+          {
+            key: "audio",
+            label: "Audio",
+            content: (
+              <AudioTab
+                meetingId={id}
+                botJob={botJob}
+              />
+            ),
+          },
+          {
+            key: "video",
+            label: "Video",
+            content: (
+              <VideoTab
+                meetingId={id}
+                botJob={botJob}
               />
             ),
           },
@@ -247,23 +270,18 @@ export default async function MeetingDetailPage({
               ]
             : []),
           {
-            key: "actions",
-            label: "Actions",
-            count: openActionsCount,
+            key: "insights",
+            label: "Insights",
             content: (
-              <ActionsTab actions={actions} decisions={decisions} segmentById={segmentById} />
+              <InsightsTab
+                actions={actions}
+                decisions={decisions}
+                truthDeltas={truthDeltas}
+                segmentById={segmentById}
+                openActionsCount={openActionsCount}
+                pendingTruthCount={pendingTruthCount}
+              />
             ),
-          },
-          {
-            key: "customer-truth",
-            label: "Customer Truth",
-            count: pendingTruthCount,
-            content: <CustomerTruthTab deltas={truthDeltas} segmentById={segmentById} />,
-          },
-          {
-            key: "activity",
-            label: "Activity",
-            content: <ActivityTab events={lifecycleEvents ?? []} />,
           },
         ]}
       />
@@ -274,6 +292,7 @@ export default async function MeetingDetailPage({
 // ---------- Overview ----------
 
 function OverviewTab({
+  outcome,
   recap,
   recapState,
   decisions,
@@ -289,6 +308,7 @@ function OverviewTab({
   isAdmin,
   canViewRawTranscript,
 }: {
+  outcome: MeetingOutcomeData | null;
   recap: MeetingRecapData | null;
   recapState: Awaited<ReturnType<typeof getMeetingRecapData>>;
   decisions: CallRecordRecapItem[];
@@ -360,16 +380,34 @@ function OverviewTab({
             </div>
           </div>
         )}
+        
+        {/* Summary Card - prefer outcome, fallback to recap */}
         <div className={styles.card}>
-          <div className={styles.cardHead}><span className={styles.cardTitle}>AI Summary</span></div>
+          <div className={styles.cardHead}><span className={styles.cardTitle}>Summary</span></div>
           <div className={styles.cardBody}>
-            {recap ? recap.result.summary : <ProcessingNotice state={recapState} />}
+            {outcome ? outcome.summary : recap ? recap.result.summary : <ProcessingNotice state={recapState} />}
           </div>
         </div>
 
+        {/* Key Decisions - prefer outcome, fallback to recap */}
         <div className={styles.card}>
           <div className={styles.cardHead}><span className={styles.cardTitle}>Key Decisions</span></div>
-          {recap ? (
+          {outcome ? (
+            outcome.keyDecisions.length > 0 ? (
+              <ul className={styles.list}>
+                {outcome.keyDecisions.map((d, idx) => (
+                  <li key={idx} className={styles.listItem}>
+                    <div>
+                      <div className={styles.listItemTitle}>{d.text}</div>
+                      {firstEvidenceQuote(d.evidenceSegmentIds, segmentById)}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className={`${styles.cardBody} ${styles.muted}`}>No decisions detected in this call.</p>
+            )
+          ) : recap ? (
             decisions.length > 0 ? (
               <ul className={styles.list}>
                 {decisions.map((d) => (
@@ -388,21 +426,33 @@ function OverviewTab({
           )}
         </div>
 
+        {/* Action Items - prefer outcome, fallback to recap */}
         <div className={styles.card}>
           <div className={styles.cardHead}>
-            <span className={styles.cardTitle}>Next Steps</span>
+            <span className={styles.cardTitle}>Action Items</span>
+            {outcome && outcome.actionItems.length > 0 && <span className={styles.adminPill}>{outcome.actionItems.length}</span>}
+            {!outcome && recap && actions.length > 0 && <span className={styles.adminPill}>{actions.length}</span>}
           </div>
-          <div className={styles.cardBody}>
-            {recap ? recap.nextJourneyStep : <ProcessingNotice state={recapState} />}
-          </div>
-        </div>
-
-        <div className={styles.card}>
-          <div className={styles.cardHead}>
-            <span className={styles.cardTitle}>Actions</span>
-            {recap ? <span className={styles.adminPill}>{actions.length}</span> : null}
-          </div>
-          {recap ? (
+          {outcome ? (
+            outcome.actionItems.length > 0 ? (
+              <ul className={styles.list}>
+                {outcome.actionItems.map((a, idx) => (
+                  <li key={idx} className={styles.listItem}>
+                    <div>
+                      <div className={styles.listItemTitle}>{a.description}</div>
+                      <div className={styles.listItemMeta}>
+                        {a.owner ? `Owner: ${a.owner}` : "Owner: Unassigned"}
+                        {a.dueDate ? ` · Due ${formatDate(a.dueDate)}` : ""}
+                      </div>
+                      {firstEvidenceQuote(a.evidenceSegmentIds, segmentById)}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className={`${styles.cardBody} ${styles.muted}`}>No action items detected.</p>
+            )
+          ) : recap ? (
             actions.length > 0 ? (
               <ul className={styles.list}>
                 {actions.slice(0, 4).map((a) => (
@@ -426,155 +476,53 @@ function OverviewTab({
           )}
         </div>
 
-        <div className={styles.card}>
-          <div className={styles.cardHead}>
-            <span className={styles.cardTitle}>Customer Truth Proposals</span>
-          </div>
-          {recap ? (
-            truthDeltas.length > 0 ? (
-              <div className={styles.list}>
-                {truthDeltas.slice(0, 3).map((delta) => (
-                  <div key={delta.id ?? delta.fieldKey} className={styles.listItem}>
-                    <div style={{ flex: 1 }}>
-                      <div className={styles.listItemMeta} style={{ textTransform: "capitalize" }}>{delta.fieldKey.replaceAll("_", " ")}</div>
-                      <div className={styles.truthRow}>
-                        <span className={styles.truthOld}>{formatValue(delta.previousValue)}</span>
-                        <span>&rarr;</span>
-                        <span className={styles.truthNew}>{formatValue(delta.proposedValue)}</span>
-                      </div>
-                      {firstEvidenceQuote(delta.evidenceSegmentIds, segmentById)}
-                    </div>
-                    {delta.id && delta.status === "proposed" ? <ConfirmRejectActions factId={delta.id} /> : null}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className={`${styles.cardBody} ${styles.muted}`}>No customer truth proposals yet. AI will suggest updates when this call supports one.</p>
-            )
-          ) : (
-            <p className={`${styles.cardBody} ${styles.muted}`}>Available once analysis completes.</p>
-          )}
-        </div>
-
-        {/* Transcript Preview: Only show to managers and admins */}
-        {canViewRawTranscript && (
+        {/* Open Questions - outcome only */}
+        {outcome && (
           <div className={styles.card}>
             <div className={styles.cardHead}>
-              <span className={styles.cardTitle}>Transcript Preview</span>
+              <span className={styles.cardTitle}>Open Questions</span>
+              {outcome.openQuestions.filter(q => q.status === "open").length > 0 && (
+                <span className={styles.adminPill}>{outcome.openQuestions.filter(q => q.status === "open").length}</span>
+              )}
             </div>
-            {previewSegments.length > 0 ? (
-              <>
-                {previewSegments.map((s) => (
-                  <TranscriptLine
-                    key={s.id}
-                    speaker={s.speaker_label}
-                    interpretation={speakerMap?.get(s.speaker_label)}
-                    text={s.original_text}
-                    endMs={s.end_ms}
-                  />
+            {outcome.openQuestions.length > 0 ? (
+              <ul className={styles.list}>
+                {outcome.openQuestions.map((q, idx) => (
+                  <li key={idx} className={styles.listItem}>
+                    <div style={{ flex: 1 }}>
+                      <div className={styles.listItemTitle}>{q.question}</div>
+                      {q.answer && (
+                        <div className={styles.listItemMeta}>Answer: {q.answer}</div>
+                      )}
+                      {firstEvidenceQuote(q.evidenceSegmentIds, segmentById)}
+                    </div>
+                    <Badge tone={q.status === "open" ? "warning" : "success"}>{q.status === "open" ? "Open" : "Answered"}</Badge>
+                  </li>
                 ))}
-                <div style={{ marginTop: 8, fontSize: 12, color: "var(--accent)" }}>View full transcript in the Transcript tab &rarr;</div>
-              </>
+              </ul>
             ) : (
-              <p className={`${styles.cardBody} ${styles.muted}`}>Transcript will appear here once the recording is processed.</p>
+              <p className={`${styles.cardBody} ${styles.muted}`}>No open questions.</p>
             )}
+          </div>
+        )}
+
+        {/* Transcript Preview - show link to needs review segments if applicable */}
+        {canViewRawTranscript && previewSegments.length > 0 && (
+          <div className={styles.card}>
+            <div className={styles.cardHead}>
+              <span className={styles.cardTitle}>Transcript</span>
+            </div>
+            <div style={{ padding: "8px 0", fontSize: 12, color: "var(--text-secondary)" }}>
+              <Link href={`?tab=transcript`} style={{ color: "var(--accent)", textDecoration: "none" }}>
+                View full transcript &rarr;
+              </Link>
+            </div>
           </div>
         )}
       </div>
 
       <div className={styles.side}>
-        {/* Client Onboarding Snapshot */}
-        {recap && recap.customer.name !== "Unlinked meeting" ? (
-          <div className={styles.card}>
-            <div className={styles.cardHead}>
-              <svg className="h-4 w-4 text-[#2C76FF]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <span className={styles.cardTitle}>Client Onboarding Snapshot</span>
-            </div>
-            <div className={styles.cardBody} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                  <svg className="h-3.5 w-3.5 text-[#1E1E1E]/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                  </svg>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    Visa / Program
-                  </span>
-                </div>
-                <div style={{ fontSize: 13, color: "var(--foreground)" }}>
-                  Global Business Visa
-                </div>
-                <div style={{ fontSize: 12, color: "var(--muted)" }}>
-                  Multiple-entry • Valid through Dec 2027
-                </div>
-              </div>
-
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                  <svg className="h-3.5 w-3.5 text-[#1E1E1E]/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    Key Roles
-                  </span>
-                </div>
-                <div style={{ fontSize: 13, color: "var(--foreground)" }}>
-                  Operations Manager, Compliance Lead, Regional Coordinator
-                </div>
-                <div style={{ fontSize: 12, color: "var(--muted)" }}>
-                  3 roles identified • Access levels pending
-                </div>
-              </div>
-
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                  <svg className="h-3.5 w-3.5 text-[#1E1E1E]/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    Locations
-                  </span>
-                </div>
-                <div style={{ fontSize: 13, color: "var(--foreground)" }}>
-                  Singapore (HQ), Mumbai, Sydney, Toronto, Bangalore
-                </div>
-                <div style={{ fontSize: 12, color: "var(--muted)" }}>
-                  6 locations • Timezone: Mixed (GMT+8, +4, +10, +5, +5:30)
-                </div>
-              </div>
-
-              <Link
-                href={`/customers/${meeting.customer_id}`}
-                style={{
-                  marginTop: 4,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  fontSize: 12,
-                  color: "var(--accent)",
-                  textDecoration: "none",
-                }}
-              >
-                View onboarding checklist
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </Link>
-            </div>
-          </div>
-        ) : null}
-
-        <div className={styles.card}>
-          <div className={styles.cardHead}><span className={styles.cardTitle}>Meeting Details</span></div>
-          <div className={styles.cardBody}>
-            <div>{meeting.organizer_name ?? meeting.organizer_email ?? "—"} · Organizer</div>
-            <div className={styles.muted}>{formatRange(meeting.scheduled_start, meeting.scheduled_end)}</div>
-            <div className={styles.muted}>{formatProvider(meeting.provider)}</div>
-          </div>
-        </div>
-
+        {/* Recording Player */}
         {botJob?.status === "completed" && (
           <div className={styles.card}>
             <div className={styles.cardHead}><span className={styles.cardTitle}>Recording</span></div>
@@ -584,7 +532,17 @@ function OverviewTab({
           </div>
         )}
 
-        {isAdmin ? (
+        {/* Meeting Details */}
+        <div className={styles.card}>
+          <div className={styles.cardHead}><span className={styles.cardTitle}>Meeting Details</span></div>
+          <div className={styles.cardBody}>
+            <div>{meeting.organizer_name ?? meeting.organizer_email ?? "—"} · Organizer</div>
+            <div className={styles.muted}>{formatRange(meeting.scheduled_start, meeting.scheduled_end)}</div>
+            <div className={styles.muted}>{formatProvider(meeting.provider)}</div>
+          </div>
+        </div>
+
+        {isAdmin && (
           <div className={styles.card}>
             <div className={styles.cardHead}>
               <span className={styles.cardTitle}>Technical Details</span>
@@ -598,9 +556,17 @@ function OverviewTab({
               provider_bot_id: {botJob?.provider_bot_id ?? "—"}
               <br />
               {botJob?.last_error ? <>last_error: {botJob.last_error}<br /></> : null}
+              {outcome && (
+                <>
+                  outcome_model: {outcome.model}
+                  <br />
+                  outcome_generated: {formatDateTime(outcome.generatedAt)}
+                  <br />
+                </>
+              )}
             </div>
           </div>
-        ) : null}
+        )}
       </div>
     </div>
   );
@@ -647,103 +613,143 @@ function TranscriptTab({
   );
 }
 
-// ---------- Actions ----------
+// ---------- Audio ----------
 
-function ActionsTab({
+function AudioTab({
+  meetingId,
+  botJob,
+}: {
+  meetingId: string;
+  botJob: { status: string } | null;
+}) {
+  if (botJob?.status !== "completed") {
+    return (
+      <div className={styles.emptyState}>
+        {botJob?.status === "failed"
+          ? "Recording failed or was cancelled."
+          : "Recording will appear when available."}
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.panelPad}>
+      <MediaPlayer meetingId={meetingId} />
+    </div>
+  );
+}
+
+// ---------- Video ----------
+
+function VideoTab({
+  meetingId,
+  botJob,
+}: {
+  meetingId: string;
+  botJob: { status: string } | null;
+}) {
+  if (botJob?.status !== "completed") {
+    return (
+      <div className={styles.emptyState}>
+        {botJob?.status === "failed"
+          ? "Recording failed or was cancelled."
+          : "Video will appear when available."}
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.panelPad}>
+      <MediaPlayer meetingId={meetingId} />
+      <p className={styles.muted} style={{ marginTop: 12, fontSize: 12 }}>
+        Note: Video is shown when screen recording is available. Audio-only meetings will show the audio player.
+      </p>
+    </div>
+  );
+}
+
+// ---------- Insights ----------
+
+function InsightsTab({
   actions,
   decisions,
+  truthDeltas,
   segmentById,
+  openActionsCount,
+  pendingTruthCount,
 }: {
   actions: CallRecordRecapItem[];
   decisions: CallRecordRecapItem[];
+  truthDeltas: MeetingRecapData["result"]["customerTruthDeltas"];
   segmentById: Map<string, TranscriptSegmentData>;
+  openActionsCount: number;
+  pendingTruthCount: number;
 }) {
-  const items = [...actions, ...decisions.filter((d) => d.status === "detected")];
-  if (items.length === 0) {
-    return <div className={styles.emptyState}>Nothing outstanding for this meeting.</div>;
-  }
   return (
     <div className={styles.panelPad}>
-      <div className={styles.list}>
-        {items.map((item) => (
-          <div key={item.id ?? item.description} className={styles.listItem}>
-            <div style={{ flex: 1 }}>
-              <div className={styles.listItemTitle}>{item.description}</div>
-              <div className={styles.listItemMeta}>
-                {item.recordType === "action_item" ? "Action" : "Decision"} · {ownerLabel(item)}
-                {item.dueAt ? ` · Due ${formatDate(item.dueAt)}` : ""}
-              </div>
-              {firstEvidenceQuote(item.evidenceSegmentIds, segmentById)}
+      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        {/* Actions Section */}
+        <div>
+          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: "var(--text)" }}>
+            Actions & Decisions ({openActionsCount} open)
+          </h3>
+          {actions.length > 0 || decisions.length > 0 ? (
+            <div className={styles.list}>
+              {[...actions, ...decisions.filter((d) => d.status === "detected")].map((item) => (
+                <div key={item.id ?? item.description} className={styles.listItem}>
+                  <div style={{ flex: 1 }}>
+                    <div className={styles.listItemTitle}>{item.description}</div>
+                    <div className={styles.listItemMeta}>
+                      {item.recordType === "action_item" ? "Action" : "Decision"} · {ownerLabel(item)}
+                      {item.dueAt ? ` · Due ${formatDate(item.dueAt)}` : ""}
+                    </div>
+                    {firstEvidenceQuote(item.evidenceSegmentIds, segmentById)}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                    {item.status ? <Badge tone={item.status === "detected" ? "warning" : "success"}>{item.status === "detected" ? "Open" : "Resolved"}</Badge> : null}
+                    {item.id && item.status === "detected" ? <ResolveAction recordId={item.id} /> : null}
+                  </div>
+                </div>
+              ))}
             </div>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-              {item.status ? <Badge tone={item.status === "detected" ? "warning" : "success"}>{item.status === "detected" ? "Open" : "Resolved"}</Badge> : null}
-              {item.id && item.status === "detected" ? <ResolveAction recordId={item.id} /> : null}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+          ) : (
+            <p className={styles.muted}>No actions or decisions tracked.</p>
+          )}
+        </div>
 
-// ---------- Customer Truth ----------
-
-function CustomerTruthTab({
-  deltas,
-  segmentById,
-}: {
-  deltas: MeetingRecapData["result"]["customerTruthDeltas"];
-  segmentById: Map<string, TranscriptSegmentData>;
-}) {
-  if (deltas.length === 0) {
-    return <div className={styles.emptyState}>No Customer Truth proposals from this meeting.</div>;
-  }
-  return (
-    <div className={styles.panelPad}>
-      <div className={styles.list}>
-        {deltas.map((delta) => (
-          <div key={delta.id ?? delta.fieldKey} className={styles.listItem}>
-            <div style={{ flex: 1 }}>
-              <div className={styles.listItemTitle} style={{ textTransform: "capitalize" }}>{delta.fieldKey.replaceAll("_", " ")}</div>
-              <div className={styles.truthRow}>
-                <span className={styles.truthOld}>{formatValue(delta.previousValue)}</span>
-                <span>&rarr;</span>
-                <span className={styles.truthNew}>{formatValue(delta.proposedValue)}</span>
-              </div>
-              {firstEvidenceQuote(delta.evidenceSegmentIds, segmentById)}
+        {/* Customer Truth Section */}
+        <div>
+          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: "var(--text)" }}>
+            Customer Truth Updates ({pendingTruthCount} pending)
+          </h3>
+          {truthDeltas.length > 0 ? (
+            <div className={styles.list}>
+              {truthDeltas.map((delta) => (
+                <div key={delta.id ?? delta.fieldKey} className={styles.listItem}>
+                  <div style={{ flex: 1 }}>
+                    <div className={styles.listItemTitle} style={{ textTransform: "capitalize" }}>{delta.fieldKey.replaceAll("_", " ")}</div>
+                    <div className={styles.truthRow}>
+                      <span className={styles.truthOld}>{formatValue(delta.previousValue)}</span>
+                      <span>&rarr;</span>
+                      <span className={styles.truthNew}>{formatValue(delta.proposedValue)}</span>
+                    </div>
+                    {firstEvidenceQuote(delta.evidenceSegmentIds, segmentById)}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                    {delta.status ? (
+                      <Badge tone={delta.status === "proposed" ? "warning" : delta.status === "confirmed" ? "success" : "neutral"}>
+                        {delta.status === "proposed" ? "Awaiting review" : delta.status}
+                      </Badge>
+                    ) : null}
+                    {delta.id && delta.status === "proposed" ? <ConfirmRejectActions factId={delta.id} /> : null}
+                  </div>
+                </div>
+              ))}
             </div>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-              {delta.status ? (
-                <Badge tone={delta.status === "proposed" ? "warning" : delta.status === "confirmed" ? "success" : "neutral"}>
-                  {delta.status === "proposed" ? "Awaiting review" : delta.status}
-                </Badge>
-              ) : null}
-              {delta.id && delta.status === "proposed" ? <ConfirmRejectActions factId={delta.id} /> : null}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ---------- Activity ----------
-
-function ActivityTab({ events }: { events: { id: string; event_type: string; occurred_at: string; source: string }[] }) {
-  if (events.length === 0) {
-    return <div className={styles.emptyState}>No activity recorded yet.</div>;
-  }
-  return (
-    <div className={styles.panelPad}>
-      <div className={styles.list}>
-        {events.map((event) => (
-          <div key={event.id} className={styles.listItem}>
-            <div>
-              <div className={styles.listItemTitle}>{humanizeEventType(event.event_type)}</div>
-              <div className={styles.listItemMeta}>{event.source} · {formatDateTime(event.occurred_at)}</div>
-            </div>
-          </div>
-        ))}
+          ) : (
+            <p className={styles.muted}>No customer truth updates from this meeting.</p>
+          )}
+        </div>
       </div>
     </div>
   );

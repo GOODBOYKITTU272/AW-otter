@@ -192,3 +192,63 @@ export interface MeetingIntelligenceProvider {
     input: MeetingIntelligenceInput,
   ): Promise<MeetingIntelligenceProviderResult>;
 }
+
+/**
+ * Meeting Outcome: Fathom-style lightweight extraction for Overview tab.
+ * Simpler than full MeetingIntelligence — just summary, key decisions,
+ * action items, and open questions with evidence.
+ */
+export const meetingOutcomeDecisionSchema = z.object({
+  text: z.string().min(1),
+  evidenceSegmentIds: z.array(z.string().uuid()).min(1),
+});
+
+export const meetingOutcomeActionItemSchema = z.object({
+  description: z.string().min(1),
+  owner: z.string().nullable().default(null),
+  dueDate: z.string().nullable().default(null),
+  evidenceSegmentIds: z.array(z.string().uuid()).min(1),
+});
+
+export const meetingOutcomeQuestionSchema = z.object({
+  question: z.string().min(1),
+  status: z.enum(["open", "answered"]).default("open"),
+  answer: z.string().nullable().default(null),
+  evidenceSegmentIds: z.array(z.string().uuid()).min(1),
+});
+
+export const meetingOutcomeSchema = z.object({
+  summary: z.string().min(1),
+  keyDecisions: z.array(meetingOutcomeDecisionSchema).default([]),
+  actionItems: z.array(meetingOutcomeActionItemSchema).default([]),
+  openQuestions: z.array(meetingOutcomeQuestionSchema).default([]),
+});
+
+export type MeetingOutcome = z.infer<typeof meetingOutcomeSchema>;
+
+export interface MeetingOutcomeUsage {
+  promptTokens: number | null;
+  completionTokens: number | null;
+  cost: number | null;
+}
+
+export interface MeetingOutcomeProviderResult {
+  outcome: MeetingOutcome;
+  model: string;
+  usage: MeetingOutcomeUsage;
+  providerMetadata: Record<string, unknown>;
+}
+
+export interface MeetingOutcomeInput {
+  meetingId: string;
+  segments: Array<{
+    id: string;
+    text: string;
+    speakerLabel: string;
+  }>;
+}
+
+export interface MeetingOutcomeProvider {
+  readonly name: string;
+  generate(input: MeetingOutcomeInput): Promise<MeetingOutcomeProviderResult>;
+}

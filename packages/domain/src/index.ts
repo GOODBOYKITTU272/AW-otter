@@ -48,3 +48,4 @@ export const ROLE_HOME_ROUTE: Record<SystemRoleKey, string> = {
 };
 
 export * from "./live-alerts";
+export * from "./meeting-outcome";

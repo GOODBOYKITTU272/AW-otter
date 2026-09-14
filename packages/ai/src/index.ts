@@ -3,6 +3,7 @@ export * from "./errors";
 export * from "./config";
 export * from "./openrouter-intelligence";
 export * from "./fake-intelligence";
+export * from "./openrouter-outcome";
 export * from "./ask-signal-types";
 export * from "./openrouter-ask-signal";
 export * from "./fake-ask-signal";
