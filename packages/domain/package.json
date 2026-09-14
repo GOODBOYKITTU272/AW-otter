@@ -28,6 +28,7 @@
     "./meeting-intelligence": "./src/meeting-intelligence.ts",
     "./meeting-outcome": "./src/meeting-outcome.ts",
     "./meeting-outcome-generation": "./src/meeting-outcome-generation.ts",
+    "./meeting-outcome-evidence": "./src/meeting-outcome-evidence.ts",
     "./call-records": "./src/call-records.ts",
     "./customer-context": "./src/customer-context.ts",
     "./meeting-recap": "./src/meeting-recap.ts",

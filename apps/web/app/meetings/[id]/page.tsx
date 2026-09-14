@@ -18,6 +18,8 @@ import { ResolveAction } from "@/components/actions/resolve-action";
 import { requireRole } from "@/lib/require-role";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { MediaPlayer } from "@/components/recap/media-player";
+import { RegenerateOutcomeButton } from "@/components/meetings/regenerate-outcome-button";
+import { extractClaimSnippet } from "@applywizz/domain/meeting-outcome-evidence";
 
 import styles from "./meeting-detail.module.css";
 import { MeetingDetailTabs } from "./meeting-detail-tabs";
@@ -226,6 +228,8 @@ export default async function MeetingDetailPage({
                 actions={actions}
                 segmentById={segmentById}
                 meeting={meeting}
+                meetingId={id}
+                isAdmin={isAdmin}
               />
             ),
           },
@@ -301,6 +305,8 @@ function OverviewTab({
   actions,
   segmentById,
   meeting,
+  meetingId,
+  isAdmin,
 }: {
   outcome: MeetingOutcomeData | null;
   recap: MeetingRecapData | null;
@@ -309,13 +315,20 @@ function OverviewTab({
   actions: CallRecordRecapItem[];
   segmentById: Map<string, TranscriptSegmentData>;
   meeting: { customer_id: string | null; organizer_name: string | null; organizer_email: string | null; scheduled_start: string; scheduled_end: string; provider: string };
+  meetingId: string;
+  isAdmin: boolean;
 }) {
   return (
     <div className={styles.body}>
       <div className={styles.main}>
         {/* Summary Card - prefer outcome, fallback to recap */}
         <div className={styles.card}>
-          <div className={styles.cardHead}><span className={styles.cardTitle}>Summary</span></div>
+          <div className={styles.cardHead}>
+            <span className={styles.cardTitle}>Summary</span>
+            {isAdmin ? (
+              <RegenerateOutcomeButton meetingId={meetingId} className={styles.regenButton} />
+            ) : null}
+          </div>
           <div className={styles.cardBody}>
             {outcome ? outcome.summary : recap ? recap.result.summary : <ProcessingNotice state={recapState} />}
           </div>
@@ -331,7 +344,7 @@ function OverviewTab({
                   <li key={idx} className={styles.listItem}>
                     <div>
                       <div className={styles.listItemTitle}>{d.text}</div>
-                      {firstEvidenceQuote(d.evidenceSegmentIds, segmentById)}
+                      {firstEvidenceQuote(d.evidenceSegmentIds, segmentById, d.text)}
                     </div>
                   </li>
                 ))}
@@ -376,7 +389,7 @@ function OverviewTab({
                         {a.owner ? `Owner: ${a.owner}` : "Owner: Unassigned"}
                         {a.dueDate ? ` · Due ${formatDate(a.dueDate)}` : ""}
                       </div>
-                      {firstEvidenceQuote(a.evidenceSegmentIds, segmentById)}
+                      {firstEvidenceQuote(a.evidenceSegmentIds, segmentById, a.description)}
                     </div>
                   </li>
                 ))}
@@ -425,7 +438,7 @@ function OverviewTab({
                       {q.answer && (
                         <div className={styles.listItemMeta}>Answer: {q.answer}</div>
                       )}
-                      {firstEvidenceQuote(q.evidenceSegmentIds, segmentById)}
+                      {firstEvidenceQuote(q.evidenceSegmentIds, segmentById, q.question)}
                     </div>
                     <Badge tone={q.status === "open" ? "warning" : "success"}>{q.status === "open" ? "Open" : "Answered"}</Badge>
                   </li>
@@ -678,7 +691,7 @@ function InsightsTab({
                       {item.recordType === "action_item" ? "Action" : "Decision"} · {ownerLabel(item)}
                       {item.dueAt ? ` · Due ${formatDate(item.dueAt)}` : ""}
                     </div>
-                    {firstEvidenceQuote(item.evidenceSegmentIds, segmentById)}
+                    {firstEvidenceQuote(item.evidenceSegmentIds, segmentById, item.description)}
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
                     {item.status ? <Badge tone={item.status === "detected" ? "warning" : "success"}>{item.status === "detected" ? "Open" : "Resolved"}</Badge> : null}
@@ -708,7 +721,7 @@ function InsightsTab({
                       <span>&rarr;</span>
                       <span className={styles.truthNew}>{formatValue(delta.proposedValue)}</span>
                     </div>
-                    {firstEvidenceQuote(delta.evidenceSegmentIds, segmentById)}
+                    {firstEvidenceQuote(delta.evidenceSegmentIds, segmentById, String(delta.proposedValue ?? delta.fieldKey ?? ""))}
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
                     {delta.status ? (
@@ -866,10 +879,18 @@ function deriveStatusBadge(timeline: TimelineStep[]): { label: string; tone: "su
   return { label: "Pending", tone: "neutral" };
 }
 
-function firstEvidenceQuote(ids: string[], segmentById: Map<string, TranscriptSegmentData>) {
+function firstEvidenceQuote(
+  ids: string[],
+  segmentById: Map<string, TranscriptSegmentData>,
+  claimText = "",
+) {
   const first = ids.map((id) => segmentById.get(id)).find(Boolean);
   if (!first) return null;
-  return <div className={styles.evidenceQuote}>&ldquo;{truncate(first.originalText, 140)}&rdquo;</div>;
+  const source = first.canonicalEnglishText || first.originalText;
+  const snippet = claimText
+    ? extractClaimSnippet(claimText, source, 140)
+    : truncate(source, 140);
+  return <div className={styles.evidenceQuote}>&ldquo;{snippet}&rdquo;</div>;
 }
 
 function ownerLabel(record: CallRecordRecapItem) {
