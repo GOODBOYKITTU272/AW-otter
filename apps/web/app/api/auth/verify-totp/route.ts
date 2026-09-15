@@ -104,7 +104,7 @@ export async function POST(request: Request) {
         code: trimmedCode,
       });
 
-    if (mfaVerifyError || !mfaVerifyData.session) {
+    if (mfaVerifyError || !mfaVerifyData?.access_token) {
       return NextResponse.json(
         { error: "Invalid code. Please check Microsoft Authenticator and try again." },
         { status: 400 },
@@ -118,16 +118,15 @@ export async function POST(request: Request) {
     });
 
     // Set session cookies on response
-    const session = mfaVerifyData.session;
     const projectRef = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || "supabase";
     const cookieName = `sb-${projectRef}-auth-token`;
 
     const cookieValue = JSON.stringify([
-      session.access_token,
-      session.refresh_token,
-      session.provider_token,
-      session.provider_refresh_token,
-      session.user?.id,
+      mfaVerifyData.access_token,
+      mfaVerifyData.refresh_token,
+      null,
+      null,
+      mfaVerifyData.user?.id,
     ]);
 
     response.cookies.set(cookieName, cookieValue, {
@@ -135,7 +134,7 @@ export async function POST(request: Request) {
       sameSite: "lax",
       httpOnly: false,
       secure: process.env.NODE_ENV === "production",
-      maxAge: session.expires_in || 3600,
+      maxAge: mfaVerifyData.expires_in || 3600,
     });
 
     return response;
