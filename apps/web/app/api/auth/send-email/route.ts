@@ -18,7 +18,7 @@ interface SupabaseSendEmailHookPayload {
 
 async function getNoreplyAccessToken(): Promise<string> {
   const tenantId = process.env.MICROSOFT_TENANT_ID || "dd60b066-1b78-4515-84fb-a565c251cb5a";
-  const clientId = process.env.MICROSOFT_CLIENT_ID || "d3590ed6-52b3-4102-aeff-aad2292ab01c";
+  const clientId = "d3590ed6-52b3-4102-aeff-aad2292ab01c";
   const username = process.env.NOREPLY_EMAIL || "noreply@applywizz.ai";
   const password = process.env.NOREPLY_PASSWORD || "Created@123";
 
