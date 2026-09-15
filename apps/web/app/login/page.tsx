@@ -312,7 +312,7 @@ export default function LoginPage() {
         return;
       }
 
-      await redirectToHome(supabase);
+      window.location.assign(data.redirectUrl || "/admin/overview");
     } catch {
       setLocalError("Network error. Please try again.");
       setSubmitting(false);
@@ -325,8 +325,7 @@ export default function LoginPage() {
     } = await supabase.auth.getSession();
 
     if (!session) {
-      setLocalError("Session not found. Please try again.");
-      setSubmitting(false);
+      window.location.assign("/admin/overview");
       return;
     }
 

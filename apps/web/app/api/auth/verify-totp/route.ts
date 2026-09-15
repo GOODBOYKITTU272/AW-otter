@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import { isAllowedEmailDomain } from "@applywizz/auth";
 
@@ -85,23 +86,19 @@ export async function POST(request: Request) {
     }
 
     // 4. Create challenge & verify user's Microsoft Authenticator code
-    const { data: challengeData, error: challengeError } =
-      await userClient.auth.mfa.challenge({
-        factorId: totpFactor.id,
-      });
-
-    if (challengeError || !challengeData) {
-      return NextResponse.json(
-        { error: "Failed to create Authenticator challenge." },
-        { status: 400 },
-      );
-    }
-
     const { data: mfaVerifyData, error: mfaVerifyError } =
-      await userClient.auth.mfa.verify({
+      await userClient.auth.mfa.challengeAndVerify({
         factorId: totpFactor.id,
-        challengeId: challengeData.id,
         code: trimmedCode,
+      }).catch(async () => {
+        const { data: challengeData, error: challengeError } =
+          await userClient.auth.mfa.challenge({ factorId: totpFactor.id });
+        if (challengeError || !challengeData) return { data: null, error: challengeError };
+        return userClient.auth.mfa.verify({
+          factorId: totpFactor.id,
+          challengeId: challengeData.id,
+          code: trimmedCode,
+        });
       });
 
     if (mfaVerifyError || !mfaVerifyData?.access_token) {
@@ -117,7 +114,6 @@ export async function POST(request: Request) {
       redirectUrl: "/admin/overview",
     });
 
-    // Set session cookies on response
     const projectRef = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || "supabase";
     const cookieName = `sb-${projectRef}-auth-token`;
 
@@ -129,13 +125,24 @@ export async function POST(request: Request) {
       mfaVerifyData.user?.id,
     ]);
 
-    response.cookies.set(cookieName, cookieValue, {
+    const cookieOpts = {
       path: "/",
-      sameSite: "lax",
+      sameSite: "lax" as const,
       httpOnly: false,
       secure: process.env.NODE_ENV === "production",
       maxAge: mfaVerifyData.expires_in || 3600,
-    });
+    };
+
+    response.cookies.set(cookieName, cookieValue, cookieOpts);
+    response.cookies.set(`${cookieName}.0`, cookieValue, cookieOpts);
+
+    try {
+      const cookieStore = await cookies();
+      cookieStore.set(cookieName, cookieValue, cookieOpts);
+      cookieStore.set(`${cookieName}.0`, cookieValue, cookieOpts);
+    } catch {
+      // Ignored
+    }
 
     return response;
   } catch (error: unknown) {
