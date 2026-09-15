@@ -1,3 +1,16 @@
+-- ╔═══════════════════════════════════════════════════════════════════════╗
+-- ║                    ⚠️  LOCAL DEVELOPMENT ONLY  ⚠️                     ║
+-- ║                                                                       ║
+-- ║  This file contains FAKE test data for local development ONLY.       ║
+-- ║  It is NEVER executed in production deployments.                     ║
+-- ║                                                                       ║
+-- ║  • Supabase production deployments run ONLY migration files          ║
+-- ║  • seed.sql is excluded from production by design                    ║
+-- ║  • All identities are clearly fake (e.g., @org-a.test domains)       ║
+-- ║                                                                       ║
+-- ║  DO NOT manually run this against production databases.              ║
+-- ╚═══════════════════════════════════════════════════════════════════════╝
+--
 -- Local development and test fixtures only. Clearly fake identities, never
 -- real employee data. Organization-independent reference data (system
 -- roles, permissions) lives in migrations, not here.
