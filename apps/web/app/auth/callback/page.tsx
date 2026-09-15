@@ -35,7 +35,7 @@ export default function AuthCallbackPage() {
 
       if (errorParam || hashErrorMatch) {
         const errorMsg = errorDescription || 
-          (hashErrorDescMatch ? decodeURIComponent(hashErrorDescMatch[1]) : "Authentication failed");
+          (hashErrorDescMatch?.[1] ? decodeURIComponent(hashErrorDescMatch[1]) : "Authentication failed");
         setError(errorMsg);
         setTimeout(() => router.replace("/login"), 3000);
         return;
