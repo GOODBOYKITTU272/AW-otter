@@ -44,8 +44,8 @@ export default async function PeopleListPage({
   });
 
   return (
-    <main className="flex flex-1 flex-col gap-6 p-8">
-      <div className="flex items-center justify-between">
+    <main className="flex flex-1 flex-col gap-4 sm:gap-6 p-4 sm:p-6 lg:p-8 min-w-0 w-full overflow-x-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-[#1E1E1E]">Team</h1>
           <p className="text-sm text-zinc-600 mt-1">
@@ -148,7 +148,7 @@ export default async function PeopleListPage({
         )}
       </form>
 
-      <div className="overflow-x-auto bg-white border border-zinc-200 rounded-lg">
+      <div className="overflow-x-auto w-full min-w-0 bg-white border border-zinc-200 rounded-lg">
         <table className="w-full min-w-[900px] text-left text-sm">
           <thead>
             <tr className="border-b border-zinc-200 bg-zinc-50">

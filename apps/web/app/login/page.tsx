@@ -607,7 +607,7 @@ export default function LoginPage() {
                 <label className="text-sm font-semibold text-white">
                   Email code (6 digits)
                 </label>
-                <div className="flex gap-2 justify-between">
+                <div className="flex gap-1.5 sm:gap-2 justify-between">
                   {emailOtp.map((digit, index) => (
                     <input
                       key={index}
@@ -619,7 +619,7 @@ export default function LoginPage() {
                       onChange={(e) =>
                         handleEmailOtpChange(index, e.target.value)
                       }
-                      className="w-12 h-12 rounded-xl border border-white/10 bg-[#0B1D33]/80 text-center text-lg font-bold text-white focus:border-[#2C76FF] focus:outline-none focus:ring-2 focus:ring-[#2C76FF]/30 transition-all"
+                      className="w-10 h-10 sm:w-12 sm:h-12 max-w-[48px] rounded-xl border border-white/10 bg-[#0B1D33]/80 text-center text-base sm:text-lg font-bold text-white focus:border-[#2C76FF] focus:outline-none focus:ring-2 focus:ring-[#2C76FF]/30 transition-all"
                     />
                   ))}
                 </div>
@@ -770,7 +770,7 @@ export default function LoginPage() {
                 <label className="text-sm font-semibold text-white">
                   Authenticator code (6 digits)
                 </label>
-                <div className="flex gap-2 justify-between">
+                <div className="flex gap-1.5 sm:gap-2 justify-between">
                   {totpCode.map((digit, index) => (
                     <input
                       key={index}
@@ -782,7 +782,7 @@ export default function LoginPage() {
                       onChange={(e) =>
                         handleTotpCodeChange(index, e.target.value)
                       }
-                      className="w-12 h-12 rounded-xl border border-white/10 bg-[#0B1D33]/80 text-center text-lg font-bold text-white focus:border-[#2C76FF] focus:outline-none focus:ring-2 focus:ring-[#2C76FF]/30 transition-all"
+                      className="w-10 h-10 sm:w-12 sm:h-12 max-w-[48px] rounded-xl border border-white/10 bg-[#0B1D33]/80 text-center text-base sm:text-lg font-bold text-white focus:border-[#2C76FF] focus:outline-none focus:ring-2 focus:ring-[#2C76FF]/30 transition-all"
                     />
                   ))}
                 </div>
@@ -911,7 +911,7 @@ export default function LoginPage() {
                   </svg>
                   Authenticator code (AW Echo)
                 </label>
-                <div className="flex gap-2 justify-between">
+                <div className="flex gap-1.5 sm:gap-2 justify-between">
                   {totpCode.map((digit, index) => (
                     <input
                       key={index}
@@ -923,7 +923,7 @@ export default function LoginPage() {
                       onChange={(e) =>
                         handleTotpCodeChange(index, e.target.value)
                       }
-                      className="w-12 h-12 rounded-xl border border-white/10 bg-[#0B1D33]/80 text-center text-lg font-bold text-white focus:border-[#2C76FF] focus:outline-none focus:ring-2 focus:ring-[#2C76FF]/30 transition-all"
+                      className="w-10 h-10 sm:w-12 sm:h-12 max-w-[48px] rounded-xl border border-white/10 bg-[#0B1D33]/80 text-center text-base sm:text-lg font-bold text-white focus:border-[#2C76FF] focus:outline-none focus:ring-2 focus:ring-[#2C76FF]/30 transition-all"
                     />
                   ))}
                 </div>

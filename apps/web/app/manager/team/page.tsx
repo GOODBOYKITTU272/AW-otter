@@ -81,7 +81,7 @@ export default async function ManagerTeamPage() {
 
   return (
     <RoleShell role="manager" userName={membership.displayName} roleLabel="Manager">
-      <div className="flex flex-1 flex-col gap-6 p-8 bg-[#0B1D33]">
+      <div className="flex flex-1 flex-col gap-4 sm:gap-6 p-4 sm:p-6 lg:p-8 min-w-0 w-full overflow-x-hidden bg-[#0B1D33]">
         <h1 className="text-xl font-semibold tracking-tight text-white">Team portfolio</h1>
 
       {pendingReview.length > 0 ? (

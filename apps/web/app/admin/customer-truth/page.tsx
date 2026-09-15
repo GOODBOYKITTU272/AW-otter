@@ -48,7 +48,7 @@ export default async function AdminCustomerTruthPage() {
   }
 
   return (
-    <main className="flex flex-1 flex-col gap-6 p-8 max-w-7xl">
+    <main className="flex flex-1 flex-col gap-4 sm:gap-6 p-4 sm:p-6 lg:p-8 max-w-7xl min-w-0 w-full overflow-x-hidden">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-[#1E1E1E]">Customer Truth Review</h1>
         <p className="mt-1 text-sm text-zinc-600">

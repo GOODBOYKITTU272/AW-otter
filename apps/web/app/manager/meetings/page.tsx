@@ -84,7 +84,7 @@ export default async function ManagerMeetingsPage() {
 
   return (
     <RoleShell role="manager" userName={membership.displayName} roleLabel="Manager">
-      <div className="flex flex-1 flex-col gap-8 p-8 bg-[#0B1D33]">
+      <div className="flex flex-1 flex-col gap-4 sm:gap-6 lg:gap-8 p-4 sm:p-6 lg:p-8 min-w-0 w-full overflow-x-hidden bg-[#0B1D33]">
         <h1 className="text-xl font-semibold tracking-tight text-white">Team Meetings & Review Gate</h1>
 
       {/* Upcoming Team Meetings */}
@@ -95,22 +95,22 @@ export default async function ManagerMeetingsPage() {
         <UpcomingMeetings supabase={supabase} showOwner />
       </section>
 
-      {/* Team Recap Review Queue */}
+      {/* Completed Meetings List */}
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold tracking-tight text-white">
-            Conversation Intelligence & Recap Review Queue
+            Recent Team Meetings
           </h2>
-          <span className="text-xs text-[#F5F5F5]/60">
+          <span className="text-xs text-white/60">
             {meetings.length} recent meeting{meetings.length === 1 ? "" : "s"}
           </span>
         </div>
 
-        <div className="overflow-hidden rounded-lg border border-[#1E1E1E]/10 bg-white shadow-sm">
+        <div className="overflow-x-auto w-full min-w-0 rounded-lg border border-[#1E1E1E]/10 bg-white shadow-sm">
           {meetings.length === 0 ? (
             <p className="p-6 text-center text-sm text-[#1E1E1E]/60">No team meetings found.</p>
           ) : (
-            <table className="w-full text-left text-xs">
+            <table className="w-full min-w-[700px] text-left text-xs">
               <thead className="border-b border-[#1E1E1E]/10 bg-[#F5F5F5] font-medium text-[#1E1E1E]/60">
                 <tr>
                   <th className="px-4 py-3">Meeting / Customer</th>

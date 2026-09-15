@@ -94,7 +94,7 @@ export default async function ManagerBoardPage() {
 
   return (
     <RoleShell role="manager" userName={membership.displayName} roleLabel={isSenior ? "Senior Manager" : "Manager"}>
-      <div className="flex h-screen bg-[#0B1D33]">
+      <div className="flex flex-1 flex-col min-h-0 bg-[#0B1D33] min-w-0 w-full">
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Main Board Content */}
