@@ -114,9 +114,9 @@ export default async function ActionsPage() {
       <h1 className="text-xl font-semibold tracking-tight text-white">Actions</h1>
 
       {(records ?? []).length === 0 ? (
-        <p className="text-sm text-[#F5F5F5]/60">Nothing outstanding.</p>
+        <p className="text-sm text-white/60">Nothing outstanding.</p>
       ) : (
-        <ul className="divide-y divide-[#F5F5F5]/10 rounded-lg border border-[#F5F5F5]/10 bg-[#1E1E1E]">
+        <ul className="divide-y divide-[#1E1E1E]/10 rounded-lg border border-[#1E1E1E]/10 bg-white">
           {(records ?? []).map((record) => {
             const ownerLabel = record.owner_membership_id
               ? ownerNameByMembership.get(record.owner_membership_id)
@@ -136,13 +136,13 @@ export default async function ActionsPage() {
                           record.record_type}
                       </StatusBadge>
                       {dueLabel && (
-                        <span className="text-xs text-[#F5F5F5]/60">
+                        <span className="text-xs text-[#1E1E1E]/60">
                           Due {dueLabel}
                         </span>
                       )}
                     </div>
-                    <p className="mt-1 text-sm text-white">{record.description}</p>
-                    <p className="mt-1 text-xs text-[#F5F5F5]/60">
+                    <p className="mt-1 text-sm text-[#1E1E1E]">{record.description}</p>
+                    <p className="mt-1 text-xs text-[#1E1E1E]/60">
                       {record.customer_id ? (
                         <>
                           <Link

@@ -105,12 +105,12 @@ export default async function ManagerMeetingsPage() {
           </span>
         </div>
 
-        <div className="overflow-hidden rounded-lg border border-[#F5F5F5]/10 bg-[#1E1E1E] shadow-sm">
+        <div className="overflow-hidden rounded-lg border border-[#1E1E1E]/10 bg-white shadow-sm">
           {meetings.length === 0 ? (
-            <p className="p-6 text-center text-sm text-[#F5F5F5]/60">No team meetings found.</p>
+            <p className="p-6 text-center text-sm text-[#1E1E1E]/60">No team meetings found.</p>
           ) : (
             <table className="w-full text-left text-xs">
-              <thead className="border-b border-[#F5F5F5]/10 bg-[#0B1D33] font-medium text-[#F5F5F5]/60">
+              <thead className="border-b border-[#1E1E1E]/10 bg-[#F5F5F5] font-medium text-[#1E1E1E]/60">
                 <tr>
                   <th className="px-4 py-3">Meeting / Customer</th>
                   <th className="px-4 py-3">Account Manager</th>
@@ -120,7 +120,7 @@ export default async function ManagerMeetingsPage() {
                   <th className="px-4 py-3 text-right">Review Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#F5F5F5]/10">
+              <tbody className="divide-y divide-[#1E1E1E]/10">
                 {meetings.map((m) => {
                   const recap = recapByMeeting.get(m.id);
                   const integrity = integrityByMeeting.get(m.id);
@@ -128,15 +128,15 @@ export default async function ManagerMeetingsPage() {
                   const customerName = m.customer_id ? customerById.get(m.customer_id) ?? "Unlinked Customer" : null;
 
                   return (
-                    <tr key={m.id} className="hover:bg-[#F5F5F5]/5">
-                      <td className="px-4 py-3 font-medium text-white">
+                    <tr key={m.id} className="hover:bg-[#F5F5F5]/50">
+                      <td className="px-4 py-3 font-medium text-[#1E1E1E]">
                         <div className="truncate max-w-xs">{m.title}</div>
                         {customerName && (
-                          <div className="text-[11px] text-[#F5F5F5]/60">{customerName}</div>
+                          <div className="text-[11px] text-[#1E1E1E]/60">{customerName}</div>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-[#F5F5F5]/70">{ownerName}</td>
-                      <td className="px-4 py-3 text-[#F5F5F5]/60">
+                      <td className="px-4 py-3 text-[#1E1E1E]/70">{ownerName}</td>
+                      <td className="px-4 py-3 text-[#1E1E1E]/60">
                         {new Date(m.scheduled_start).toLocaleDateString(undefined, {
                           month: "short",
                           day: "numeric",
@@ -148,7 +148,7 @@ export default async function ManagerMeetingsPage() {
                             {INTEGRITY_LABELS[integrity.overall_verdict] ?? integrity.overall_verdict}
                           </StatusBadge>
                         ) : (
-                          <span className="text-[#F5F5F5]/40 italic">Not evaluated</span>
+                          <span className="text-[#1E1E1E]/40 italic">Not evaluated</span>
                         )}
                       </td>
                       <td className="px-4 py-3">
@@ -157,7 +157,7 @@ export default async function ManagerMeetingsPage() {
                             {recap.status === "approved" ? "Approved" : recap.status === "ready_for_review" ? "Ready for Review" : "Draft"}
                           </StatusBadge>
                         ) : (
-                          <span className="text-[#F5F5F5]/40 italic">No recap</span>
+                          <span className="text-[#1E1E1E]/40 italic">No recap</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">

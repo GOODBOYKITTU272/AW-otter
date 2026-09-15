@@ -221,7 +221,7 @@ export default async function AccountManagerHomePage() {
           <h1 className="text-2xl sm:text-4xl font-bold tracking-tight text-white">
             {firstName}&apos;s day
           </h1>
-          <p className="text-sm sm:text-base text-[#F5F5F5]/70">
+          <p className="text-sm sm:text-base text-white/70">
             {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
           </p>
         </div>
@@ -280,7 +280,7 @@ export default async function AccountManagerHomePage() {
       ) : null}
 
       {nextCall ? (
-        <section className="rounded-2xl border-2 border-[#2C76FF]/30 bg-[#1E1E1E] p-8 shadow-xl">
+        <section className="rounded-2xl border-2 border-[#2C76FF]/30 bg-white p-8 shadow-xl">
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-4">
@@ -293,7 +293,7 @@ export default async function AccountManagerHomePage() {
                   <p className="text-xs font-bold uppercase tracking-wider text-[#2C76FF]">
                     Next up
                   </p>
-                  <h2 className="text-2xl font-bold text-white mt-1">
+                  <h2 className="text-2xl font-bold text-[#1E1E1E] mt-1">
                     <Link
                       href={`/customers/${nextCall.customer.customerId}`}
                       className="hover:underline"
@@ -305,7 +305,7 @@ export default async function AccountManagerHomePage() {
               </div>
 
               <div className="flex items-center gap-3 mb-4">
-                <p className="text-sm text-[#F5F5F5]/70">
+                <p className="text-sm text-[#1E1E1E]/70">
                   {callTypeLabel(nextCall.call.callType)}
                 </p>
                 <span className="inline-flex items-center rounded-md bg-[#2C76FF]/10 px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-[#2C76FF]">
@@ -313,7 +313,7 @@ export default async function AccountManagerHomePage() {
                 </span>
               </div>
 
-              <div className="flex items-center gap-2 text-sm text-[#F5F5F5]/70 mb-6">
+              <div className="flex items-center gap-2 text-sm text-[#1E1E1E]/70 mb-6">
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -321,11 +321,11 @@ export default async function AccountManagerHomePage() {
               </div>
 
               {nextCallRemembers.length > 0 ? (
-                <div className="rounded-lg border border-[#F5F5F5]/10 bg-[#0B1D33] p-4 mb-6">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-[#F5F5F5]/70 mb-2">
+                <div className="rounded-lg border border-[#1E1E1E]/10 bg-[#F5F5F5] p-4 mb-6">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[#1E1E1E]/70 mb-2">
                     Echo remembers
                   </p>
-                  <ul className="space-y-1.5 text-sm text-[#F5F5F5]/80">
+                  <ul className="space-y-1.5 text-sm text-[#1E1E1E]/80">
                     {nextCallRemembers.slice(0, 3).map((item, idx) => (
                       <li key={idx} className="flex items-start gap-2">
                         <span className="text-[#2C76FF] mt-0.5">•</span>
@@ -345,13 +345,13 @@ export default async function AccountManagerHomePage() {
                     Join Teams →
                   </button>
                 ) : (
-                  <span className="rounded-lg bg-[#F5F5F5]/5 px-6 py-3 text-sm font-medium text-[#F5F5F5]/50">
+                  <span className="rounded-lg bg-[#1E1E1E]/5 px-6 py-3 text-sm font-medium text-[#1E1E1E]/50">
                     Scheduled
                   </span>
                 )}
                 <Link
                   href={`/customers/${nextCall.customer.customerId}`}
-                  className="rounded-lg border-2 border-[#F5F5F5]/10 bg-transparent px-6 py-3 text-sm font-semibold text-white hover:bg-[#F5F5F5]/5 transition-all min-h-[44px] flex items-center"
+                  className="rounded-lg border-2 border-[#1E1E1E]/10 bg-white px-6 py-3 text-sm font-semibold text-[#1E1E1E] hover:bg-[#F5F5F5] transition-all min-h-[44px] flex items-center"
                 >
                   View customer
                 </Link>
@@ -363,16 +363,16 @@ export default async function AccountManagerHomePage() {
         </section>
       ) : null}
 
-      <section className="rounded-xl border border-[#F5F5F5]/10 bg-[#1E1E1E] shadow-md">
-        <div className="border-b border-[#F5F5F5]/10 px-5 py-4">
-          <h2 className="text-base font-semibold text-white">Needs your attention</h2>
+      <section className="rounded-xl border border-[#1E1E1E]/10 bg-white shadow-md">
+        <div className="border-b border-[#1E1E1E]/10 px-5 py-4">
+          <h2 className="text-base font-semibold text-[#1E1E1E]">Needs your attention</h2>
         </div>
         {needsAttention.length === 0 ? (
-          <p className="px-5 py-6 text-sm text-[#F5F5F5]/60">
+          <p className="px-5 py-6 text-sm text-[#1E1E1E]/60">
             Nothing needs attention right now.
           </p>
         ) : (
-          <ul className="divide-y divide-[#F5F5F5]/10">
+          <ul className="divide-y divide-[#1E1E1E]/10">
             {needsAttention.map((c) => (
               <li
                 key={c.customerId}
@@ -381,7 +381,7 @@ export default async function AccountManagerHomePage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <Link
                     href={`/customers/${c.customerId}`}
-                    className="font-medium text-white hover:underline"
+                    className="font-medium text-[#1E1E1E] hover:underline"
                   >
                     {c.name}
                   </Link>
@@ -393,7 +393,7 @@ export default async function AccountManagerHomePage() {
                       : "Medium attention"}
                   </StatusBadge>
                 </div>
-                <ul className="ml-4 list-disc text-xs text-[#F5F5F5]/70">
+                <ul className="ml-4 list-disc text-xs text-[#1E1E1E]/70">
                   {c.attention.reasons.map((r) => (
                     <li key={r.code}>{r.label}</li>
                   ))}
@@ -404,16 +404,16 @@ export default async function AccountManagerHomePage() {
         )}
       </section>
 
-      <section className="rounded-xl border border-[#F5F5F5]/10 bg-[#1E1E1E] shadow-md">
-        <div className="border-b border-[#F5F5F5]/10 px-6 py-4">
-          <h2 className="text-lg font-semibold text-white">Today&apos;s meetings</h2>
+      <section className="rounded-xl border border-[#1E1E1E]/10 bg-white shadow-md">
+        <div className="border-b border-[#1E1E1E]/10 px-6 py-4">
+          <h2 className="text-lg font-semibold text-[#1E1E1E]">Today&apos;s meetings</h2>
         </div>
         {todaysCalls.length === 0 ? (
-          <p className="px-6 py-8 text-sm text-[#F5F5F5]/60">
+          <p className="px-6 py-8 text-sm text-[#1E1E1E]/60">
             No customer calls scheduled today.
           </p>
         ) : (
-          <ul className="divide-y divide-[#F5F5F5]/10">
+          <ul className="divide-y divide-[#1E1E1E]/10">
             {todaysCalls.map(({ customer, call }) => {
               const callTypeUpper = (call.callType?.toUpperCase().replace('_', ' ') ?? 'CALL');
               const callTypeBadgeColor = 
@@ -421,7 +421,7 @@ export default async function AccountManagerHomePage() {
                 call.callType === 'orientation' ? 'bg-[#8B5CF6] text-white' :
                 call.callType === 'progress_review' ? 'bg-[#29FE29] text-[#1E1E1E]' :
                 call.callType === 'renewal_discussion' ? 'bg-[#FFDE59] text-[#1E1E1E]' :
-                'bg-[#F5F5F5]/10 text-white';
+                'bg-[#1E1E1E]/10 text-[#1E1E1E]';
               
               const isCompleted = call.scheduledAt && new Date(call.scheduledAt) < new Date();
               const statusBadge = isCompleted ? 
@@ -431,31 +431,31 @@ export default async function AccountManagerHomePage() {
               return (
                 <li
                   key={`${customer.customerId}-${call.scheduledAt}`}
-                  className="flex items-center justify-between gap-4 px-6 py-5 hover:bg-[#F5F5F5]/5 transition-colors"
+                  className="flex items-center justify-between gap-4 px-6 py-5 hover:bg-[#F5F5F5]/50 transition-colors"
                 >
                   <div className="flex items-center gap-4 flex-1 min-w-0">
                     <div className="flex flex-col items-center min-w-[80px]">
-                      <span className="text-xs font-medium text-[#F5F5F5]/50">
+                      <span className="text-xs font-medium text-[#1E1E1E]/50">
                         {formatTime(call.scheduledAt).split(' ')[0]}
                       </span>
-                      <span className="text-2xl font-bold text-white">
+                      <span className="text-2xl font-bold text-[#1E1E1E]">
                         {formatTime(call.scheduledAt).split(' ')[1]}
                       </span>
                     </div>
 
-                    <div className="h-12 w-px bg-[#F5F5F5]/10" />
+                    <div className="h-12 w-px bg-[#1E1E1E]/10" />
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <Link
                           href={`/customers/${customer.customerId}`}
-                          className="font-semibold text-white hover:underline truncate"
+                          className="font-semibold text-[#1E1E1E] hover:underline truncate"
                         >
                           {customer.name}
                         </Link>
                       </div>
                       <div className="flex items-center gap-2">
-                        <p className="text-sm text-[#F5F5F5]/70">
+                        <p className="text-sm text-[#1E1E1E]/70">
                           {callTypeLabel(call.callType)}
                         </p>
                         <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${callTypeBadgeColor}`}>
@@ -485,9 +485,9 @@ export default async function AccountManagerHomePage() {
         )}
       </section>
 
-      <section className="rounded-xl border border-[#F5F5F5]/10 bg-[#1E1E1E] shadow-md">
-        <div className="flex items-center justify-between border-b border-[#F5F5F5]/10 px-5 py-4">
-          <h2 className="text-base font-semibold text-white">Overdue / due soon</h2>
+      <section className="rounded-xl border border-[#1E1E1E]/10 bg-white shadow-md">
+        <div className="flex items-center justify-between border-b border-[#1E1E1E]/10 px-5 py-4">
+          <h2 className="text-base font-semibold text-[#1E1E1E]">Overdue / due soon</h2>
           <Link
             href="/actions"
             className="text-sm text-[#2C76FF] hover:underline"
@@ -498,9 +498,9 @@ export default async function AccountManagerHomePage() {
         {overdueRecords.length === 0 &&
         dueTodayRecords.length === 0 &&
         dueSoonRecords.length === 0 ? (
-          <p className="px-5 py-6 text-sm text-[#F5F5F5]/60">No overdue actions.</p>
+          <p className="px-5 py-6 text-sm text-[#1E1E1E]/60">No overdue actions.</p>
         ) : (
-          <div className="divide-y divide-[#F5F5F5]/10">
+          <div className="divide-y divide-[#1E1E1E]/10">
             {[
               {
                 label: "Overdue",
@@ -521,7 +521,7 @@ export default async function AccountManagerHomePage() {
               .filter((bucket) => bucket.rows.length > 0)
               .map((bucket) => (
                 <div key={bucket.label} className="px-5 py-4">
-                  <p className="mb-3 text-xs font-medium text-[#F5F5F5]/70 uppercase tracking-wider">
+                  <p className="mb-3 text-xs font-medium text-[#1E1E1E]/70 uppercase tracking-wider">
                     {bucket.label}
                   </p>
                   <ul className="flex flex-col gap-3">
@@ -537,13 +537,13 @@ export default async function AccountManagerHomePage() {
                                 record.recordType}
                             </StatusBadge>
                             {record.dueAt ? (
-                              <span className="text-xs text-[#F5F5F5]/70">
+                              <span className="text-xs text-[#1E1E1E]/70">
                                 Due {formatDate(record.dueAt)}
                               </span>
                             ) : null}
                           </div>
-                          <p className="mt-1 text-white">{record.description}</p>
-                          <p className="mt-1 text-xs text-[#F5F5F5]/70">
+                          <p className="mt-1 text-[#1E1E1E]">{record.description}</p>
+                          <p className="mt-1 text-xs text-[#1E1E1E]/70">
                             {record.customerId
                               ? customerNameById.get(record.customerId)
                               : null}
@@ -559,14 +559,14 @@ export default async function AccountManagerHomePage() {
         )}
       </section>
 
-      <section className="rounded-xl border border-[#F5F5F5]/10 bg-[#1E1E1E] shadow-md">
-        <div className="border-b border-[#F5F5F5]/10 px-5 py-4">
-          <h2 className="text-base font-semibold text-white">Recent changes</h2>
+      <section className="rounded-xl border border-[#1E1E1E]/10 bg-white shadow-md">
+        <div className="border-b border-[#1E1E1E]/10 px-5 py-4">
+          <h2 className="text-base font-semibold text-[#1E1E1E]">Recent changes</h2>
         </div>
         {recentChanges.length === 0 ? (
-          <p className="px-5 py-6 text-sm text-[#F5F5F5]/60">No recent changes.</p>
+          <p className="px-5 py-6 text-sm text-[#1E1E1E]/60">No recent changes.</p>
         ) : (
-          <ul className="divide-y divide-[#F5F5F5]/10">
+          <ul className="divide-y divide-[#1E1E1E]/10">
             {recentChanges.map((change) => (
               <li
                 key={change.key}
@@ -576,16 +576,16 @@ export default async function AccountManagerHomePage() {
                   {change.customerId ? (
                     <Link
                       href={`/customers/${change.customerId}`}
-                      className="font-medium text-white hover:underline"
+                      className="font-medium text-[#1E1E1E] hover:underline"
                     >
                       {customerNameById.get(change.customerId) ?? "Customer"}
                     </Link>
                   ) : null}
-                  <span className="text-xs text-[#F5F5F5]/70">
+                  <span className="text-xs text-[#1E1E1E]/70">
                     {formatDate(change.at)}
                   </span>
                 </div>
-                <p className="text-[#F5F5F5]/80">
+                <p className="text-[#1E1E1E]/80">
                   {change.text}
                 </p>
               </li>
@@ -594,16 +594,16 @@ export default async function AccountManagerHomePage() {
         )}
       </section>
 
-      <section className="rounded-xl border border-[#F5F5F5]/10 bg-[#1E1E1E] shadow-md">
-        <div className="border-b border-[#F5F5F5]/10 px-5 py-4">
-          <h2 className="text-base font-semibold text-white">Upcoming renewals</h2>
+      <section className="rounded-xl border border-[#1E1E1E]/10 bg-white shadow-md">
+        <div className="border-b border-[#1E1E1E]/10 px-5 py-4">
+          <h2 className="text-base font-semibold text-[#1E1E1E]">Upcoming renewals</h2>
         </div>
         {upcomingRenewals.length === 0 ? (
-          <p className="px-5 py-6 text-sm text-[#F5F5F5]/60">
+          <p className="px-5 py-6 text-sm text-[#1E1E1E]/60">
             No upcoming renewals in the next 30 days.
           </p>
         ) : (
-          <ul className="divide-y divide-[#F5F5F5]/10">
+          <ul className="divide-y divide-[#1E1E1E]/10">
             {upcomingRenewals.map(({ customer, daysAway }) => (
               <li
                 key={customer.customerId}
@@ -612,17 +612,17 @@ export default async function AccountManagerHomePage() {
                 <div>
                   <Link
                     href={`/customers/${customer.customerId}`}
-                    className="font-medium text-white hover:underline"
+                    className="font-medium text-[#1E1E1E] hover:underline"
                   >
                     {customer.name}
                   </Link>
-                  <p className="mt-1 text-xs text-[#F5F5F5]/70">
+                  <p className="mt-1 text-xs text-[#1E1E1E]/70">
                     Service period ends {relativeDayLabel(daysAway)}
                     {customer.lastCall
                       ? ` · Last call: ${callTypeLabel(customer.lastCall.callType)}`
                       : ""}
                   </p>
-                  <p className="mt-1 text-xs text-[#F5F5F5]/70">
+                  <p className="mt-1 text-xs text-[#1E1E1E]/70">
                     {customer.openActionCount} open action
                     {customer.openActionCount === 1 ? "" : "s"} ·{" "}
                     {customer.openBlockerCount} blocker
@@ -646,16 +646,16 @@ export default async function AccountManagerHomePage() {
         <UpcomingMeetings supabase={supabase} showRequestAction />
       </section>
 
-      <section className="rounded-xl border border-[#F5F5F5]/10 bg-[#1E1E1E] shadow-md">
-        <div className="border-b border-[#F5F5F5]/10 px-5 py-4">
-          <h2 className="text-base font-semibold text-white">Recent conversations</h2>
+      <section className="rounded-xl border border-[#1E1E1E]/10 bg-white shadow-md">
+        <div className="border-b border-[#1E1E1E]/10 px-5 py-4">
+          <h2 className="text-base font-semibold text-[#1E1E1E]">Recent conversations</h2>
         </div>
         {recentMeetings.length === 0 ? (
-          <p className="px-5 py-6 text-sm text-[#F5F5F5]/60">
+          <p className="px-5 py-6 text-sm text-[#1E1E1E]/60">
             No recent conversations with intelligence ready yet.
           </p>
         ) : (
-          <ul className="divide-y divide-[#F5F5F5]/10">
+          <ul className="divide-y divide-[#1E1E1E]/10">
             {recentMeetings.map((m) => (
               <li
                 key={m.meetingId}
@@ -664,7 +664,7 @@ export default async function AccountManagerHomePage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <Link
                     href={`/meetings/${m.meetingId}/recap`}
-                    className="font-medium text-white hover:underline"
+                    className="font-medium text-[#1E1E1E] hover:underline"
                   >
                     {m.customerName ?? "Unlinked meeting"}
                   </Link>
@@ -673,16 +673,16 @@ export default async function AccountManagerHomePage() {
                       {callTypeLabel(m.callType)}
                     </StatusBadge>
                   ) : null}
-                  <span className="text-xs text-[#F5F5F5]/70">
+                  <span className="text-xs text-[#1E1E1E]/70">
                     {formatDate(m.scheduledStart)}
                   </span>
                 </div>
                 {m.summary ? (
-                  <p className="text-[#F5F5F5]/80">
+                  <p className="text-[#1E1E1E]/80">
                     {m.summary}
                   </p>
                 ) : null}
-                <p className="text-xs text-[#F5F5F5]/70">
+                <p className="text-xs text-[#1E1E1E]/70">
                   {m.truthChangeCount} truth change
                   {m.truthChangeCount === 1 ? "" : "s"} · {m.openActionCount}{" "}
                   action

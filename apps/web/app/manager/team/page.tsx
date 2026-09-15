@@ -85,13 +85,13 @@ export default async function ManagerTeamPage() {
         <h1 className="text-xl font-semibold tracking-tight text-white">Team portfolio</h1>
 
       {pendingReview.length > 0 ? (
-        <section className="rounded-lg border border-[#F5F5F5]/10 bg-[#1E1E1E]">
-          <div className="border-b border-[#F5F5F5]/10 px-4 py-3">
-            <h2 className="text-sm font-medium text-white">
+        <section className="rounded-lg border border-[#1E1E1E]/10 bg-white">
+          <div className="border-b border-[#1E1E1E]/10 px-4 py-3">
+            <h2 className="text-sm font-medium text-[#1E1E1E]">
               Pending customer truth changes awaiting review
             </h2>
           </div>
-          <ul className="divide-y divide-[#F5F5F5]/10">
+          <ul className="divide-y divide-[#1E1E1E]/10">
             {pendingReview.map((c) => (
               <li
                 key={c.customerId}
@@ -99,11 +99,11 @@ export default async function ManagerTeamPage() {
               >
                 <Link
                   href={`/customers/${c.customerId}`}
-                  className="font-medium text-white hover:underline"
+                  className="font-medium text-[#1E1E1E] hover:underline"
                 >
                   {c.name}
                 </Link>
-                <span className="text-xs text-[#F5F5F5]/60">
+                <span className="text-xs text-[#1E1E1E]/60">
                   {ownerNameById.get(c.ownerMembershipId) ?? "Unassigned"} ·{" "}
                   {c.pendingTruthCount} pending change
                   {c.pendingTruthCount === 1 ? "" : "s"}
@@ -118,25 +118,25 @@ export default async function ManagerTeamPage() {
         {owners.map((owner) => (
           <section
             key={owner.ownerId}
-            className="rounded-lg border border-[#F5F5F5]/10 bg-[#1E1E1E]"
+            className="rounded-lg border border-[#1E1E1E]/10 bg-white"
           >
-            <div className="flex items-center justify-between border-b border-[#F5F5F5]/10 px-4 py-3">
-              <h2 className="text-sm font-medium text-white">{owner.name}</h2>
-              <div className="flex gap-3 text-xs text-[#F5F5F5]/60">
+            <div className="flex items-center justify-between border-b border-[#1E1E1E]/10 px-4 py-3">
+              <h2 className="text-sm font-medium text-[#1E1E1E]">{owner.name}</h2>
+              <div className="flex gap-3 text-xs text-[#1E1E1E]/60">
                 <span>{owner.customers.length} customers</span>
                 {owner.highCount > 0 ? (
-                  <span className="text-red-400">
+                  <span className="text-red-600">
                     {owner.highCount} high
                   </span>
                 ) : null}
                 {owner.mediumCount > 0 ? (
-                  <span className="text-amber-400">
+                  <span className="text-amber-600">
                     {owner.mediumCount} medium
                   </span>
                 ) : null}
               </div>
             </div>
-            <ul className="divide-y divide-[#F5F5F5]/10">
+            <ul className="divide-y divide-[#1E1E1E]/10">
               {owner.customers.map((c) => {
                 const label = attentionLabel(c);
                 return (
@@ -147,7 +147,7 @@ export default async function ManagerTeamPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <Link
                         href={`/customers/${c.customerId}`}
-                        className="font-medium text-white hover:underline"
+                        className="font-medium text-[#1E1E1E] hover:underline"
                       >
                         {c.name}
                       </Link>
@@ -160,13 +160,13 @@ export default async function ManagerTeamPage() {
                       ) : null}
                     </div>
                     {c.attention.reasons.length > 0 ? (
-                      <ul className="ml-4 list-disc text-xs text-[#F5F5F5]/60">
+                      <ul className="ml-4 list-disc text-xs text-[#1E1E1E]/60">
                         {c.attention.reasons.map((r) => (
                           <li key={r.code}>{r.label}</li>
                         ))}
                       </ul>
                     ) : (
-                      <p className="text-xs text-[#F5F5F5]/40">
+                      <p className="text-xs text-[#1E1E1E]/40">
                         Nothing needs attention.
                       </p>
                     )}

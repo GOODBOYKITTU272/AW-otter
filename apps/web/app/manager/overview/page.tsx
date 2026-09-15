@@ -141,23 +141,23 @@ export default async function ManagerOverviewPage() {
       <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {isSenior ? (
           <>
-            <div className="rounded-xl border border-[#F5F5F5]/10 bg-[#1E1E1E] p-6 shadow-lg">
-              <p className="text-3xl font-bold text-white">
+            <div className="rounded-xl border border-[#1E1E1E]/10 bg-white p-6 shadow-lg">
+              <p className="text-3xl font-bold text-[#1E1E1E]">
                 {portfolio.length}
               </p>
-              <p className="text-xs font-semibold text-[#F5F5F5]/70 mt-2 uppercase tracking-wider">
+              <p className="text-xs font-semibold text-[#1E1E1E]/70 mt-2 uppercase tracking-wider">
                 Total Accounts
               </p>
             </div>
-            <div className="rounded-xl border border-[#2C76FF]/20 bg-[#1E1E1E] p-6 shadow-lg shadow-[#2C76FF]/10">
+            <div className="rounded-xl border border-[#2C76FF]/20 bg-white p-6 shadow-lg shadow-[#2C76FF]/10">
               <p className="text-3xl font-bold text-[#2C76FF]">
                 {ownerIds.length}
               </p>
-              <p className="text-xs font-semibold text-[#F5F5F5]/70 mt-2 uppercase tracking-wider">
+              <p className="text-xs font-semibold text-[#1E1E1E]/70 mt-2 uppercase tracking-wider">
                 Reporting AMs
               </p>
             </div>
-            <div className="rounded-xl border border-[#29FE29]/20 bg-[#1E1E1E] p-6 shadow-lg shadow-[#29FE29]/10">
+            <div className="rounded-xl border border-[#29FE29]/20 bg-white p-6 shadow-lg shadow-[#29FE29]/10">
               <p className="text-3xl font-bold text-[#29FE29]">
                 {portfolio.length > 0
                   ? Math.round(
@@ -168,34 +168,34 @@ export default async function ManagerOverviewPage() {
                   : 100}
                 %
               </p>
-              <p className="text-xs font-semibold text-[#F5F5F5]/70 mt-2 uppercase tracking-wider">
+              <p className="text-xs font-semibold text-[#1E1E1E]/70 mt-2 uppercase tracking-wider">
                 Portfolio Health
               </p>
             </div>
           </>
         ) : (
           <>
-            <div className="rounded-xl border border-[#F5F5F5]/10 bg-[#1E1E1E] p-6 shadow-lg">
-              <p className="text-3xl font-bold text-white">
+            <div className="rounded-xl border border-[#1E1E1E]/10 bg-white p-6 shadow-lg">
+              <p className="text-3xl font-bold text-[#1E1E1E]">
                 {teamMeetingsTodayCount}
               </p>
-              <p className="text-xs font-semibold text-[#F5F5F5]/70 mt-2 uppercase tracking-wider">
+              <p className="text-xs font-semibold text-[#1E1E1E]/70 mt-2 uppercase tracking-wider">
                 Team Meetings Today
               </p>
             </div>
-            <div className="rounded-xl border border-[#FFDE59]/20 bg-[#1E1E1E] p-6 shadow-lg shadow-[#FFDE59]/10">
+            <div className="rounded-xl border border-[#FFDE59]/20 bg-white p-6 shadow-lg shadow-[#FFDE59]/10">
               <p className="text-3xl font-bold text-[#FFDE59]">
                 {totalPendingTruth}
               </p>
-              <p className="text-xs font-semibold text-[#F5F5F5]/70 mt-2 uppercase tracking-wider">
+              <p className="text-xs font-semibold text-[#1E1E1E]/70 mt-2 uppercase tracking-wider">
                 Reviews Needed
               </p>
             </div>
-            <div className="rounded-xl border border-[#FF5C5C]/20 bg-[#1E1E1E] p-6 shadow-lg shadow-[#FF5C5C]/10">
+            <div className="rounded-xl border border-[#FF5C5C]/20 bg-white p-6 shadow-lg shadow-[#FF5C5C]/10">
               <p className="text-3xl font-bold text-[#FF5C5C]">
                 {totalOpenActions}
               </p>
-              <p className="text-xs font-semibold text-[#F5F5F5]/70 mt-2 uppercase tracking-wider">
+              <p className="text-xs font-semibold text-[#1E1E1E]/70 mt-2 uppercase tracking-wider">
                 Open Commitments
               </p>
             </div>
@@ -203,18 +203,18 @@ export default async function ManagerOverviewPage() {
         )}
       </section>
 
-      <section className="rounded-xl border border-[#F5F5F5]/10 bg-[#1E1E1E] shadow-lg">
-        <div className="border-b border-[#F5F5F5]/10 px-6 py-4">
-          <h2 className="text-base font-semibold text-white">
+      <section className="rounded-xl border border-[#1E1E1E]/10 bg-white shadow-lg">
+        <div className="border-b border-[#1E1E1E]/10 px-6 py-4">
+          <h2 className="text-base font-semibold text-[#1E1E1E]">
             Needs attention across your team
           </h2>
         </div>
         {attentionByAm.size === 0 ? (
-          <p className="p-6 text-sm text-[#F5F5F5]/70">
+          <p className="p-6 text-sm text-[#1E1E1E]/70">
             All customer accounts in your reporting line are healthy.
           </p>
         ) : (
-          <div className="divide-y divide-[#F5F5F5]/10">
+          <div className="divide-y divide-[#1E1E1E]/10">
             {Array.from(attentionByAm.entries()).map(([amName, items]) => (
               <div key={amName} className="p-5 flex flex-col gap-3">
                 <span className="text-xs font-bold uppercase tracking-wider text-[#2C76FF]">
@@ -229,12 +229,12 @@ export default async function ManagerOverviewPage() {
                       <div className="flex items-center gap-2">
                         <Link
                           href={`/customers/${item.customerId}`}
-                          className="font-medium text-white hover:underline"
+                          className="font-medium text-[#1E1E1E] hover:underline"
                         >
                           {item.customerName}
                         </Link>
-                        <span className="text-[#F5F5F5]/40">·</span>
-                        <span className="text-[#F5F5F5]/70">
+                        <span className="text-[#1E1E1E]/40">·</span>
+                        <span className="text-[#1E1E1E]/70">
                           {item.label}
                         </span>
                       </div>
@@ -252,18 +252,18 @@ export default async function ManagerOverviewPage() {
         )}
       </section>
 
-      <section className="rounded-xl border border-[#F5F5F5]/10 bg-[#1E1E1E] shadow-lg">
-        <div className="border-b border-[#F5F5F5]/10 px-6 py-4">
-          <h2 className="text-base font-semibold text-white">
+      <section className="rounded-xl border border-[#1E1E1E]/10 bg-white shadow-lg">
+        <div className="border-b border-[#1E1E1E]/10 px-6 py-4">
+          <h2 className="text-base font-semibold text-[#1E1E1E]">
             Customer risks &amp; renewals
           </h2>
         </div>
         {customerRisks.length === 0 ? (
-          <p className="p-6 text-sm text-[#F5F5F5]/70">
+          <p className="p-6 text-sm text-[#1E1E1E]/70">
             No near-term renewal risks or customer blockers detected.
           </p>
         ) : (
-          <ul className="divide-y divide-[#F5F5F5]/10">
+          <ul className="divide-y divide-[#1E1E1E]/10">
             {customerRisks.map((c) => (
               <li
                 key={c.customerId}
@@ -272,11 +272,11 @@ export default async function ManagerOverviewPage() {
                 <div>
                   <Link
                     href={`/customers/${c.customerId}`}
-                    className="font-semibold text-white hover:underline"
+                    className="font-semibold text-[#1E1E1E] hover:underline"
                   >
                     {c.name}
                   </Link>
-                  <p className="text-[#F5F5F5]/70 mt-1 text-xs">
+                  <p className="text-[#1E1E1E]/70 mt-1 text-xs">
                     Owner: {ownerNameById.get(c.ownerMembershipId) ?? "Unassigned"}
                     {c.serviceEndDaysAway !== null && c.serviceEndDaysAway <= 30
                       ? ` · Renewal in ${c.serviceEndDaysAway} days`

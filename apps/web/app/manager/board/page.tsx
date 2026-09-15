@@ -102,16 +102,16 @@ export default async function ManagerBoardPage() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
               <div>
                 <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">AM Board</h1>
-                <p className="text-sm text-[#F5F5F5]/60 mt-1">
+                <p className="text-sm text-white/70 mt-1">
                   Real-time overview of Account Managers and today&apos;s activity. Scroll to see all.
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                <div className="flex items-center gap-2 bg-[#1E1E1E] rounded-lg px-3 py-1.5 border border-[#29FE29]/30 min-h-[44px]">
+                <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-1.5 border border-[#29FE29]/30 min-h-[44px]">
                   <div className="h-2 w-2 rounded-full bg-[#29FE29] animate-pulse" />
-                  <span className="text-sm font-medium text-white">Auto-refresh: On</span>
+                  <span className="text-sm font-medium text-[#1E1E1E]">Auto-refresh: On</span>
                 </div>
-                <button className="rounded-lg bg-[#1E1E1E] border border-[#F5F5F5]/10 px-4 py-2 text-sm font-medium text-white hover:bg-[#F5F5F5]/5 transition-colors min-h-[44px]">
+                <button className="rounded-lg bg-white border border-[#1E1E1E]/10 px-4 py-2 text-sm font-medium text-[#1E1E1E] hover:bg-[#F5F5F5] transition-colors min-h-[44px]">
                   Export Board
                 </button>
               </div>
@@ -119,62 +119,62 @@ export default async function ManagerBoardPage() {
 
             {/* Filters */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6">
-              <select className="rounded-lg border border-[#F5F5F5]/10 bg-[#1E1E1E] px-4 py-2 text-sm font-medium text-white min-h-[44px]">
+              <select className="rounded-lg border border-[#1E1E1E]/10 bg-white px-4 py-2 text-sm font-medium text-[#1E1E1E] min-h-[44px]">
                 <option>All Teams</option>
                 <option>UK Team</option>
                 <option>US East Team</option>
                 <option>APAC Team</option>
               </select>
-              <select className="rounded-lg border border-[#F5F5F5]/10 bg-[#1E1E1E] px-4 py-2 text-sm font-medium text-white min-h-[44px]">
+              <select className="rounded-lg border border-[#1E1E1E]/10 bg-white px-4 py-2 text-sm font-medium text-[#1E1E1E] min-h-[44px]">
                 <option>All Status</option>
                 <option>Online</option>
                 <option>On call</option>
                 <option>Offline</option>
               </select>
-              <button className="rounded-lg border border-[#F5F5F5]/10 bg-[#1E1E1E] px-4 py-2 text-sm font-medium text-[#2C76FF] hover:bg-[#F5F5F5]/5 transition-colors min-h-[44px]">
+              <button className="rounded-lg border border-[#1E1E1E]/10 bg-white px-4 py-2 text-sm font-medium text-[#2C76FF] hover:bg-[#F5F5F5] transition-colors min-h-[44px]">
                 Clear Filters
               </button>
             </div>
 
             {/* AM Board Table */}
-            <div className="rounded-xl border border-[#F5F5F5]/10 bg-[#1E1E1E] shadow-md overflow-hidden">
+            <div className="rounded-xl border border-[#1E1E1E]/10 bg-white shadow-md overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-[#0B1D33] border-b border-[#F5F5F5]/10">
+                  <thead className="bg-[#F5F5F5] border-b border-[#1E1E1E]/10">
                     <tr>
-                      <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-[#F5F5F5]/70">
+                      <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-[#1E1E1E]/70">
                         Account Manager
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-[#F5F5F5]/70">
+                      <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-[#1E1E1E]/70">
                         Status
                       </th>
-                      <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider text-[#F5F5F5]/70">
+                      <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider text-[#1E1E1E]/70">
                         Meetings<br/>Today
                       </th>
-                      <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider text-[#F5F5F5]/70">
+                      <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider text-[#1E1E1E]/70">
                         Calls<br/>Today
                       </th>
-                      <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider text-[#F5F5F5]/70">
+                      <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider text-[#1E1E1E]/70">
                         No-Shows<br/>Today
                       </th>
-                      <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider text-[#F5F5F5]/70">
+                      <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider text-[#1E1E1E]/70">
                         Lobby<br/>Today
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-[#F5F5F5]/70">
+                      <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-[#1E1E1E]/70">
                         Last Activity
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#F5F5F5]/10">
+                  <tbody className="divide-y divide-[#1E1E1E]/10">
                     {amMetrics.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-6 py-12 text-center text-sm text-[#F5F5F5]/60">
+                        <td colSpan={7} className="px-6 py-12 text-center text-sm text-[#1E1E1E]/60">
                           No Account Managers found in your team
                         </td>
                       </tr>
                     ) : (
                       amMetrics.map((am, idx) => (
-                        <tr key={am.id} className="hover:bg-[#F5F5F5]/5 transition-colors">
+                        <tr key={am.id} className="hover:bg-[#F5F5F5]/50 transition-colors">
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
                               <div className="h-10 w-10 rounded-full bg-[#2C76FF]/10 flex items-center justify-center">
@@ -183,8 +183,8 @@ export default async function ManagerBoardPage() {
                                 </span>
                               </div>
                               <div>
-                                <p className="text-sm font-semibold text-white">{am.name}</p>
-                                <p className="text-xs text-[#F5F5F5]/60">{am.team} Team</p>
+                                <p className="text-sm font-semibold text-[#1E1E1E]">{am.name}</p>
+                                <p className="text-xs text-[#1E1E1E]/60">{am.team} Team</p>
                               </div>
                             </div>
                           </td>
@@ -197,23 +197,23 @@ export default async function ManagerBoardPage() {
                             </StatusBadge>
                           </td>
                           <td className="px-6 py-4 text-center">
-                            <span className="text-lg font-bold text-white">{am.meetingsToday}</span>
+                            <span className="text-lg font-bold text-[#1E1E1E]">{am.meetingsToday}</span>
                           </td>
                           <td className="px-6 py-4 text-center">
-                            <span className="text-lg font-bold text-white">{am.callsToday}</span>
+                            <span className="text-lg font-bold text-[#1E1E1E]">{am.callsToday}</span>
                           </td>
                           <td className="px-6 py-4 text-center">
-                            <span className={`text-lg font-bold ${am.noShows > 0 ? 'text-[#FF5C5C]' : 'text-white'}`}>
+                            <span className={`text-lg font-bold ${am.noShows > 0 ? 'text-[#FF5C5C]' : 'text-[#1E1E1E]'}`}>
                               {am.noShows}
                             </span>
                           </td>
                           <td className="px-6 py-4 text-center">
-                            <span className={`text-lg font-bold ${am.lobbyToday > 0 ? 'text-[#FFDE59]' : 'text-white'}`}>
+                            <span className={`text-lg font-bold ${am.lobbyToday > 0 ? 'text-[#FFDE59]' : 'text-[#1E1E1E]'}`}>
                               {am.lobbyToday}
                             </span>
                           </td>
                           <td className="px-6 py-4">
-                            <span className="text-sm text-[#F5F5F5]/70">
+                            <span className="text-sm text-[#1E1E1E]/70">
                               {am.lastActivity 
                                 ? am.lastActivity.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
                                 : 'No activity'
@@ -228,18 +228,18 @@ export default async function ManagerBoardPage() {
               </div>
 
               {/* Pagination footer */}
-              <div className="border-t border-[#F5F5F5]/10 bg-[#0B1D33] px-6 py-4 flex items-center justify-between">
-                <span className="text-sm text-[#F5F5F5]/70">
+              <div className="border-t border-[#1E1E1E]/10 bg-[#F5F5F5] px-6 py-4 flex items-center justify-between">
+                <span className="text-sm text-[#1E1E1E]/70">
                   Showing 1-{amMetrics.length} of {amMetrics.length}
                 </span>
                 <div className="flex items-center gap-2">
-                  <button className="rounded-lg border border-[#F5F5F5]/10 bg-[#1E1E1E] px-3 py-2 text-sm font-medium text-white hover:bg-[#F5F5F5]/5 transition-colors disabled:opacity-50" disabled>
+                  <button className="rounded-lg border border-[#1E1E1E]/10 bg-white px-3 py-2 text-sm font-medium text-[#1E1E1E] hover:bg-[#F5F5F5] transition-colors disabled:opacity-50" disabled>
                     Previous
                   </button>
                   <button className="rounded-lg bg-[#2C76FF] px-3 py-2 text-sm font-medium text-white">
                     1
                   </button>
-                  <button className="rounded-lg border border-[#F5F5F5]/10 bg-[#1E1E1E] px-3 py-2 text-sm font-medium text-white hover:bg-[#F5F5F5]/5 transition-colors disabled:opacity-50" disabled>
+                  <button className="rounded-lg border border-[#1E1E1E]/10 bg-white px-3 py-2 text-sm font-medium text-[#1E1E1E] hover:bg-[#F5F5F5] transition-colors disabled:opacity-50" disabled>
                     Next
                   </button>
                 </div>
@@ -247,7 +247,7 @@ export default async function ManagerBoardPage() {
             </div>
 
             {/* System Status */}
-            <div className="mt-6 flex items-center justify-between text-xs text-[#F5F5F5]/60">
+            <div className="mt-6 flex items-center justify-between text-xs text-white/60">
               <span>All times in UTC+0 • Data refreshes every 30 seconds</span>
               <div className="flex items-center gap-2">
                 <span>System Status</span>
@@ -262,14 +262,14 @@ export default async function ManagerBoardPage() {
       </div>
 
       {/* Alert Inbox Sidebar */}
-      <aside className="w-96 border-l border-[#F5F5F5]/10 bg-[#1E1E1E] flex flex-col overflow-hidden">
-        <div className="border-b border-[#F5F5F5]/10 px-6 py-4 bg-[#0B1D33]">
+      <aside className="w-96 border-l border-[#F5F5F5]/10 bg-white flex flex-col overflow-hidden">
+        <div className="border-b border-[#1E1E1E]/10 px-6 py-4 bg-[#F5F5F5]">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <svg className="h-5 w-5 text-[#FF5C5C]" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
               </svg>
-              <h2 className="text-base font-bold text-white">Alert Inbox</h2>
+              <h2 className="text-base font-bold text-[#1E1E1E]">Alert Inbox</h2>
             </div>
             <span className="rounded-full bg-[#FF5C5C] px-2.5 py-1 text-xs font-bold text-white">
               {liveAlerts.length} Unread
@@ -285,13 +285,13 @@ export default async function ManagerBoardPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <p className="text-sm font-medium text-white">All clear!</p>
-              <p className="text-xs text-[#F5F5F5]/60 mt-1">No active alerts for your team</p>
+              <p className="text-sm font-medium text-[#1E1E1E]">All clear!</p>
+              <p className="text-xs text-[#1E1E1E]/60 mt-1">No active alerts for your team</p>
             </div>
           ) : (
-            <ul className="divide-y divide-[#F5F5F5]/10">
+            <ul className="divide-y divide-[#1E1E1E]/10">
               {liveAlerts.map((alert) => (
-                <li key={alert.id} className="px-6 py-5 hover:bg-[#F5F5F5]/5 transition-colors">
+                <li key={alert.id} className="px-6 py-5 hover:bg-[#F5F5F5]/50 transition-colors">
                   <div className="flex items-start gap-3 mb-3">
                     <div className={`h-8 w-8 rounded-full flex items-center justify-center ${
                       alert.severity === "critical" ? "bg-[#FF5C5C]/10" : "bg-[#FFDE59]/10"
@@ -311,13 +311,13 @@ export default async function ManagerBoardPage() {
                           }
                         </StatusBadge>
                       </div>
-                      <p className="text-xs font-medium text-white mb-1">
+                      <p className="text-xs font-medium text-[#1E1E1E] mb-1">
                         {alert.amName}
                       </p>
-                      <p className="text-xs text-[#F5F5F5]/70 mb-2">
+                      <p className="text-xs text-[#1E1E1E]/70 mb-2">
                         {alert.message}
                       </p>
-                      <p className="text-[10px] text-[#F5F5F5]/50">
+                      <p className="text-[10px] text-[#1E1E1E]/50">
                         {new Date(alert.firstSeenAt).toLocaleTimeString()}
                       </p>
                     </div>
