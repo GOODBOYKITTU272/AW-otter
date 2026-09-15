@@ -7,7 +7,7 @@ import { getPortfolioOverview } from "@applywizz/domain/am-portfolio";
 import { getManagerLiveAlerts } from "@applywizz/domain";
 
 export default async function ManagerOverviewPage() {
-  const membership = await requireRole(["manager", "senior_manager"]);
+  const membership = await requireRole(["manager", "senior_manager", "admin"]);
   const supabase = await getSupabaseServerClient();
   const isSenior = membership.roleKey === "senior_manager";
 
