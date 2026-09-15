@@ -79,7 +79,7 @@ export async function POST(request: Request) {
     const { error: inviteError } = await inviteMembership(serviceRoleClient, {
       workEmail: person.work_email,
       displayName: person.display_name,
-      redirectTo: `${getAppBaseUrl()}/auth/set-password`,
+      redirectTo: `${getAppBaseUrl()}/auth/callback`,
     });
 
     return NextResponse.json(

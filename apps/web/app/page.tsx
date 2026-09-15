@@ -7,6 +7,7 @@ import {
 import { ROLE_HOME_ROUTE, isSystemRoleKey } from "@applywizz/domain";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { LandingPage } from "@/components/landing-page";
+import { AuthRedirectHandler } from "./auth-redirect-handler";
 
 /**
  * Root page that shows branded marketing landing for unauthenticated users.
@@ -28,7 +29,12 @@ export default async function RootPage() {
 
   // Unauthenticated users see the landing page
   if (roleKey === null) {
-    return <LandingPage />;
+    return (
+      <>
+        <AuthRedirectHandler />
+        <LandingPage />
+      </>
+    );
   }
 
   if (isSystemRoleKey(roleKey)) {

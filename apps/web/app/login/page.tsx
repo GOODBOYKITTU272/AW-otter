@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, type FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { ArrowLeft } from "lucide-react";
 import { ROLE_HOME_ROUTE, isSystemRoleKey } from "@applywizz/domain";
@@ -16,6 +17,7 @@ type AuthStep =
   | "totp-login";
 
 export default function LoginPage() {
+  const searchParams = useSearchParams();
   const [step, setStep] = useState<AuthStep>("email");
   const [email, setEmail] = useState("");
   const [emailOtp, setEmailOtp] = useState<string[]>(["", "", "", "", "", ""]);
@@ -24,6 +26,13 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const errorParam = searchParams.get("error");
+    if (errorParam) {
+      setError(decodeURIComponent(errorParam));
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     async function checkExistingSession() {
@@ -76,6 +85,7 @@ export default function LoginPage() {
       email: trimmedEmail,
       options: {
         shouldCreateUser: false,
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
 
