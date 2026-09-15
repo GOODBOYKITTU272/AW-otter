@@ -25,7 +25,7 @@ function attentionLabel(row: PortfolioCustomerRow) {
 // needs-attention list, so a manager can drill AM -> customer. No new
 // authorization, no new attention rules.
 export default async function ManagerTeamPage() {
-  const membership = await requireRole(["manager", "senior_manager"]);
+  const membership = await requireRole(["manager", "senior_manager", "admin"]);
   const supabase = await getSupabaseServerClient();
 
   const portfolio = await getPortfolioOverview(

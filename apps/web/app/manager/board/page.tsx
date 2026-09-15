@@ -11,7 +11,7 @@ import { getManagerLiveAlerts } from "@applywizz/domain";
  * Plus Alert Inbox on the side
  */
 export default async function ManagerBoardPage() {
-  const membership = await requireRole(["manager", "senior_manager"]);
+  const membership = await requireRole(["manager", "senior_manager", "admin"]);
   const supabase = await getSupabaseServerClient();
   const isSenior = membership.roleKey === "senior_manager";
 

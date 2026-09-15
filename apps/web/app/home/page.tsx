@@ -59,9 +59,9 @@ function callTypeLabel(callType: string | null) {
 // M12: the real AM daily operating home. RLS alone scopes every query to
 // this AM's own portfolio (owner_membership_id = current_membership_id())
 // — same convention established in M9-M11, no explicit filter needed since
-// this route is account_manager-only.
+// this route is account_manager-only (plus admin for oversight).
 export default async function AccountManagerHomePage() {
-  const membership = await requireRole(["account_manager"]);
+  const membership = await requireRole(["account_manager", "admin"]);
   const supabase = await getSupabaseServerClient();
 
   const nowDate = new Date();

@@ -10,7 +10,7 @@ import { ExceptionQueue } from "@/components/exceptions/exception-queue";
 // someone in their reporting tree (private.is_manager_of). No role
 // branching needed in the query itself, same as UpcomingMeetings.
 export default async function ManagerExceptionsPage() {
-  await requireRole(["manager", "senior_manager"]);
+  await requireRole(["manager", "senior_manager", "admin"]);
   const supabase = await getSupabaseServerClient();
   const membership = await getCurrentMembership(supabase);
 

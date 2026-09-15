@@ -30,7 +30,7 @@ const INTEGRITY_LABELS: Record<string, string> = {
 };
 
 export default async function ManagerMeetingsPage() {
-  const membership = await requireRole(["manager", "senior_manager"]);
+  const membership = await requireRole(["manager", "senior_manager", "admin"]);
   const supabase = await getSupabaseServerClient();
 
   const { data: teamMeetings } = await supabase
