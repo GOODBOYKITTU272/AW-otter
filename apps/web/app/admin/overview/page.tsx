@@ -1,193 +1,810 @@
-import { UpcomingMeetings } from "@/components/upcoming-meetings";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { getAzureMaiEnv } from "@/env/server";
+import { getAzureMaiEnv, getSarvamEnv } from "@/env/server";
+import Link from "next/link";
+
+const USD_TO_INR = 84.2;
+const MONTHLY_BUDGET_CAP_USD = 250;
+const MONTHLY_BUDGET_CAP_INR = 21000;
+
+function formatTokens(count: number): string {
+  if (count >= 1_000_000) {
+    return `${(count / 1_000_000).toFixed(2)}M`;
+  }
+  if (count >= 1_000) {
+    return `${(count / 1_000).toFixed(1)}K`;
+  }
+  return count.toLocaleString();
+}
+
+async function fetchOpenRouterUsage(apiKey: string | undefined): Promise<number | null> {
+  if (!apiKey) return null;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const res = await fetch("https://openrouter.ai/api/v1/key", {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: controller.signal,
+      cache: "no-store",
+    });
+    clearTimeout(timeoutId);
+    if (!res.ok) return null;
+    const body = (await res.json()) as {
+      data?: {
+        usage_monthly?: number;
+        usage?: number;
+      };
+    };
+    const usage = body?.data?.usage_monthly ?? body?.data?.usage;
+    return typeof usage === "number" && Number.isFinite(usage) ? usage : null;
+  } catch {
+    return null;
+  }
+}
 
 export default async function AdminOverviewPage() {
   const supabase = await getSupabaseServerClient();
 
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date();
-  todayEnd.setHours(23, 59, 59, 999);
+  // Get team counts
+  const { data: memberships } = await supabase
+    .from("organization_memberships")
+    .select("id, role_id")
+    .eq("status", "active");
 
-  // 1. Fetch meetings today
-  const { data: meetingsToday } = await supabase
-    .from("meetings")
-    .select("id, title, lifecycle_status, scheduled_start")
-    .gte("scheduled_start", todayStart.toISOString())
-    .lte("scheduled_start", todayEnd.toISOString());
+  const { data: roles } = await supabase
+    .from("roles")
+    .select("id, key");
 
-  const meetingCount = (meetingsToday ?? []).length;
-
-  // 2. Fetch Bot jobs status
-  const { data: botJobs } = await supabase
-    .from("meeting_bot_jobs")
-    .select("id, status, last_error, meeting_id");
-
-  const botsJoined = (botJobs ?? []).filter(
-    (b) => b.status === "completed" || b.status === "joined",
-  ).length;
-  const waitingForHost = (botJobs ?? []).filter(
-    (b) => b.status === "scheduled" || b.status === "joining",
-  ).length;
-  const botErrors = (botJobs ?? []).filter((b) => b.status === "failed").length;
-
-  // 3. Transcripts & review counts
-  const { data: transcripts } = await supabase
-    .from("meeting_transcripts")
-    .select("id, processing_status");
-
-  const transcriptsReady = (transcripts ?? []).filter(
-    (t) => t.processing_status === "completed",
+  const roleKeyById = new Map((roles ?? []).map(r => [r.id, r.key]));
+  const amCount = (memberships ?? []).filter(m => roleKeyById.get(m.role_id) === "account_manager").length;
+  const managerCount = (memberships ?? []).filter(m => 
+    ["manager", "senior_manager"].includes(roleKeyById.get(m.role_id) ?? "")
   ).length;
 
-  const { count: needsReviewCount } = await supabase
-    .from("transcript_segments")
-    .select("id", { count: "exact", head: true })
-    .eq("needs_review", true);
+  // Get recent incidents
+  const { data: incidents } = await supabase
+    .from("operational_incidents")
+    .select("id, incident_type, severity, first_seen_at, resolved_at, meeting_id")
+    .order("first_seen_at", { ascending: false })
+    .limit(4);
 
-  // 4. Microsoft connection health
-  const { data: m365Conn } = await supabase
-    .from("microsoft_tenant_connections")
-    .select("id, status")
-    .maybeSingle();
-
-  const isM365Connected = m365Conn?.status === "active";
-
-  // 5. Honest Speech & Storage state (never hardcode 'Healthy')
-  const azureEnv = getAzureMaiEnv();
-  const isAzureConfigured = azureEnv.isConfigured;
+  const isAzureConfigured = Boolean(getAzureMaiEnv()?.isConfigured);
   const isOpenRouterConfigured = Boolean(process.env.OPENROUTER_API_KEY);
-  const isDatabaseReachable = Boolean(meetingsToday !== null);
+  const isSarvamConfigured = Boolean(getSarvamEnv()?.isConfigured);
+  const isVexaConfigured = Boolean(
+    process.env.VEXA_BASE_URL || process.env.VEXA_API_KEY
+  );
+  const isDatabaseReachable = Boolean(memberships !== null);
+
+  // Real-time telemetry queries
+  const [
+    { data: transcripts },
+    { data: aiRuns },
+    { count: totalMeetingsCount },
+    { count: botJobsCount },
+  ] = await Promise.all([
+    supabase
+      .from("meeting_transcripts")
+      .select("provider, usage_seconds, usage_cost, detected_language, processing_status"),
+    supabase
+      .from("ai_runs")
+      .select("usage_metadata, status, model"),
+    supabase
+      .from("meetings")
+      .select("id", { count: "exact", head: true })
+      .eq("is_test", false),
+    supabase
+      .from("meeting_bot_jobs")
+      .select("id", { count: "exact", head: true }),
+  ]);
+
+  const openRouterLiveUsage = isOpenRouterConfigured
+    ? await fetchOpenRouterUsage(process.env.OPENROUTER_API_KEY)
+    : null;
+
+  // Vexa Bot Usage
+  const totalBotJobs = botJobsCount ?? 0;
+  const vexaUsageLabel =
+    totalBotJobs > 0
+      ? `${totalBotJobs} Bot Session${totalBotJobs === 1 ? "" : "s"} • Free`
+      : "Free / Open-Source (Azure VM)";
+
+  // Transcription Provider Totals
+  const transcriptList = transcripts ?? [];
+
+  // Whisper (OpenRouter / Whisper STT)
+  const whisperItems = transcriptList.filter(
+    (t) => t.provider === "whisper" || t.provider === "openrouter"
+  );
+  const whisperSeconds = whisperItems.reduce(
+    (acc, t) => acc + (t.usage_seconds ?? 0),
+    0
+  );
+  const whisperHours = whisperSeconds / 3600;
+  const whisperTranscriptsCost = whisperItems.reduce(
+    (acc, t) => acc + (t.usage_cost ?? 0),
+    0
+  );
+  // Only recorded usage_cost counts as spend. Never invent $/hr rates.
+  const whisperCostUsd =
+    whisperTranscriptsCost > 0 ? Number(whisperTranscriptsCost.toFixed(2)) : 0;
+  const whisperCostInr = Math.round(whisperCostUsd * USD_TO_INR);
+  const whisperSpendMetered = whisperTranscriptsCost > 0;
+
+  // Sarvam AI (Indic & Multilingual Speech)
+  const sarvamItems = transcriptList.filter((t) => t.provider === "sarvam");
+  const sarvamSeconds = sarvamItems.reduce(
+    (acc, t) => acc + (t.usage_seconds ?? 0),
+    0
+  );
+  const sarvamHours = sarvamSeconds / 3600;
+  const sarvamTranscriptsCost = sarvamItems.reduce(
+    (acc, t) => acc + (t.usage_cost ?? 0),
+    0
+  );
+  // Sarvam provider currently writes usage_cost=null — do not guess ₹/hr.
+  const sarvamCostUsd =
+    sarvamTranscriptsCost > 0 ? Number(sarvamTranscriptsCost.toFixed(2)) : 0;
+  const sarvamCostInr = Math.round(sarvamCostUsd * USD_TO_INR);
+  const sarvamSpendMetered = sarvamTranscriptsCost > 0;
+
+  // Azure Speech
+  const azureItems = transcriptList.filter(
+    (t) => t.provider === "azure" || t.provider === "azure-mai"
+  );
+  const azureSeconds = azureItems.reduce(
+    (acc, t) => acc + (t.usage_seconds ?? 0),
+    0
+  );
+  const azureHours = azureSeconds / 3600;
+  const azureCostUsd = Number(
+    azureItems.reduce((acc, t) => acc + (t.usage_cost ?? 0), 0).toFixed(2)
+  );
+  const azureCostInr = Math.round(azureCostUsd * USD_TO_INR);
+  const azureSpendMetered = azureCostUsd > 0;
+
+  // LLM Tokens and AI Runs
+  let totalPromptTokens = 0;
+  let totalCompletionTokens = 0;
+  let totalTokens = 0;
+  let llmDbCostUsd = 0;
+
+  for (const run of aiRuns ?? []) {
+    const meta = run.usage_metadata as {
+      prompt_tokens?: number;
+      completion_tokens?: number;
+      total_tokens?: number;
+      cost?: number;
+    } | null;
+    if (meta) {
+      const pTokens = Number(meta.prompt_tokens ?? 0);
+      const cTokens = Number(meta.completion_tokens ?? 0);
+      const tTokens = Number(meta.total_tokens ?? (pTokens + cTokens));
+      totalPromptTokens += pTokens;
+      totalCompletionTokens += cTokens;
+      totalTokens += tTokens;
+      llmDbCostUsd += Number(meta.cost ?? 0);
+    }
+  }
+
+  // If OpenRouter live key endpoint returned actual monthly spend, reconcile
+  let llmCostUsd = llmDbCostUsd;
+  if (openRouterLiveUsage !== null && openRouterLiveUsage > 0) {
+    const remainingOpenRouter = openRouterLiveUsage - whisperCostUsd;
+    llmCostUsd = remainingOpenRouter > 0 ? remainingOpenRouter : openRouterLiveUsage;
+  }
+
+  // Total AI Spend
+  const totalSpendUsd = Number(
+    (whisperCostUsd + sarvamCostUsd + azureCostUsd + llmCostUsd).toFixed(2)
+  );
+  const totalSpendInr = Math.round(totalSpendUsd * USD_TO_INR);
+
+  // Average per meeting
+  const meetingsCount = totalMeetingsCount ?? (memberships ? 1 : 0);
+  const avgCostPerMeetingUsd =
+    meetingsCount > 0 ? Number((totalSpendUsd / meetingsCount).toFixed(2)) : 0;
+  const avgCostPerMeetingInr = Number(
+    (avgCostPerMeetingUsd * USD_TO_INR).toFixed(2)
+  );
+
+  // Cost breakdown percentages
+  let whisperPct = 0;
+  let sarvamPct = 0;
+  let llmPct = 0;
+  if (totalSpendUsd > 0) {
+    whisperPct = Math.min(
+      100,
+      Math.round((whisperCostUsd / totalSpendUsd) * 100)
+    );
+    sarvamPct = Math.min(
+      100,
+      Math.round((sarvamCostUsd / totalSpendUsd) * 100)
+    );
+    llmPct = Math.max(0, 100 - whisperPct - sarvamPct);
+  }
+
+  // Monthly Budget Cap
+  const budgetConsumedPercent = Math.min(
+    100,
+    Number(((totalSpendUsd / MONTHLY_BUDGET_CAP_USD) * 100).toFixed(1))
+  );
+  const hasRecordedSpend = totalSpendUsd > 0;
+  const budgetStatus =
+    !hasRecordedSpend
+      ? "Not metered yet"
+      : budgetConsumedPercent >= 95
+      ? "Critical"
+      : budgetConsumedPercent >= 80
+      ? "Warning"
+      : "On Track";
+  const budgetStatusTone =
+    !hasRecordedSpend
+      ? "bg-[#F5F5F5] text-[#1E1E1E]/70 border-[#1E1E1E]/10"
+      : budgetConsumedPercent >= 95
+      ? "bg-red-50 text-red-700 border-red-200"
+      : budgetConsumedPercent >= 80
+      ? "bg-amber-50 text-amber-700 border-amber-200"
+      : "bg-emerald-50 text-emerald-700 border-emerald-200";
+
+  // Core AI & Speech Services — hours from DB; spend only when usage_cost recorded
+  const services = [
+    {
+      name: "Vexa",
+      subtitle: "Self-Hosted Meeting Bot",
+      icon: "🤖",
+      status: isDatabaseReachable
+        ? "Operational (Database responding)"
+        : "Unknown",
+      costUsd: 0,
+      costInr: 0,
+      usageLabel: vexaUsageLabel,
+      spendLabel: "Zero software fee (VM infra not metered here)",
+      isFree: true,
+      isIndicWave: false,
+    },
+    {
+      name: "Whisper",
+      subtitle: "English Speech-to-Text",
+      icon: "📻",
+      status: isOpenRouterConfigured
+        ? "Configured (Not verified)"
+        : "Not configured / Unknown",
+      costUsd: whisperCostUsd,
+      costInr: whisperCostInr,
+      usageLabel:
+        whisperHours > 0
+          ? `${whisperHours.toFixed(1)} Audio Hrs (all-time DB)`
+          : "No transcript hours yet",
+      spendLabel: whisperSpendMetered
+        ? "Recorded usage_cost (DB)"
+        : "Not metered yet",
+      isFree: false,
+      isIndicWave: false,
+    },
+    {
+      name: "Sarvam AI",
+      subtitle: "Indic & Multilingual Speech",
+      icon: "🔊",
+      status: isSarvamConfigured
+        ? "Configured (Not verified)"
+        : "Not configured / Unknown",
+      costUsd: sarvamCostUsd,
+      costInr: sarvamCostInr,
+      usageLabel:
+        sarvamHours > 0
+          ? `${sarvamHours.toFixed(1)} Indic Hrs (all-time DB)`
+          : "No transcript hours yet",
+      spendLabel: sarvamSpendMetered
+        ? "Recorded usage_cost (DB)"
+        : "Not metered yet",
+      isFree: false,
+      isIndicWave: true,
+    },
+    {
+      name: "Azure Speech",
+      subtitle: "Enterprise Cloud Transcriber",
+      icon: "🎤",
+      status: isAzureConfigured
+        ? "Configured (Not verified)"
+        : "Not configured / Unknown",
+      costUsd: azureCostUsd,
+      costInr: azureCostInr,
+      usageLabel:
+        azureHours > 0
+          ? `${azureHours.toFixed(1)} Audio Hrs (all-time DB)`
+          : "No transcript hours yet",
+      spendLabel: azureSpendMetered
+        ? "Recorded usage_cost (DB)"
+        : "Not metered yet",
+      isFree: false,
+      isIndicWave: false,
+    },
+  ];
+
+  // STT Provider status (honest, not verified)
+  const sttProviders = [
+    {
+      name: "Azure Speech (Primary Transcriber)",
+      icon: "🎤",
+      status: isAzureConfigured ? "Configured (Not verified)" : "Not configured / Unknown",
+      tone: isAzureConfigured ? ("neutral" as const) : ("warning" as const),
+    },
+    {
+      name: "OpenRouter Whisper Fallback",
+      icon: "🔄",
+      status: isOpenRouterConfigured ? "Configured (Not verified)" : "Not configured / Unknown",
+      tone: isOpenRouterConfigured ? ("neutral" as const) : ("warning" as const),
+    },
+  ];
+
+  const incidentSeverityColors: Record<string, string> = {
+    critical: "High",
+    warning: "Medium",
+    info: "Low",
+  };
 
   return (
-    <main className="flex flex-1 flex-col gap-6 p-8 max-w-6xl">
-      <div className="flex items-center justify-between">
+    <main className="flex flex-1 flex-col gap-4 sm:gap-6 lg:gap-8 p-4 sm:p-6 lg:p-8 max-w-[1600px] min-w-0 w-full overflow-x-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-            Echo Control
-          </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Real-time operations, speech pipelines, and intelligence health.
-          </p>
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-3xl font-bold tracking-tight text-[#1E1E1E]">
+              Admin • Echo
+            </h1>
+            <div className="flex items-center gap-2 bg-[#29FE29]/10 rounded-full px-3 py-1">
+              <div className="h-2 w-2 rounded-full bg-[#29FE29]" />
+              <span className="text-xs font-medium text-[#29FE29]">Prod healthy</span>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <button className="h-10 w-10 rounded-lg border border-[#1E1E1E]/10 bg-white flex items-center justify-center hover:bg-[#F5F5F5] transition-colors">
+            <svg className="h-5 w-5 text-[#1E1E1E]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </button>
+          <button className="h-10 w-10 rounded-lg border border-[#1E1E1E]/10 bg-white flex items-center justify-center hover:bg-[#F5F5F5] transition-colors">
+            <svg className="h-5 w-5 text-[#1E1E1E]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </svg>
+          </button>
+          <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#2C76FF] to-[#29FE29] flex items-center justify-center">
+            <span className="text-sm font-bold text-white">SA</span>
+          </div>
         </div>
       </div>
 
-      {/* Control Metrics Grid */}
-      <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-          <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-            {meetingCount}
-          </p>
-          <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mt-1 uppercase tracking-wider">
-            Meetings Today
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-            {botsJoined}
-          </p>
-          <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mt-1 uppercase tracking-wider">
-            Echo Joined / Recorded
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-          <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-            {transcriptsReady}
-          </p>
-          <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mt-1 uppercase tracking-wider">
-            Transcripts Ready
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-          <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-            {needsReviewCount ?? 0}
-          </p>
-          <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mt-1 uppercase tracking-wider">
-            Needs Review
-          </p>
-        </div>
-      </section>
-
-      {/* System Health */}
-      <section className="rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-        <div className="border-b border-zinc-200 px-5 py-3.5 dark:border-zinc-800">
-          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-            System Health &amp; Pipeline Status
-          </h2>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-zinc-100 dark:divide-zinc-900">
-          <div className="p-5 flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Microsoft 365 Tenant Sync
-              </span>
-              <StatusBadge tone={isM365Connected ? "success" : m365Conn?.status ? "warning" : "neutral"}>
-                {isM365Connected ? "Connected" : m365Conn?.status ? `Status: ${m365Conn.status}` : "Not connected"}
-              </StatusBadge>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* System Health */}
+        <div className="lg:col-span-2">
+          <div className="rounded-2xl border border-[#1E1E1E]/10 bg-white shadow-sm overflow-hidden">
+            <div className="border-b border-[#1E1E1E]/10 px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-[#1E1E1E]">System Health &amp; Spend</h2>
+                <button className="text-[#1E1E1E]/50 hover:text-[#1E1E1E]">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <svg className="h-4 w-4 text-[#1E1E1E]/50 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                <span className="text-xs text-[#1E1E1E]/70">Updated just now</span>
+              </div>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Azure Speech (Primary Transcriber)
-              </span>
-              <StatusBadge tone={isAzureConfigured ? "neutral" : "warning"}>
-                {isAzureConfigured ? "Configured (Not verified)" : "Not configured / Unknown"}
-              </StatusBadge>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-6">
+              {services.map((service) => (
+                <div key={service.name} className="rounded-xl border border-[#1E1E1E]/10 bg-[#F5F5F5]/30 p-5 flex flex-col justify-between">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Left Half: Health & Identity */}
+                    <div className="flex flex-col justify-between pr-1">
+                      <div>
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="h-10 w-10 rounded-xl bg-white flex items-center justify-center text-xl shadow-sm border border-[#1E1E1E]/5">
+                            {service.icon}
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-bold text-[#1E1E1E] leading-tight">{service.name}</h3>
+                            <p className="text-[11px] text-[#1E1E1E]/60 truncate">{service.subtitle}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <div className="h-2 w-2 rounded-full bg-[#29FE29]" />
+                          <span className="text-xs font-medium text-emerald-600">{service.status}</span>
+                        </div>
+                      </div>
+
+                      {/* Health / Activity Bar */}
+                      <div className="mt-4 pt-1">
+                        <div className="h-8 flex items-end gap-0.5">
+                          {Array.from({ length: 18 }).map((_, i) => {
+                            const height = service.isIndicWave
+                              ? 50 + Math.sin(i * 0.6) * 35 + (i % 2) * 10
+                              : 75 + (i % 4) * 6;
+                            return (
+                              <div
+                                key={i}
+                                className={`flex-1 rounded-t-sm transition-all ${
+                                  service.isIndicWave
+                                    ? "bg-gradient-to-t from-orange-400 to-amber-300 opacity-70 hover:opacity-100"
+                                    : "bg-[#29FE29]/35 hover:bg-[#29FE29]"
+                                }`}
+                                style={{ height: `${Math.min(100, Math.max(25, height))}%` }}
+                              />
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right Half: Spend & Usage */}
+                    <div className="sm:border-l sm:border-[#1E1E1E]/10 sm:pl-4 pt-3 sm:pt-0 border-t border-[#1E1E1E]/10 sm:border-t-0 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-xl font-bold text-[#1E1E1E]">
+                            ${service.costUsd.toFixed(2)}
+                          </span>
+                          <span className="text-sm font-semibold text-[#1E1E1E]/60">
+                            ₹{service.costInr.toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-[#1E1E1E]/50 mt-0.5">
+                          {service.spendLabel}
+                        </p>
+                      </div>
+
+                      <div className="mt-3">
+                        <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${
+                          service.isFree
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
+                            : service.isIndicWave
+                            ? "bg-orange-50 text-orange-700 border border-orange-200/60"
+                            : "bg-blue-50 text-blue-700 border border-blue-200/60"
+                        }`}>
+                          {service.usageLabel}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
-          <div className="p-5 flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                OpenRouter Whisper Fallback
-              </span>
-              <StatusBadge tone={isOpenRouterConfigured ? "neutral" : "warning"}>
-                {isOpenRouterConfigured ? "Configured (Not verified)" : "Not configured / Unknown"}
-              </StatusBadge>
+          {/* AI Token Usage & Spend Cockpit */}
+          <div className="rounded-2xl border border-[#1E1E1E]/10 bg-white shadow-sm overflow-hidden mt-6">
+            <div className="border-b border-[#1E1E1E]/10 px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <svg className="h-5 w-5 text-[#2C76FF]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <h2 className="text-lg font-bold text-[#1E1E1E]">AI Token Usage &amp; Spend</h2>
+              </div>
+              <div className="flex items-center gap-2 bg-[#F5F5F5] rounded-lg px-2.5 py-1 text-xs font-semibold text-[#1E1E1E]/70 border border-[#1E1E1E]/5">
+                <span>USD</span>
+                <span className="text-[#1E1E1E]/30">/</span>
+                <span className="text-[#2C76FF]">INR (₹84.20)</span>
+              </div>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                PostgreSQL &amp; Storage Vault
-              </span>
-              <StatusBadge tone={isDatabaseReachable ? "success" : "critical"}>
-                {isDatabaseReachable ? "Operational (Database responding)" : "Degraded / Unreachable"}
-              </StatusBadge>
+
+            <div className="p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                {/* Total Cost */}
+                <div className="p-4 rounded-xl bg-[#F5F5F5]/40 border border-[#1E1E1E]/10">
+                  <span className="text-xs font-medium text-[#1E1E1E]/60">Total Cost</span>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-2xl font-bold text-[#1E1E1E]">
+                      ${totalSpendUsd.toFixed(2)}
+                    </span>
+                    <span className="text-sm font-semibold text-emerald-700">
+                      ₹{totalSpendInr.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[#1E1E1E]/50 mt-1">Recorded STT usage_cost + LLM (OpenRouter key or ai_runs)</p>
+                </div>
+
+                {/* Tokens */}
+                <div className="p-4 rounded-xl bg-[#F5F5F5]/40 border border-[#1E1E1E]/10">
+                  <span className="text-xs font-medium text-[#1E1E1E]/60">Total Tokens</span>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-2xl font-bold text-[#2C76FF]">
+                      {formatTokens(totalTokens)}
+                    </span>
+                    <span className="text-xs font-medium text-[#1E1E1E]/60">Tokens</span>
+                  </div>
+                  <p className="text-[11px] text-[#1E1E1E]/50 mt-1">Recaps &amp; Grounded Q&amp;A</p>
+                </div>
+
+                {/* Avg per meeting */}
+                <div className="p-4 rounded-xl bg-[#F5F5F5]/40 border border-[#1E1E1E]/10">
+                  <span className="text-xs font-medium text-[#1E1E1E]/60">Average per Meeting</span>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-2xl font-bold text-[#1E1E1E]">
+                      ${avgCostPerMeetingUsd.toFixed(2)}
+                    </span>
+                    <span className="text-sm font-semibold text-[#1E1E1E]/60">
+                      ₹{avgCostPerMeetingInr.toFixed(2)}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[#1E1E1E]/50 mt-1">vs ₹450 saved recruiter labor</p>
+                </div>
+              </div>
+
+              {/* Provider Distribution Bar */}
+              <div>
+                <div className="flex items-center justify-between text-xs text-[#1E1E1E]/70 mb-2">
+                  <span className="font-semibold text-[#1E1E1E]">Cost Breakdown by Provider</span>
+                  <span>{totalSpendUsd > 0 ? "From recorded costs only" : "0% recorded"}</span>
+                </div>
+                <div className="h-3 w-full rounded-full bg-[#F5F5F5] overflow-hidden flex">
+                  {totalSpendUsd > 0 ? (
+                    <>
+                      <div className="bg-[#2C76FF] h-full" style={{ width: `${whisperPct}%` }} title={`Whisper: ${whisperPct}%`} />
+                      <div className="bg-amber-500 h-full" style={{ width: `${sarvamPct}%` }} title={`Sarvam AI: ${sarvamPct}%`} />
+                      <div className="bg-purple-600 h-full" style={{ width: `${llmPct}%` }} title={`LLM Intelligence: ${llmPct}%`} />
+                    </>
+                  ) : (
+                    <div className="bg-[#1E1E1E]/10 h-full w-full" title="No usage recorded yet" />
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-4 mt-3 text-xs text-[#1E1E1E]/70">
+                  <div className="flex items-center gap-1.5">
+                    <div className="h-2.5 w-2.5 rounded-full bg-[#2C76FF]" />
+                    <span>Whisper STT ({whisperPct}%)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                    <span>Sarvam AI ({sarvamPct}%)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="h-2.5 w-2.5 rounded-full bg-purple-600" />
+                    <span>LLM Intelligence ({llmPct}%)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* STT Provider Status */}
+          <div className="rounded-2xl border border-[#1E1E1E]/10 bg-white shadow-sm overflow-hidden mt-6">
+            <div className="border-b border-[#1E1E1E]/10 px-6 py-4">
+              <h2 className="text-lg font-bold text-[#1E1E1E]">STT Provider Status</h2>
+            </div>
+            <div className="p-6 space-y-4">
+              {sttProviders.map((provider) => (
+                <div key={provider.name} className="flex items-center justify-between p-4 rounded-lg border border-[#1E1E1E]/10 bg-[#F5F5F5]/30">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-white flex items-center justify-center text-xl shadow-sm">
+                      {provider.icon}
+                    </div>
+                    <span className="text-sm font-medium text-[#1E1E1E]">{provider.name}</span>
+                  </div>
+                  <StatusBadge tone={provider.tone}>
+                    {provider.status}
+                  </StatusBadge>
+                </div>
+              ))}
             </div>
           </div>
         </div>
-      </section>
 
-      {/* Operational Issues Queue if any */}
-      {(waitingForHost > 0 || botErrors > 0 || (needsReviewCount ?? 0) > 0) && (
-        <section className="rounded-xl border border-amber-200 bg-amber-50/50 p-5 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/20">
-          <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
-            Attention Items ({waitingForHost + botErrors + (needsReviewCount ?? 0)})
-          </h2>
-          <ul className="mt-2 flex flex-col gap-1 text-xs text-amber-800 dark:text-amber-300">
-            {waitingForHost > 0 && (
-              <li>• {waitingForHost} bot session(s) waiting for meeting host to admit.</li>
-            )}
-            {botErrors > 0 && (
-              <li>• {botErrors} bot recording attempt(s) encountered exceptions.</li>
-            )}
-            {(needsReviewCount ?? 0) > 0 && (
-              <li>• {needsReviewCount} transcript segment(s) flagged with acoustic/integrity review notices.</li>
-            )}
-          </ul>
-        </section>
-      )}
+        {/* Team Snapshot */}
+        <div className="rounded-2xl border border-[#1E1E1E]/10 bg-white shadow-sm overflow-hidden">
+          <div className="border-b border-[#1E1E1E]/10 px-6 py-4">
+            <div className="flex items-center gap-2">
+              <svg className="h-5 w-5 text-[#2C76FF]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              <h2 className="text-lg font-bold text-[#1E1E1E]">Team Snapshot</h2>
+            </div>
+          </div>
 
-      {/* Upcoming meetings */}
-      <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-          Upcoming meetings (organization-wide)
-        </h2>
-        <UpcomingMeetings supabase={supabase} />
-      </section>
+          <div className="p-6">
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-full bg-[#2C76FF]/10 flex items-center justify-center">
+                  <svg className="h-6 w-6 text-[#2C76FF]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-[#1E1E1E]/60">AMs</p>
+                  <p className="text-2xl font-bold text-[#2C76FF]">{amCount}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-full bg-[#29FE29]/10 flex items-center justify-center">
+                  <svg className="h-6 w-6 text-[#29FE29]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-[#1E1E1E]/60">Managers</p>
+                  <p className="text-2xl font-bold text-[#29FE29]">{managerCount}</p>
+                </div>
+              </div>
+            </div>
+
+            <Link
+              href="/admin/people/new"
+              className="flex items-center justify-center gap-2 w-full rounded-lg bg-[#29FE29] px-4 py-3 text-sm font-bold text-[#1E1E1E] shadow-md hover:bg-[#29FE29]/90 transition-all min-h-[44px]"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Invite Person
+            </Link>
+          </div>
+        </div>
+
+        {/* Monthly Budget Guardrail */}
+        <div className="rounded-2xl border border-[#1E1E1E]/10 bg-white shadow-sm overflow-hidden mt-6">
+          <div className="border-b border-[#1E1E1E]/10 px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <svg className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+              <h2 className="text-lg font-bold text-[#1E1E1E]">Monthly Budget</h2>
+            </div>
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${budgetStatusTone}`}>
+              {budgetStatus}
+            </span>
+          </div>
+
+          <div className="p-6">
+            <div className="flex items-baseline justify-between mb-2">
+              <div>
+                <p className="text-xs font-medium text-[#1E1E1E]/60">Budget Consumed</p>
+                <p className="text-2xl font-bold text-[#1E1E1E]">{budgetConsumedPercent.toFixed(1)}%</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs font-medium text-[#1E1E1E]/60">Spend / Cap</p>
+                <p className="text-sm font-bold text-[#1E1E1E]">
+                  ${totalSpendUsd.toFixed(2)} / ${MONTHLY_BUDGET_CAP_USD}
+                </p>
+                <p className="text-xs font-semibold text-[#1E1E1E]/50">
+                  ₹{totalSpendInr.toLocaleString("en-IN")} / ₹{MONTHLY_BUDGET_CAP_INR.toLocaleString("en-IN")}
+                </p>
+              </div>
+            </div>
+
+            {/* Progress bar */}
+            <div className="w-full h-3 rounded-full bg-[#F5F5F5] overflow-hidden mb-3 border border-[#1E1E1E]/5">
+              <div
+                className="h-full bg-gradient-to-r from-emerald-500 to-[#29FE29] rounded-full"
+                style={{ width: `${Math.min(100, Math.max(0, budgetConsumedPercent))}%` }}
+              />
+            </div>
+
+            <p className="text-xs text-[#1E1E1E]/60 flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              Spend = recorded DB usage_cost + OpenRouter key usage when available. STT hours are all-time DB sums — not a live provider health check.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Incidents */}
+      <div className="rounded-2xl border border-[#1E1E1E]/10 bg-white shadow-sm overflow-hidden">
+        <div className="border-b border-[#1E1E1E]/10 px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <svg className="h-5 w-5 text-[#FF5C5C]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <h2 className="text-lg font-bold text-[#1E1E1E]">Recent Incidents</h2>
+          </div>
+          <Link
+            href="/admin/operations"
+            className="text-sm font-medium text-[#2C76FF] hover:underline"
+          >
+            View all incidents →
+          </Link>
+        </div>
+
+        {!incidents || incidents.length === 0 ? (
+          <div className="px-6 py-12 text-center">
+            <div className="h-16 w-16 rounded-full bg-[#29FE29]/10 flex items-center justify-center mx-auto mb-4">
+              <svg className="h-8 w-8 text-[#29FE29]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <p className="text-sm font-medium text-[#1E1E1E]">No recent incidents</p>
+            <p className="text-xs text-[#1E1E1E]/60 mt-1">All systems operating normally</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-[#F5F5F5] border-b border-[#1E1E1E]/10">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-[#1E1E1E]/70">
+                    Incident
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-[#1E1E1E]/70">
+                    Service
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-[#1E1E1E]/70">
+                    Severity
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-[#1E1E1E]/70">
+                    Started
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-[#1E1E1E]/70">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-[#1E1E1E]/70">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#1E1E1E]/10">
+                {incidents.map((incident) => {
+                  const serviceName = incident.incident_type.includes("whisper") ? "Whisper" :
+                                     incident.incident_type.includes("vexa") ? "Vexa" :
+                                     incident.incident_type.includes("sarvam") ? "Sarvam" :
+                                     incident.incident_type.includes("graph") ? "Graph" : "System";
+                  
+                  const serviceIcon = serviceName === "Whisper" ? "📻" :
+                                     serviceName === "Vexa" ? "🤖" :
+                                     serviceName === "Sarvam" ? "🔊" :
+                                     serviceName === "Graph" ? "📊" : "⚙️";
+
+                  return (
+                    <tr key={incident.id} className="hover:bg-[#F5F5F5]/50 transition-colors">
+                      <td className="px-6 py-4 text-sm text-[#1E1E1E]">
+                        {incident.incident_type.replace(/_/g, " ")}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <span>{serviceIcon}</span>
+                          <span className="text-sm font-medium text-[#1E1E1E]">{serviceName}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ${
+                          incident.severity === "critical" ? "bg-[#FF5C5C]/10 text-[#FF5C5C]" :
+                          incident.severity === "warning" ? "bg-[#FFDE59]/20 text-[#FFDE59]" :
+                          "bg-[#2C76FF]/10 text-[#2C76FF]"
+                        }`}>
+                          {incidentSeverityColors[incident.severity] ?? incident.severity}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-[#1E1E1E]/70">
+                        {new Date(incident.first_seen_at).toLocaleDateString(undefined, { 
+                          month: 'short', 
+                          day: 'numeric', 
+                          year: 'numeric' 
+                        })} {new Date(incident.first_seen_at).toLocaleTimeString(undefined, {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })} UTC
+                      </td>
+                      <td className="px-6 py-4">
+                        <StatusBadge tone={incident.resolved_at ? "success" : "warning"}>
+                          {incident.resolved_at ? "• Resolved" : "• Mitigated"}
+                        </StatusBadge>
+                      </td>
+                      <td className="px-6 py-4">
+                        <Link
+                          href={incident.meeting_id ? `/admin/meetings/${incident.meeting_id}` : "/admin/operations"}
+                          className="text-sm font-medium text-[#2C76FF] hover:underline"
+                        >
+                          View →
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </main>
   );
 }

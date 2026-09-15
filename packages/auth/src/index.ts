@@ -4,6 +4,8 @@ import type { PermissionKey, SystemRoleKey } from "@applywizz/domain";
 
 export type AppSupabaseClient = SupabaseClient<Database>;
 
+export * from "./email-validation";
+
 export class UnauthenticatedError extends Error {
   constructor() {
     super("No authenticated user.");

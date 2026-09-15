@@ -82,6 +82,18 @@ export function toVexaEnv(env: ReturnType<typeof getVexaEnv>) {
   } as const;
 }
 
+/**
+ * Bot avatar URL for Teams meeting presence. Defaults to the hosted Apply
+ * Wizz logo but can be overridden via VEXA_BOT_AVATAR_URL env var for
+ * testing or custom branding. Returns undefined if explicitly set to empty
+ * string (disables avatar).
+ */
+export function getBotAvatarUrl(): string | undefined {
+  const envValue = process.env.VEXA_BOT_AVATAR_URL;
+  if (envValue === "") return undefined;
+  return envValue ?? "https://echo.applywizz.ai/bot-avatar.png";
+}
+
 export function getOpenAiEnv() {
   return {
     OPENAI_API_KEY: required("OPENAI_API_KEY", process.env.OPENAI_API_KEY),
@@ -208,9 +220,17 @@ export function getAzureMaiEnv() {
   } as const;
 }
 
+export function getSarvamEnv() {
+  const apiKey = process.env.SARVAM_API_KEY;
+  return {
+    SARVAM_API_KEY: apiKey,
+    isConfigured: Boolean(apiKey),
+  } as const;
+}
+
 export function getTranscriptionConfigEnv() {
   const primaryProvider =
-    (process.env.TRANSCRIPTION_PRIMARY_PROVIDER as "azure-mai" | "openrouter" | undefined) ??
+    (process.env.TRANSCRIPTION_PRIMARY_PROVIDER as "azure-mai" | "sarvam" | "openrouter" | undefined) ??
     "openrouter";
   return {
     TRANSCRIPTION_PRIMARY_PROVIDER: primaryProvider,

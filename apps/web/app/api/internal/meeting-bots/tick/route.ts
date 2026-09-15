@@ -4,12 +4,17 @@ import {
   processPendingBotJobs,
   reconcileOrganizationMeetingBots,
   syncBotStatuses,
+  detectAndStopEndedMeetingBots,
 } from "@applywizz/domain/meeting-bots";
+import { processLiveAlerts } from "@applywizz/domain";
 import { VexaMeetingBotProvider } from "@applywizz/meeting-bots";
+import { getAppOnlyAccessToken } from "@applywizz/microsoft";
 import {
   getSupabaseServiceRoleKey,
   getVexaEnv,
   toVexaEnv,
+  getBotAvatarUrl,
+  getMicrosoftEnv,
 } from "@/env/server";
 import { getClientEnv } from "@/env/client";
 import { isAuthorizedInternalRequest } from "@/lib/internal-route-auth";
@@ -74,14 +79,41 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Track B′: Get Graph token for lobby bypass (best-effort, safe to skip)
+  let graphAccessToken: string | undefined;
+  try {
+    const microsoftEnv = getMicrosoftEnv();
+    const tokenResult = await getAppOnlyAccessToken({
+      tenantId: microsoftEnv.MICROSOFT_TENANT_ID,
+      clientId: microsoftEnv.MICROSOFT_CLIENT_ID,
+      clientSecret: microsoftEnv.MICROSOFT_CLIENT_SECRET,
+    });
+    graphAccessToken = tokenResult.accessToken;
+  } catch {
+    // Best-effort: if token fetch fails, bot creation still proceeds
+    graphAccessToken = undefined;
+  }
+
   const processResult = await processPendingBotJobs(
     serviceRoleClient,
     provider,
+    10,
+    getBotAvatarUrl(),
+    graphAccessToken,
   );
   const statusResult = await syncBotStatuses(serviceRoleClient, provider);
 
+  // Phase-1 P1: Auto-leave detection - stop bots for ended meetings
+  const autoLeaveResult = await detectAndStopEndedMeetingBots(
+    serviceRoleClient,
+    provider,
+  );
+
+  // Phase-1: Process live alerts for lobby stuck and customer missing
+  const alertsResult = await processLiveAlerts(serviceRoleClient);
+
   return NextResponse.json(
-    { reconcileResults, processResult, statusResult },
+    { reconcileResults, processResult, statusResult, autoLeaveResult, alertsResult },
     { status: 200 },
   );
 }

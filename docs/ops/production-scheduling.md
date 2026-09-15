@@ -16,7 +16,7 @@ Each route now exports `GET` (aliased to the same handler as `POST`) so Vercel's
 |---|---|---|---|---|---|---|---|
 | Calendar-event processing | `POST/GET /api/internal/calendar-events/process` | every 1 min | `processCalendarEventQueue`'s own `maxJobs` default of 20 (`packages/domain/src/meetings.ts:412`) — a single global bounded claim loop, not per-org | must complete comfortably inside whatever serverless execution ceiling the chosen Vercel plan provides — 20 bounded DB/Graph calls, no ffmpeg, no large payload | existing per-job `attempts`/backoff, unchanged | route returns per-job results; a non-200 or thrown error is the alert signal for now (M17B does not add a new incident type for this specific route beyond what M16 already surfaces via stuck/failed job detection) | scheduler (Vercel Cron) |
 | Meeting-bot orchestration | `POST/GET /api/internal/meeting-bots/tick` | every 1 min | per-org reconcile loop + one global `processPendingBotJobs`/`syncBotStatuses` pass each | same as above; bot API calls are bounded metadata calls, not audio | existing per-queue retry/backoff (M6), unchanged; M16's stuck-bot recovery (`operations/recover`) is the safety net if a tick is ever missed | existing per-org try/catch; M16's stuck/failed detection and `/admin/operations` cover the rest | scheduler |
-| Meeting intelligence | `POST/GET /api/internal/meeting-intelligence/process` | every 2 min | per-org enqueue + one global `processIntelligenceQueue` batch of 5 | LLM calls have real latency — 5 sequential calls in one invocation is the risk M17A flagged as "plausible" (not certain) to watch during real load; if this ever proves too slow for the serverless ceiling, lowering the batch size and cadence is the fix, not moving it to a worker (no OS-binary dependency here) | existing `MAX_RETRY_COUNT=5` backoff, unchanged | existing | scheduler |
+| Meeting intelligence | `POST/GET /api/internal/meeting-intelligence/process` | every 2 min | per-org enqueue + one global `processIntelligenceQueue` batch of 5, then a `processOutcomeQueue` backfill of 5 (derive Overview rows from completed intelligence; Outcome LLM only when no intelligence exists) | LLM calls have real latency — 5 sequential calls in one invocation is the risk M17A flagged as "plausible" (not certain) to watch during real load; if this ever proves too slow for the serverless ceiling, lowering the batch size and cadence is the fix, not moving it to a worker (no OS-binary dependency here) | existing `MAX_RETRY_COUNT=5` backoff, unchanged | existing | scheduler |
 | Tenant-sync reconciliation | `POST/GET /api/internal/tenant-sync/reconcile` | every 10 min | per-connection loop (poll-only, no webhooks for this path) | bounded, lower frequency by design — reconciliation, not the hot path | existing, unchanged | existing | scheduler |
 | Customer-linkage reconciliation | `POST/GET /api/internal/customer-linkage/reconcile` | every 10 min | per-org loop | same | existing, unchanged | existing | scheduler |
 | Scheduler-linkage reconciliation | `POST/GET /api/internal/scheduler-linkage/reconcile` | every 10 min | per-org loop (scheduler tiers 1-3, then attendee-email fallback) | same; depends on the real ApplyWizz scheduler API's own latency, and per `docs/ops/production-secrets-checklist.md` that upstream endpoint is currently unauthenticated — a pre-existing blocker this schedule doesn't fix | existing, unchanged | existing | scheduler |
@@ -41,3 +41,19 @@ Both `workers/orchestrator/bot-worker.mjs` (pre-existing, M6) and the new `worke
 ## Known limitation: a fully-dead worker can't report its own death
 
 The Docker `HEALTHCHECK` and container-orchestrator restart policy are the correct layer for "is the transcription worker process alive" — a process that has crashed entirely cannot write an incident about its own crash. If the worker is down long enough for a job it had claimed to go stale, M16's existing stuck-job detection (`/admin/operations`) surfaces that downstream effect, which is the honest, available signal — not a direct "worker is down" alert. This is a structural property of the design, not something this checkpoint can close without external monitoring on the container itself (out of scope — no such monitoring infrastructure exists to wire into yet).
+
+## Hobby plan gap: workers-VM HTTP tick
+
+Vercel Hobby does **not** execute the full `vercel.json` cron set in production (only `microsoft-subscriptions/renew` has been observed live). The durable substitute lives on **applywizz-signal-workers-vm** (`20.219.134.86`, not the Vexa VM):
+
+- Script (source of truth in repo): `scripts/tick-internal-queues.sh`
+- Deployed path: `/home/awworker/applywizz-signal/bin/tick-internal-queues.sh`
+- Cron: `* * * * * /home/awworker/applywizz-signal/bin/tick-internal-queues.sh`
+- Log: `/home/awworker/applywizz-signal/logs/internal-ticks.log`
+- Auth: `x-internal-queue-secret: $INTERNAL_QUEUE_SECRET` (same as other `/api/internal/*` routes)
+- Base URL: `APP_BASE_URL` (production: `https://echo.applywizz.ai`)
+
+Current tick paths include calendar-events, meeting-policy, **meeting-outcome**, meeting-intelligence, and operations/recover. Overlapping minute runs are skipped via `flock` (`INTERNAL_TICK_LOCK`).
+
+Bot orchestration and transcription continue to run as Docker workers on the same VM (`bot-worker`, `transcription-worker`), calling domain code directly rather than HTTP.
+

@@ -47,8 +47,10 @@ import { MEETING_RECORDINGS_BUCKET } from "@applywizz/domain/meeting-recordings"
 import {
   OpenRouterNormalizationProvider,
   OpenRouterTranscriptionProvider,
+  SarvamTranscriptionProvider,
   createTranscriptionProvider,
 } from "@applywizz/transcription";
+import { shouldUseLanguageRouting } from "@applywizz/domain/language-routing";
 
 const TICK_INTERVAL_MS = Number(
   process.env.TRANSCRIPTION_WORKER_TICK_INTERVAL_MS ?? 60_000,
@@ -68,13 +70,19 @@ const supabase = createClient(
 );
 
 const openRouterApiKey = requiredEnv("OPENROUTER_API_KEY");
-const primaryProvider = process.env.TRANSCRIPTION_PRIMARY_PROVIDER || "openrouter";
+const primaryProviderName = process.env.TRANSCRIPTION_PRIMARY_PROVIDER || "openrouter";
 const azureEndpoint = process.env.AZURE_MAI_ENDPOINT;
 const azureKey = process.env.AZURE_MAI_KEY;
 const azureRegion = process.env.AZURE_MAI_REGION;
+const sarvamApiKey = process.env.SARVAM_API_KEY;
+const enableLanguageRouting = process.env.ENABLE_LANGUAGE_ROUTING !== "false";
+
+// Create individual provider instances for language-based routing
+const whisperProvider = new OpenRouterTranscriptionProvider(openRouterApiKey);
+const sarvamProvider = sarvamApiKey ? new SarvamTranscriptionProvider(sarvamApiKey) : undefined;
 
 const transcriptionProvider = createTranscriptionProvider({
-  primaryProvider,
+  primaryProvider: primaryProviderName,
   azureMai: (azureEndpoint && azureKey)
     ? {
         endpoint: azureEndpoint,
@@ -82,15 +90,32 @@ const transcriptionProvider = createTranscriptionProvider({
         region: azureRegion,
       }
     : undefined,
+  sarvam: sarvamApiKey ? { apiKey: sarvamApiKey } : undefined,
   openRouter: {
     apiKey: openRouterApiKey,
   },
 });
 
-const fallbackProvider =
-  primaryProvider === "azure-mai"
-    ? new OpenRouterTranscriptionProvider(openRouterApiKey)
-    : undefined;
+// Language-based routing (new default) OR legacy provider chain (backward compat)
+let providers = undefined;
+let fallbackProvider = undefined;
+let useLanguageRouting = false;
+
+if (shouldUseLanguageRouting(primaryProviderName, enableLanguageRouting)) {
+  // New: Language-based routing enabled
+  // Providers will be selected at runtime based on detected language
+  useLanguageRouting = true;
+} else if (primaryProviderName === "azure-mai") {
+  // Legacy: Three-provider fallback chain for azure-mai primary (Azure → Sarvam → Whisper)
+  if (sarvamProvider) {
+    providers = [transcriptionProvider, sarvamProvider, whisperProvider];
+  } else {
+    providers = [transcriptionProvider, whisperProvider];
+  }
+} else {
+  // Legacy: Single provider, no fallback
+  fallbackProvider = undefined;
+}
 
 const deps = {
   vexaEnv: {
@@ -99,6 +124,11 @@ const deps = {
   },
   transcriptionProvider,
   fallbackProvider,
+  providers,
+  useLanguageRouting,
+  whisperProvider,
+  sarvamProvider,
+  azureProvider: (azureEndpoint && azureKey) ? transcriptionProvider : undefined,
   normalizationProvider: new OpenRouterNormalizationProvider(openRouterApiKey),
   storage: supabase.storage.from(MEETING_RECORDINGS_BUCKET),
 };

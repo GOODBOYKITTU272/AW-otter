@@ -8,13 +8,22 @@ import {
   type MeetingRecapData,
   type TranscriptSegmentData,
 } from "@applywizz/domain/meeting-recap";
+import {
+  getMeetingOutcome,
+  resolveMeetingOutcome,
+  type MeetingOutcomeData,
+} from "@applywizz/domain/meeting-outcome";
 import { ConfirmRejectActions } from "@/components/customer-truth/confirm-reject-actions";
 import { ResolveAction } from "@/components/actions/resolve-action";
 import { requireRole } from "@/lib/require-role";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { MediaPlayer } from "@/components/recap/media-player";
+import { RegenerateOutcomeButton } from "@/components/meetings/regenerate-outcome-button";
+import { extractClaimSnippet } from "@applywizz/domain/meeting-outcome-evidence";
 
 import styles from "./meeting-detail.module.css";
 import { MeetingDetailTabs } from "./meeting-detail-tabs";
+import { canViewRawTranscript as roleCanViewRawTranscript } from "./meeting-detail-access";
 import { computeProcessingTimeline, type TimelineStep } from "./timeline";
 
 /**
@@ -90,13 +99,6 @@ export default async function MeetingDetailPage({
     : { data: [], error: null };
   if (segmentsError) throw segmentsError;
 
-  const { data: lifecycleEvents, error: eventsError } = await supabase
-    .from("meeting_lifecycle_events")
-    .select("id, event_type, occurred_at, source")
-    .eq("meeting_id", id)
-    .order("occurred_at", { ascending: false });
-  if (eventsError) throw eventsError;
-
   const { data: speakerInterpretations } = await supabase
     .from("meeting_speaker_interpretations")
     .select("raw_speaker_tag, business_role, interpreted_name, confirmed_by_human")
@@ -120,6 +122,12 @@ export default async function MeetingDetailPage({
     .maybeSingle();
 
   const recapState = await getMeetingRecapData(supabase, id);
+  let persistedOutcome = null;
+  try {
+    persistedOutcome = await getMeetingOutcome(supabase, id);
+  } catch {
+    persistedOutcome = null;
+  }
 
   const intelligenceStatus =
     recapState?.status === "ready"
@@ -151,7 +159,9 @@ export default async function MeetingDetailPage({
   });
 
   const isAdmin = membership.roleKey === "admin";
+  const canViewRawTranscript = roleCanViewRawTranscript(membership.roleKey);
   const recap = recapState?.status === "ready" ? recapState.recap : null;
+  const outcome = resolveMeetingOutcome(persistedOutcome, recap);
   const segmentById = new Map(
     (segmentRows ?? []).map((s) => [
       s.id,
@@ -171,12 +181,13 @@ export default async function MeetingDetailPage({
   const openActionsCount = actions.filter((a) => a.status === "detected").length;
   const truthDeltas = recap?.result.customerTruthDeltas.filter((d) => !d.noChange) ?? [];
   const pendingTruthCount = truthDeltas.filter((d) => d.status === "proposed").length;
+  const needsReviewCount = (segmentRows ?? []).filter((s) => s.needs_review).length;
 
   const statusMeta = deriveStatusBadge(timeline);
 
   return (
     <div className={styles.root}>
-      <div style={{ padding: "14px 28px 0" }}>
+      <div className={styles.backLinkWrap}>
         <Link href="/admin/meetings" className={styles.backLink}>
           &larr; All meetings
         </Link>
@@ -210,51 +221,73 @@ export default async function MeetingDetailPage({
             label: "Overview",
             content: (
               <OverviewTab
+                outcome={outcome}
                 recap={recap}
                 recapState={recapState}
                 decisions={decisions}
                 actions={actions}
-                truthDeltas={truthDeltas}
                 segmentById={segmentById}
-                previewSegments={(segmentRows ?? []).slice(0, 2)}
-                speakerMap={speakerMap}
-                integrityReport={integrityReport}
-                meetingId={id}
                 meeting={meeting}
-                botJob={botJob}
+                meetingId={id}
                 isAdmin={isAdmin}
               />
             ),
           },
           {
-            key: "transcript",
-            label: "Transcript",
+            key: "audio",
+            label: "Audio",
             content: (
-              <TranscriptTab
-                segments={segmentRows ?? []}
-                transcript={transcript}
-                speakerMap={speakerMap}
+              <AudioTab
+                meetingId={id}
+                botJob={botJob}
               />
             ),
           },
           {
-            key: "actions",
-            label: "Actions",
-            count: openActionsCount,
+            key: "video",
+            label: "Video",
             content: (
-              <ActionsTab actions={actions} decisions={decisions} segmentById={segmentById} />
+              <VideoTab
+                meetingId={id}
+                botJob={botJob}
+              />
             ),
           },
+          // Transcript tab: Only visible to managers and admins, hidden from account_managers
+          ...(canViewRawTranscript
+            ? [
+                {
+                  key: "transcript",
+                  label: "Transcript",
+                  content: (
+                    <TranscriptTab
+                      segments={segmentRows ?? []}
+                      transcript={transcript}
+                      speakerMap={speakerMap}
+                    />
+                  ),
+                },
+              ]
+            : []),
           {
-            key: "customer-truth",
-            label: "Customer Truth",
-            count: pendingTruthCount,
-            content: <CustomerTruthTab deltas={truthDeltas} segmentById={segmentById} />,
-          },
-          {
-            key: "activity",
-            label: "Activity",
-            content: <ActivityTab events={lifecycleEvents ?? []} />,
+            key: "insights",
+            label: "Insights",
+            content: (
+              <InsightsTab
+                actions={actions}
+                decisions={decisions}
+                truthDeltas={truthDeltas}
+                segmentById={segmentById}
+                openActionsCount={openActionsCount}
+                pendingTruthCount={pendingTruthCount}
+                integrityReport={integrityReport}
+                meetingId={id}
+                botJob={botJob}
+                outcome={outcome}
+                isAdmin={isAdmin}
+                needsReviewCount={needsReviewCount}
+              />
+            ),
           },
         ]}
       />
@@ -265,100 +298,61 @@ export default async function MeetingDetailPage({
 // ---------- Overview ----------
 
 function OverviewTab({
+  outcome,
   recap,
   recapState,
   decisions,
   actions,
-  truthDeltas,
   segmentById,
-  previewSegments,
-  speakerMap,
-  integrityReport,
-  meetingId,
   meeting,
-  botJob,
+  meetingId,
   isAdmin,
 }: {
+  outcome: MeetingOutcomeData | null;
   recap: MeetingRecapData | null;
   recapState: Awaited<ReturnType<typeof getMeetingRecapData>>;
   decisions: CallRecordRecapItem[];
   actions: CallRecordRecapItem[];
-  truthDeltas: MeetingRecapData["result"]["customerTruthDeltas"];
   segmentById: Map<string, TranscriptSegmentData>;
-  previewSegments: { id: string; speaker_label: string; original_text: string; end_ms: number }[];
-  speakerMap?: Map<string, { name: string | null; role: string; confirmed: boolean }>;
-  integrityReport?: {
-    overall_verdict: string;
-    summary: string;
-    confidence_score_avg: number | null;
-    suspected_background_media: boolean;
-  } | null;
-  meetingId?: string;
-  meeting: { organizer_name: string | null; organizer_email: string | null; scheduled_start: string; scheduled_end: string; provider: string };
-  botJob: { status: string; last_error: string | null; provider: string; provider_bot_id: string | null; provider_metadata: unknown } | null;
+  meeting: { customer_id: string | null; organizer_name: string | null; organizer_email: string | null; scheduled_start: string; scheduled_end: string; provider: string };
+  meetingId: string;
   isAdmin: boolean;
 }) {
   return (
     <div className={styles.body}>
       <div className={styles.main}>
-        {integrityReport && integrityReport.overall_verdict !== "good" && (
-          <div
-            className={styles.card}
-            style={{
-              borderColor:
-                integrityReport.overall_verdict === "transcription_unreliable" ||
-                integrityReport.overall_verdict === "poor_audio"
-                  ? "var(--danger)"
-                  : "var(--warning)",
-              backgroundColor:
-                integrityReport.overall_verdict === "transcription_unreliable" ||
-                integrityReport.overall_verdict === "poor_audio"
-                  ? "rgba(239, 68, 68, 0.06)"
-                  : "rgba(245, 158, 11, 0.06)",
-            }}
-          >
-            <div className={styles.cardHead}>
-              <span className={styles.cardTitle} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span>Quality Truth Alert:</span>
-                <Badge
-                  tone={
-                    integrityReport.overall_verdict === "transcription_unreliable" ||
-                    integrityReport.overall_verdict === "poor_audio"
-                      ? "critical"
-                      : "warning"
-                  }
-                >
-                  {integrityReport.overall_verdict}
-                </Badge>
-              </span>
-              {integrityReport.confidence_score_avg != null && (
-                <span className={styles.muted} style={{ fontSize: 12 }}>
-                  Confidence: {Math.round(integrityReport.confidence_score_avg * 100)}%
-                </span>
-              )}
-            </div>
-            <div className={styles.cardBody}>
-              <p style={{ margin: 0, fontSize: 13 }}>{integrityReport.summary}</p>
-              {meetingId && (
-                <div style={{ marginTop: 8, fontSize: 12 }}>
-                  <Link href={`/meetings/${meetingId}/recap`} style={{ color: "var(--accent)" }}>
-                    Inspect evidence flags & review in Recap &rarr;
-                  </Link>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        {/* Summary Card - prefer outcome, fallback to recap */}
         <div className={styles.card}>
-          <div className={styles.cardHead}><span className={styles.cardTitle}>AI Summary</span></div>
+          <div className={styles.cardHead}>
+            <span className={styles.cardTitle}>Summary</span>
+            {isAdmin ? (
+              <RegenerateOutcomeButton meetingId={meetingId} className={styles.regenButton} />
+            ) : null}
+          </div>
           <div className={styles.cardBody}>
-            {recap ? recap.result.summary : <ProcessingNotice state={recapState} />}
+            {outcome ? outcome.summary : recap ? recap.result.summary : <ProcessingNotice state={recapState} />}
           </div>
         </div>
 
+        {/* Key Decisions - prefer outcome, fallback to recap */}
         <div className={styles.card}>
           <div className={styles.cardHead}><span className={styles.cardTitle}>Key Decisions</span></div>
-          {recap ? (
+          {outcome ? (
+            outcome.keyDecisions.length > 0 ? (
+              <ul className={styles.list}>
+                {outcome.keyDecisions.map((d, idx) => (
+                  <li key={idx} className={styles.listItem}>
+                    <div>
+                      <div className={styles.listItemTitle}>{d.text}</div>
+                      {firstEvidenceQuote(d.evidenceSegmentIds, segmentById, d.text)}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className={`${styles.cardBody} ${styles.muted}`}>No key decisions were recorded.</p>
+            )
+          ) : recap ? (
             decisions.length > 0 ? (
               <ul className={styles.list}>
                 {decisions.map((d) => (
@@ -370,28 +364,40 @@ function OverviewTab({
                 ))}
               </ul>
             ) : (
-              <p className={`${styles.cardBody} ${styles.muted}`}>No decisions detected in this call.</p>
+              <p className={`${styles.cardBody} ${styles.muted}`}>No key decisions were recorded.</p>
             )
           ) : (
             <p className={`${styles.cardBody} ${styles.muted}`}>Available once analysis completes.</p>
           )}
         </div>
 
+        {/* Action Items - prefer outcome, fallback to recap */}
         <div className={styles.card}>
           <div className={styles.cardHead}>
-            <span className={styles.cardTitle}>Next Steps</span>
+            <span className={styles.cardTitle}>Action Items</span>
+            {outcome && outcome.actionItems.length > 0 && <span className={styles.adminPill}>{outcome.actionItems.length}</span>}
+            {!outcome && recap && actions.length > 0 && <span className={styles.adminPill}>{actions.length}</span>}
           </div>
-          <div className={styles.cardBody}>
-            {recap ? recap.nextJourneyStep : <ProcessingNotice state={recapState} />}
-          </div>
-        </div>
-
-        <div className={styles.card}>
-          <div className={styles.cardHead}>
-            <span className={styles.cardTitle}>Actions</span>
-            {recap ? <span className={styles.adminPill}>{actions.length}</span> : null}
-          </div>
-          {recap ? (
+          {outcome ? (
+            outcome.actionItems.length > 0 ? (
+              <ul className={styles.list}>
+                {outcome.actionItems.map((a, idx) => (
+                  <li key={idx} className={styles.listItem}>
+                    <div>
+                      <div className={styles.listItemTitle}>{a.description}</div>
+                      <div className={styles.listItemMeta}>
+                        {a.owner ? `Owner: ${a.owner}` : "Owner: Unassigned"}
+                        {a.dueDate ? ` · Due ${formatDate(a.dueDate)}` : ""}
+                      </div>
+                      {firstEvidenceQuote(a.evidenceSegmentIds, segmentById, a.description)}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className={`${styles.cardBody} ${styles.muted}`}>No action items were assigned.</p>
+            )
+          ) : recap ? (
             actions.length > 0 ? (
               <ul className={styles.list}>
                 {actions.slice(0, 4).map((a) => (
@@ -408,7 +414,7 @@ function OverviewTab({
                 ))}
               </ul>
             ) : (
-              <p className={`${styles.cardBody} ${styles.muted}`}>No action items detected.</p>
+              <p className={`${styles.cardBody} ${styles.muted}`}>No action items were assigned.</p>
             )
           ) : (
             <p className={`${styles.cardBody} ${styles.muted}`}>Actions will be extracted once analysis completes.</p>
@@ -417,91 +423,59 @@ function OverviewTab({
 
         <div className={styles.card}>
           <div className={styles.cardHead}>
-            <span className={styles.cardTitle}>Customer Truth Proposals</span>
+            <span className={styles.cardTitle}>Open Questions</span>
+            {outcome && outcome.openQuestions.filter((q) => q.status === "open").length > 0 && (
+              <span className={styles.adminPill}>{outcome.openQuestions.filter((q) => q.status === "open").length}</span>
+            )}
           </div>
-          {recap ? (
-            truthDeltas.length > 0 ? (
-              <div className={styles.list}>
-                {truthDeltas.slice(0, 3).map((delta) => (
-                  <div key={delta.id ?? delta.fieldKey} className={styles.listItem}>
+          {outcome ? (
+            outcome.openQuestions.length > 0 ? (
+              <ul className={styles.list}>
+                {outcome.openQuestions.map((q, idx) => (
+                  <li key={idx} className={styles.listItem}>
                     <div style={{ flex: 1 }}>
-                      <div className={styles.listItemMeta} style={{ textTransform: "capitalize" }}>{delta.fieldKey.replaceAll("_", " ")}</div>
-                      <div className={styles.truthRow}>
-                        <span className={styles.truthOld}>{formatValue(delta.previousValue)}</span>
-                        <span>&rarr;</span>
-                        <span className={styles.truthNew}>{formatValue(delta.proposedValue)}</span>
-                      </div>
-                      {firstEvidenceQuote(delta.evidenceSegmentIds, segmentById)}
+                      <div className={styles.listItemTitle}>{q.question}</div>
+                      {q.answer && (
+                        <div className={styles.listItemMeta}>Answer: {q.answer}</div>
+                      )}
+                      {firstEvidenceQuote(q.evidenceSegmentIds, segmentById, q.question)}
                     </div>
-                    {delta.id && delta.status === "proposed" ? <ConfirmRejectActions factId={delta.id} /> : null}
-                  </div>
+                    <Badge tone={q.status === "open" ? "warning" : "success"}>{q.status === "open" ? "Open" : "Answered"}</Badge>
+                  </li>
                 ))}
-              </div>
+              </ul>
             ) : (
-              <p className={`${styles.cardBody} ${styles.muted}`}>No customer truth proposals yet. AI will suggest updates when this call supports one.</p>
+              <p className={`${styles.cardBody} ${styles.muted}`}>All questions were resolved.</p>
             )
           ) : (
             <p className={`${styles.cardBody} ${styles.muted}`}>Available once analysis completes.</p>
           )}
         </div>
-
-        <div className={styles.card}>
-          <div className={styles.cardHead}>
-            <span className={styles.cardTitle}>Transcript Preview</span>
-          </div>
-          {previewSegments.length > 0 ? (
-            <>
-              {previewSegments.map((s) => (
-                <TranscriptLine
-                  key={s.id}
-                  speaker={s.speaker_label}
-                  interpretation={speakerMap?.get(s.speaker_label)}
-                  text={s.original_text}
-                  endMs={s.end_ms}
-                />
-              ))}
-              <div style={{ marginTop: 8, fontSize: 12, color: "var(--accent)" }}>View full transcript in the Transcript tab &rarr;</div>
-            </>
-          ) : (
-            <p className={`${styles.cardBody} ${styles.muted}`}>Transcript will appear here once the recording is processed.</p>
-          )}
-        </div>
       </div>
 
       <div className={styles.side}>
+        {/* Meeting Facts */}
         <div className={styles.card}>
-          <div className={styles.cardHead}><span className={styles.cardTitle}>Meeting Details</span></div>
+          <div className={styles.cardHead}><span className={styles.cardTitle}>Meeting facts</span></div>
           <div className={styles.cardBody}>
-            <div>{meeting.organizer_name ?? meeting.organizer_email ?? "—"} · Organizer</div>
-            <div className={styles.muted}>{formatRange(meeting.scheduled_start, meeting.scheduled_end)}</div>
-            <div className={styles.muted}>{formatProvider(meeting.provider)}</div>
-          </div>
-        </div>
-
-        <div className={styles.card}>
-          <div className={styles.cardHead}><span className={styles.cardTitle}>Recording</span></div>
-          <div className={styles.cardBody}>
-            {botJob?.status === "completed" ? "Available" : botJob ? "Not available yet" : "Not requested for this meeting"}
-          </div>
-        </div>
-
-        {isAdmin ? (
-          <div className={styles.card}>
-            <div className={styles.cardHead}>
-              <span className={styles.cardTitle}>Technical Details</span>
-              <span className={styles.adminPill}>Admin</span>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 700, color: "var(--text-tertiary)", marginBottom: 4 }}>Organizer</div>
+              <div>{meeting.organizer_name ?? meeting.organizer_email ?? "—"}</div>
             </div>
-            <div className={styles.technicalDetails}>
-              bot_status: {botJob?.status ?? "none"}
-              <br />
-              provider: {botJob?.provider ?? "—"}
-              <br />
-              provider_bot_id: {botJob?.provider_bot_id ?? "—"}
-              <br />
-              {botJob?.last_error ? <>last_error: {botJob.last_error}<br /></> : null}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 700, color: "var(--text-tertiary)", marginBottom: 4 }}>When</div>
+              <div>{formatMeetingDateTime(meeting.scheduled_start)}</div>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 700, color: "var(--text-tertiary)", marginBottom: 4 }}>Duration</div>
+              <div>{formatDuration(meeting.scheduled_start, meeting.scheduled_end)}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 700, color: "var(--text-tertiary)", marginBottom: 4 }}>Platform</div>
+              <div>{formatProvider(meeting.provider)}</div>
             </div>
           </div>
-        ) : null}
+        </div>
       </div>
     </div>
   );
@@ -548,103 +522,251 @@ function TranscriptTab({
   );
 }
 
-// ---------- Actions ----------
+// ---------- Audio ----------
 
-function ActionsTab({
+function AudioTab({
+  meetingId,
+  botJob,
+}: {
+  meetingId: string;
+  botJob: { status: string } | null;
+}) {
+  if (botJob?.status !== "completed") {
+    return (
+      <div className={styles.emptyState}>
+        {botJob?.status === "failed"
+          ? "Recording failed or was cancelled."
+          : "Recording will appear when available."}
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.panelPad}>
+      <MediaPlayer meetingId={meetingId} />
+    </div>
+  );
+}
+
+// ---------- Video ----------
+
+function VideoTab({
+  meetingId,
+  botJob,
+}: {
+  meetingId: string;
+  botJob: { status: string } | null;
+}) {
+  if (botJob?.status !== "completed") {
+    return (
+      <div className={styles.emptyState}>
+        {botJob?.status === "failed"
+          ? "Recording failed or was cancelled."
+          : "Video will appear when available."}
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.panelPad}>
+      <MediaPlayer meetingId={meetingId} />
+      <p className={styles.muted} style={{ marginTop: 12, fontSize: 12 }}>
+        Note: Video is shown when screen recording is available. Audio-only meetings will show the audio player.
+      </p>
+    </div>
+  );
+}
+
+// ---------- Insights ----------
+
+function InsightsTab({
   actions,
   decisions,
+  truthDeltas,
   segmentById,
+  openActionsCount,
+  pendingTruthCount,
+  integrityReport,
+  meetingId,
+  botJob,
+  outcome,
+  isAdmin,
+  needsReviewCount,
 }: {
   actions: CallRecordRecapItem[];
   decisions: CallRecordRecapItem[];
+  truthDeltas: MeetingRecapData["result"]["customerTruthDeltas"];
   segmentById: Map<string, TranscriptSegmentData>;
+  openActionsCount: number;
+  pendingTruthCount: number;
+  integrityReport?: {
+    overall_verdict: string;
+    summary: string;
+    confidence_score_avg: number | null;
+    suspected_background_media: boolean;
+  } | null;
+  meetingId: string;
+  botJob: { status: string; last_error: string | null; provider: string; provider_bot_id: string | null; provider_metadata: unknown } | null;
+  outcome: MeetingOutcomeData | null;
+  isAdmin: boolean;
+  needsReviewCount: number;
 }) {
-  const items = [...actions, ...decisions.filter((d) => d.status === "detected")];
-  if (items.length === 0) {
-    return <div className={styles.emptyState}>Nothing outstanding for this meeting.</div>;
-  }
   return (
     <div className={styles.panelPad}>
-      <div className={styles.list}>
-        {items.map((item) => (
-          <div key={item.id ?? item.description} className={styles.listItem}>
-            <div style={{ flex: 1 }}>
-              <div className={styles.listItemTitle}>{item.description}</div>
-              <div className={styles.listItemMeta}>
-                {item.recordType === "action_item" ? "Action" : "Decision"} · {ownerLabel(item)}
-                {item.dueAt ? ` · Due ${formatDate(item.dueAt)}` : ""}
+      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        {/* Quality & Transcript Health */}
+        {(integrityReport && integrityReport.overall_verdict !== "good") || needsReviewCount > 0 ? (
+          <div>
+            <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: "var(--text)" }}>
+              Quality & Transcript Health
+            </h3>
+            {integrityReport && integrityReport.overall_verdict !== "good" && (
+              <div
+                className={styles.card}
+                style={{
+                  borderColor:
+                    integrityReport.overall_verdict === "transcription_unreliable" ||
+                    integrityReport.overall_verdict === "poor_audio"
+                      ? "var(--critical)"
+                      : "var(--warning)",
+                  backgroundColor:
+                    integrityReport.overall_verdict === "transcription_unreliable" ||
+                    integrityReport.overall_verdict === "poor_audio"
+                      ? "var(--critical-tint)"
+                      : "var(--warning-tint)",
+                }}
+              >
+                <div className={styles.cardHead}>
+                  <span className={styles.cardTitle} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span>Quality Alert</span>
+                    <Badge
+                      tone={
+                        integrityReport.overall_verdict === "transcription_unreliable" ||
+                        integrityReport.overall_verdict === "poor_audio"
+                          ? "critical"
+                          : "warning"
+                      }
+                    >
+                      {integrityReport.overall_verdict}
+                    </Badge>
+                  </span>
+                  {integrityReport.confidence_score_avg != null && (
+                    <span className={styles.muted} style={{ fontSize: 12 }}>
+                      Confidence: {Math.round(integrityReport.confidence_score_avg * 100)}%
+                    </span>
+                  )}
+                </div>
+                <div className={styles.cardBody}>
+                  <p style={{ margin: 0, fontSize: 13 }}>{integrityReport.summary}</p>
+                </div>
               </div>
-              {firstEvidenceQuote(item.evidenceSegmentIds, segmentById)}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-              {item.status ? <Badge tone={item.status === "detected" ? "warning" : "success"}>{item.status === "detected" ? "Open" : "Resolved"}</Badge> : null}
-              {item.id && item.status === "detected" ? <ResolveAction recordId={item.id} /> : null}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ---------- Customer Truth ----------
-
-function CustomerTruthTab({
-  deltas,
-  segmentById,
-}: {
-  deltas: MeetingRecapData["result"]["customerTruthDeltas"];
-  segmentById: Map<string, TranscriptSegmentData>;
-}) {
-  if (deltas.length === 0) {
-    return <div className={styles.emptyState}>No Customer Truth proposals from this meeting.</div>;
-  }
-  return (
-    <div className={styles.panelPad}>
-      <div className={styles.list}>
-        {deltas.map((delta) => (
-          <div key={delta.id ?? delta.fieldKey} className={styles.listItem}>
-            <div style={{ flex: 1 }}>
-              <div className={styles.listItemTitle} style={{ textTransform: "capitalize" }}>{delta.fieldKey.replaceAll("_", " ")}</div>
-              <div className={styles.truthRow}>
-                <span className={styles.truthOld}>{formatValue(delta.previousValue)}</span>
-                <span>&rarr;</span>
-                <span className={styles.truthNew}>{formatValue(delta.proposedValue)}</span>
+            )}
+            {needsReviewCount > 0 && (
+              <div className={styles.card} style={{ marginTop: 12 }}>
+                <div className={styles.cardHead}>
+                  <span className={styles.cardTitle}>Transcript Review</span>
+                  <Badge tone="warning">{needsReviewCount} segments</Badge>
+                </div>
+                <div className={styles.cardBody}>
+                  <Link href={`/meetings/${meetingId}?tab=transcript`} style={{ color: "var(--accent)" }}>
+                    View transcript segments that need review &rarr;
+                  </Link>
+                </div>
               </div>
-              {firstEvidenceQuote(delta.evidenceSegmentIds, segmentById)}
+            )}
+          </div>
+        ) : null}
+        {/* Actions Section */}
+        <div>
+          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: "var(--text)" }}>
+            Actions & Decisions ({openActionsCount} open)
+          </h3>
+          {actions.length > 0 || decisions.length > 0 ? (
+            <div className={styles.list}>
+              {[...actions, ...decisions.filter((d) => d.status === "detected")].map((item) => (
+                <div key={item.id ?? item.description} className={styles.listItem}>
+                  <div style={{ flex: 1 }}>
+                    <div className={styles.listItemTitle}>{item.description}</div>
+                    <div className={styles.listItemMeta}>
+                      {item.recordType === "action_item" ? "Action" : "Decision"} · {ownerLabel(item)}
+                      {item.dueAt ? ` · Due ${formatDate(item.dueAt)}` : ""}
+                    </div>
+                    {firstEvidenceQuote(item.evidenceSegmentIds, segmentById, item.description)}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                    {item.status ? <Badge tone={item.status === "detected" ? "warning" : "success"}>{item.status === "detected" ? "Open" : "Resolved"}</Badge> : null}
+                    {item.id && item.status === "detected" ? <ResolveAction recordId={item.id} /> : null}
+                  </div>
+                </div>
+              ))}
             </div>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-              {delta.status ? (
-                <Badge tone={delta.status === "proposed" ? "warning" : delta.status === "confirmed" ? "success" : "neutral"}>
-                  {delta.status === "proposed" ? "Awaiting review" : delta.status}
-                </Badge>
-              ) : null}
-              {delta.id && delta.status === "proposed" ? <ConfirmRejectActions factId={delta.id} /> : null}
+          ) : (
+            <p className={styles.muted}>No actions or decisions tracked.</p>
+          )}
+        </div>
+
+        {/* Customer Truth Section */}
+        <div>
+          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: "var(--text)" }}>
+            Customer Truth Updates ({pendingTruthCount} pending)
+          </h3>
+          {truthDeltas.length > 0 ? (
+            <div className={styles.list}>
+              {truthDeltas.map((delta) => (
+                <div key={delta.id ?? delta.fieldKey} className={styles.listItem}>
+                  <div style={{ flex: 1 }}>
+                    <div className={styles.listItemTitle} style={{ textTransform: "capitalize" }}>{delta.fieldKey.replaceAll("_", " ")}</div>
+                    <div className={styles.truthRow}>
+                      <span className={styles.truthOld}>{formatValue(delta.previousValue)}</span>
+                      <span>&rarr;</span>
+                      <span className={styles.truthNew}>{formatValue(delta.proposedValue)}</span>
+                    </div>
+                    {firstEvidenceQuote(delta.evidenceSegmentIds, segmentById, String(delta.proposedValue ?? delta.fieldKey ?? ""))}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                    {delta.status ? (
+                      <Badge tone={delta.status === "proposed" ? "warning" : delta.status === "confirmed" ? "success" : "neutral"}>
+                        {delta.status === "proposed" ? "Awaiting review" : delta.status}
+                      </Badge>
+                    ) : null}
+                    {delta.id && delta.status === "proposed" ? <ConfirmRejectActions factId={delta.id} /> : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className={styles.muted}>No customer truth updates from this meeting.</p>
+          )}
+        </div>
+
+        {/* Admin Technical Details */}
+        {isAdmin && (
+          <div>
+            <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: "var(--text)" }}>
+              Technical Details
+              <span className={styles.adminPill} style={{ marginLeft: 8 }}>Admin</span>
+            </h3>
+            <div className={styles.card}>
+              <div className={styles.technicalDetails}>
+                bot_status: {botJob?.status ?? "none"}
+                <br />
+                provider: {botJob?.provider ?? "—"}
+                <br />
+                provider_bot_id: {botJob?.provider_bot_id ?? "—"}
+                <br />
+                {botJob?.last_error ? <>last_error: {botJob.last_error}<br /></> : null}
+                {outcome && (
+                  <>
+                    outcome_model: {outcome.model}
+                    <br />
+                    outcome_generated: {formatDateTime(outcome.generatedAt)}
+                    <br />
+                  </>
+                )}
+              </div>
             </div>
           </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ---------- Activity ----------
-
-function ActivityTab({ events }: { events: { id: string; event_type: string; occurred_at: string; source: string }[] }) {
-  if (events.length === 0) {
-    return <div className={styles.emptyState}>No activity recorded yet.</div>;
-  }
-  return (
-    <div className={styles.panelPad}>
-      <div className={styles.list}>
-        {events.map((event) => (
-          <div key={event.id} className={styles.listItem}>
-            <div>
-              <div className={styles.listItemTitle}>{humanizeEventType(event.event_type)}</div>
-              <div className={styles.listItemMeta}>{event.source} · {formatDateTime(event.occurred_at)}</div>
-            </div>
-          </div>
-        ))}
+        )}
       </div>
     </div>
   );
@@ -757,10 +879,18 @@ function deriveStatusBadge(timeline: TimelineStep[]): { label: string; tone: "su
   return { label: "Pending", tone: "neutral" };
 }
 
-function firstEvidenceQuote(ids: string[], segmentById: Map<string, TranscriptSegmentData>) {
+function firstEvidenceQuote(
+  ids: string[],
+  segmentById: Map<string, TranscriptSegmentData>,
+  claimText = "",
+) {
   const first = ids.map((id) => segmentById.get(id)).find(Boolean);
   if (!first) return null;
-  return <div className={styles.evidenceQuote}>&ldquo;{truncate(first.originalText, 140)}&rdquo;</div>;
+  const source = first.canonicalEnglishText || first.originalText;
+  const snippet = claimText
+    ? extractClaimSnippet(claimText, source, 140)
+    : truncate(source, 140);
+  return <div className={styles.evidenceQuote}>&ldquo;{snippet}&rdquo;</div>;
 }
 
 function ownerLabel(record: CallRecordRecapItem) {
@@ -812,6 +942,17 @@ function formatTimestamp(ms: number) {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
-function humanizeEventType(eventType: string) {
-  return eventType.replaceAll(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+function formatMeetingDateTime(value: string) {
+  return new Intl.DateTimeFormat("en-US", { 
+    month: "short", 
+    day: "numeric", 
+    year: "numeric",
+    hour: "numeric", 
+    minute: "2-digit" 
+  }).format(new Date(value));
+}
+
+function formatDuration(start: string, end: string) {
+  const minutes = Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000);
+  return `${minutes} minutes`;
 }

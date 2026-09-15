@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   analyzeMeetingIntegrity,
   evaluateAndPersistMeetingIntegrity,
+  isEligibleForIntelligence,
   saveMeetingIntegrityReport,
 } from "./meeting-integrity";
 
@@ -365,4 +366,45 @@ describe("analyzeMeetingIntegrity", () => {
       expect(analysis.verdict).toBe("needs_review");
     });
   });
+
+  describe("Phase 4: Integrity Gate Enforcement (isEligibleForIntelligence)", () => {
+    it("FAIL: blocks transcription_unreliable from AI intelligence processing", () => {
+      expect(isEligibleForIntelligence("transcription_unreliable")).toBe(false);
+    });
+
+    it("FAIL: blocks insufficient_speech from AI intelligence processing", () => {
+      expect(isEligibleForIntelligence("insufficient_speech")).toBe(false);
+    });
+
+    it("WARN: allows needs_review (auditable warning, not a hard block)", () => {
+      expect(isEligibleForIntelligence("needs_review")).toBe(true);
+    });
+
+    it("WARN: allows suspected_background_media (auditable warning)", () => {
+      expect(isEligibleForIntelligence("suspected_background_media")).toBe(true);
+    });
+
+    it("WARN: allows poor_audio (auditable warning)", () => {
+      expect(isEligibleForIntelligence("poor_audio")).toBe(true);
+    });
+
+    it("PASS: allows good verdicts for normal processing", () => {
+      expect(isEligibleForIntelligence("good")).toBe(true);
+    });
+
+    it("proves product law: FAIL blocks AI, WARN remains auditable, PASS continues", () => {
+      const failVerdicts = ["transcription_unreliable", "insufficient_speech"] as const;
+      for (const verdict of failVerdicts) {
+        expect(isEligibleForIntelligence(verdict)).toBe(false);
+      }
+
+      const warnVerdicts = ["needs_review", "suspected_background_media", "poor_audio"] as const;
+      for (const verdict of warnVerdicts) {
+        expect(isEligibleForIntelligence(verdict)).toBe(true);
+      }
+
+      expect(isEligibleForIntelligence("good")).toBe(true);
+    });
+  });
+
 });

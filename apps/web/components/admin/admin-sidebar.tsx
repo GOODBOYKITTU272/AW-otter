@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import {
+  CustomerTruthIcon,
   ExceptionsIcon,
   IntegrationsIcon,
   MeetingsIcon,
@@ -12,48 +15,121 @@ import {
 } from "./icons";
 
 const NAV_ITEMS = [
-  { href: "/admin/overview", label: "Overview", icon: OverviewIcon },
+  { href: "/admin/overview", label: "Home", icon: OverviewIcon },
   { href: "/admin/meetings", label: "Meetings", icon: MeetingsIcon },
   { href: "/admin/people", label: "Team", icon: PeopleIcon },
   { href: "/admin/exceptions", label: "Review Queue", icon: ExceptionsIcon },
-  { href: "/integrations", label: "Integrations", icon: IntegrationsIcon },
+  { href: "/admin/customer-truth", label: "Customer Truth", icon: CustomerTruthIcon },
+  { href: "/admin/integrations", label: "Integrations", icon: IntegrationsIcon },
   { href: "/admin/policies", label: "Settings", icon: SettingsIcon },
 ];
 
 export function AdminSidebar() {
   const pathname = usePathname();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  return (
-    <nav className="flex w-60 shrink-0 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-      <div className="px-5 py-5 flex items-center justify-between">
-        <span className="text-lg font-bold tracking-tight">
-          <span className="text-blue-600 dark:text-blue-400">Apply Wizz</span> Echo
-        </span>
-      </div>
+  const sidebarContent = (
+    <>
+      <Link
+        href="/admin/overview"
+        className="px-6 py-5 flex items-center gap-3 hover:opacity-80 transition-opacity border-b border-[#F5F5F5]/10"
+        onClick={() => setMobileMenuOpen(false)}
+      >
+        <Image
+          src="/logo.png"
+          alt="Apply Wizz Echo"
+          width={38}
+          height={38}
+          className="h-9 w-9 rounded-xl object-contain shadow-md shrink-0"
+          priority
+        />
+        <div className="flex flex-col leading-tight">
+          <span className="text-base font-bold tracking-tight text-white">
+            Apply Wizz Echo
+          </span>
+          <span className="text-xs font-semibold text-[#29FE29]">Admin</span>
+        </div>
+      </Link>
 
-      <div className="flex flex-1 flex-col gap-1 px-3">
+      <div className="flex flex-1 flex-col gap-1 px-3 py-2">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || pathname?.startsWith(`${href}/`);
+          const active =
+            pathname === href ||
+            pathname?.startsWith(`${href}/`) ||
+            (href === "/admin/meetings" && pathname?.startsWith("/meetings/"));
           return (
             <Link
               key={href}
               href={href}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-all min-h-[44px] ${
                 active
-                  ? "bg-blue-50 text-blue-700 dark:bg-blue-950/70 dark:text-blue-300"
-                  : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-900"
+                  ? "bg-[#2C76FF] text-white shadow-lg shadow-[#2C76FF]/20"
+                  : "text-[#F5F5F5]/70 hover:text-white hover:bg-white/5"
               }`}
+              onClick={() => setMobileMenuOpen(false)}
             >
-              <Icon className="h-4 w-4 shrink-0" />
+              <Icon className="h-5 w-5 shrink-0" />
               {label}
             </Link>
           );
         })}
       </div>
 
-      <div className="p-4 border-t border-zinc-100 text-xs text-zinc-400 dark:border-zinc-900">
-        Apply Wizz Echo · v1.0
+      <div className="p-4 border-t border-[#F5F5F5]/10 text-xs text-[#F5F5F5]/50">
+        Echo Control Center · v1.0
       </div>
-    </nav>
+    </>
+  );
+
+  return (
+    <>
+      {/* Mobile hamburger button */}
+      <button
+        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+        className="lg:hidden fixed top-2.5 left-4 z-40 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg bg-[#0B1D33] text-white shadow-md border border-[#F5F5F5]/10 hover:bg-[#132A47] transition-colors"
+        aria-label="Toggle menu"
+      >
+        <svg
+          className="h-5 w-5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          {mobileMenuOpen ? (
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M6 18L18 6M6 6l12 12"
+            />
+          ) : (
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 6h16M4 12h16M4 18h16"
+            />
+          )}
+        </svg>
+      </button>
+
+      {/* Desktop sidebar */}
+      <nav className="hidden lg:flex w-64 shrink-0 flex-col border-r border-[#F5F5F5]/10 bg-[#0B1D33]">
+        {sidebarContent}
+      </nav>
+
+      {/* Mobile sidebar drawer */}
+      {mobileMenuOpen && (
+        <>
+          <div
+            className="lg:hidden fixed inset-0 bg-black/60 z-40 backdrop-blur-xs"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <nav className="lg:hidden fixed inset-y-0 left-0 z-50 w-64 flex flex-col border-r border-[#F5F5F5]/10 bg-[#0B1D33] shadow-2xl">
+            {sidebarContent}
+          </nav>
+        </>
+      )}
+    </>
   );
 }

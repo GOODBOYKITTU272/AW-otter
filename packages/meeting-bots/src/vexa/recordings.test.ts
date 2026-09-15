@@ -18,6 +18,7 @@ describe("getMeetingRecordingRef", () => {
     const ref = await getMeetingRecordingRef(
       env,
       28075,
+      "audio",
       fakeFetch(200, {
         recordings: [
           {
@@ -45,6 +46,7 @@ describe("getMeetingRecordingRef", () => {
     const ref = await getMeetingRecordingRef(
       env,
       28075,
+      "audio",
       fakeFetch(200, {
         recordings: [{ id: 1, status: "processing", media_files: [] }],
       }),
@@ -53,7 +55,7 @@ describe("getMeetingRecordingRef", () => {
   });
 
   it("returns null when there is no recordings array at all", async () => {
-    const ref = await getMeetingRecordingRef(env, 28075, fakeFetch(200, {}));
+    const ref = await getMeetingRecordingRef(env, 28075, "audio", fakeFetch(200, {}));
     expect(ref).toBeNull();
   });
 
@@ -61,6 +63,7 @@ describe("getMeetingRecordingRef", () => {
     const ref = await getMeetingRecordingRef(
       env,
       28075,
+      "audio",
       fakeFetch(200, {
         recordings: [
           {
@@ -76,7 +79,7 @@ describe("getMeetingRecordingRef", () => {
 
   it("throws a typed error on a Vexa API failure", async () => {
     await expect(
-      getMeetingRecordingRef(env, 28075, fakeFetch(500, { error: "boom" })),
+      getMeetingRecordingRef(env, 28075, "audio", fakeFetch(500, { error: "boom" })),
     ).rejects.toBeInstanceOf(VexaApiError);
   });
 
@@ -84,6 +87,7 @@ describe("getMeetingRecordingRef", () => {
     const ref = await getMeetingRecordingRef(
       env,
       28075,
+      "audio",
       fakeFetch(200, {
         recordings: [
           {
@@ -110,10 +114,54 @@ describe("getMeetingRecordingRef", () => {
       return new Response(JSON.stringify({ recordings: [] }), { status: 200 });
     }) as unknown as typeof fetch;
 
-    await getMeetingRecordingRef(env, 28075, capturingFetch);
+    await getMeetingRecordingRef(env, 28075, "audio", capturingFetch);
 
     expect(requestedUrl).toContain("/recordings?meeting_id=28075");
     expect(requestedUrl).not.toContain("/transcripts/");
+  });
+
+  it("returns the video media file when requested", async () => {
+    const ref = await getMeetingRecordingRef(
+      env,
+      28075,
+      "video",
+      fakeFetch(200, {
+        recordings: [
+          {
+            id: 1,
+            status: "completed",
+            media_files: [
+              { id: 10, type: "audio", format: "webm" },
+              { id: 20, type: "video", format: "mp4", file_size_bytes: 10485760 },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(ref).toEqual({
+      recordingId: 1,
+      mediaFileId: 20,
+      format: "mp4",
+      fileSizeBytes: 10485760,
+    });
+  });
+
+  it("returns null when video is requested but only audio exists", async () => {
+    const ref = await getMeetingRecordingRef(
+      env,
+      28075,
+      "video",
+      fakeFetch(200, {
+        recordings: [
+          {
+            id: 1,
+            status: "completed",
+            media_files: [{ id: 10, type: "audio", format: "webm" }],
+          },
+        ],
+      }),
+    );
+    expect(ref).toBeNull();
   });
 });
 

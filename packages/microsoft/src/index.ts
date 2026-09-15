@@ -5,3 +5,4 @@ export * from "./crypto";
 export * from "./auth";
 export * from "./normalize";
 export * from "./graph-client";
+export * from "./graph-recording";

@@ -17,6 +17,7 @@
 //
 // Requires: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
 // VEXA_BASE_URL, VEXA_API_KEY (same env vars the app itself uses).
+// Optional: VEXA_BOT_AVATAR_URL (defaults to https://echo.applywizz.ai/bot-avatar.png)
 
 import { createClient } from "@supabase/supabase-js";
 import {
@@ -34,6 +35,12 @@ function requiredEnv(name) {
   const value = process.env[name];
   if (!value) throw new Error(`Missing required environment variable: ${name}`);
   return value;
+}
+
+function getBotAvatarUrl() {
+  const envValue = process.env.VEXA_BOT_AVATAR_URL;
+  if (envValue === "") return undefined;
+  return envValue ?? "https://echo.applywizz.ai/bot-avatar.png";
 }
 
 const supabase = createClient(
@@ -64,7 +71,13 @@ async function tick() {
     }
   }
 
-  const processResult = await processPendingBotJobs(supabase, provider);
+  const botAvatarUrl = getBotAvatarUrl();
+  const processResult = await processPendingBotJobs(
+    supabase,
+    provider,
+    10,
+    botAvatarUrl,
+  );
   const statusResult = await syncBotStatuses(supabase, provider);
 
   if (

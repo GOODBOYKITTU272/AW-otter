@@ -5,7 +5,11 @@ import {
   materializeReadyCustomerTruthDeltas,
   processIntelligenceQueue,
 } from "@applywizz/domain/meeting-intelligence";
-import { OpenRouterMeetingIntelligenceProvider } from "@applywizz/ai";
+import { processOutcomeQueue } from "@applywizz/domain/meeting-outcome-generation";
+import {
+  OpenRouterMeetingIntelligenceProvider,
+  OpenRouterMeetingOutcomeProvider,
+} from "@applywizz/ai";
 import { getOpenRouterEnv, getSupabaseServiceRoleKey } from "@/env/server";
 import { getClientEnv } from "@/env/client";
 import { isAuthorizedInternalRequest } from "@/lib/internal-route-auth";
@@ -99,8 +103,24 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  let outcomeResult = null;
+  try {
+    outcomeResult = await processOutcomeQueue(
+      serviceRoleClient,
+      { provider: new OpenRouterMeetingOutcomeProvider(openRouterEnv.OPENROUTER_API_KEY) },
+      5,
+    );
+  } catch (outcomeError) {
+    outcomeResult = {
+      error:
+        outcomeError instanceof Error
+          ? outcomeError.message
+          : String(outcomeError),
+    };
+  }
+
   return NextResponse.json(
-    { enqueueResults, queueResult, materializeResults },
+    { enqueueResults, queueResult, materializeResults, outcomeResult },
     { status: 200 },
   );
 }

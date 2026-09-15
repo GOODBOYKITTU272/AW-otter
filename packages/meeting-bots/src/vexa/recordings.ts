@@ -93,11 +93,13 @@ async function vexaGet<T>(
 }
 
 /**
- * Resolves the audio artifact reference for a completed meeting. Picks the
- * most recent COMPLETED recording's audio media file (real data confirmed
- * `type: "audio"` is present alongside a null `type: "video"` for a
- * bot-recorded audio-only session). Returns null — never guesses/fabricates
- * a reference — if no completed audio recording exists yet.
+ * Resolves the recording artifact reference for a completed meeting. Picks
+ * the most recent COMPLETED recording's media file of the requested kind
+ * ("audio" or "video"). Returns null — never guesses/fabricates a reference
+ * — if no completed recording of that kind exists yet.
+ *
+ * P3 extension: now accepts mediaKind parameter to support both audio and
+ * video artifacts (previously hardcoded to "audio" only).
  *
  * `vexaMeetingId` is Vexa's own numeric meeting/bot id (the `id` field on
  * the POST /bots response, e.g. `raw.id` in client.ts's
@@ -107,6 +109,7 @@ async function vexaGet<T>(
 export async function getMeetingRecordingRef(
   env: VexaEnv,
   vexaMeetingId: number,
+  mediaKind: "audio" | "video",
   fetchImpl: typeof fetch = fetch,
 ): Promise<RecordingRef | null> {
   const raw = await vexaGet<RawRecordingsResponse>(
@@ -125,17 +128,17 @@ export async function getMeetingRecordingRef(
   const recording = completedRecordings[completedRecordings.length - 1];
   if (!recording || typeof recording.id !== "number") return null;
 
-  const audioFile = (recording.media_files ?? []).find(
-    (f) => f.type === "audio",
+  const mediaFile = (recording.media_files ?? []).find(
+    (f) => f.type === mediaKind,
   );
-  if (!audioFile || typeof audioFile.id !== "number") return null;
+  if (!mediaFile || typeof mediaFile.id !== "number") return null;
 
   return {
     recordingId: recording.id,
-    mediaFileId: audioFile.id,
-    format: audioFile.format ?? "webm",
+    mediaFileId: mediaFile.id,
+    format: mediaFile.format ?? "webm",
     fileSizeBytes:
-      typeof audioFile.file_size_bytes === "number" ? audioFile.file_size_bytes : null,
+      typeof mediaFile.file_size_bytes === "number" ? mediaFile.file_size_bytes : null,
   };
 }
 

@@ -19,7 +19,10 @@ const teamsEvent: RawGraphEvent = {
   ],
   isOnlineMeeting: true,
   onlineMeetingProvider: "teamsForBusiness",
-  onlineMeeting: { joinUrl: "https://teams.microsoft.com/l/meetup-join/abc" },
+  onlineMeeting: { 
+    joinUrl: "https://teams.microsoft.com/l/meetup-join/abc",
+    id: "MSoxOTptYWlsY29udGV4dEBhcHBseXdpenouYWk_thread.v2_19:meeting_test123"
+  },
   lastModifiedDateTime: "2026-09-01T00:00:00Z",
   iCalUId: "ical-uid-1",
   type: "singleInstance",
@@ -54,6 +57,7 @@ describe("normalizeCalendarEvent", () => {
       seriesMasterId: null,
       originalStart: null,
       isOrganizer: true,
+      onlineMeetingId: "MSoxOTptYWlsY29udGV4dEBhcHBseXdpenouYWk_thread.v2_19:meeting_test123",
     });
   });
 
@@ -66,6 +70,21 @@ describe("normalizeCalendarEvent", () => {
     expect(event.icalUId).toBe("");
     expect(event.graphEventType).toBeNull();
     expect(event.isOrganizer).toBe(false);
+    expect(event.onlineMeetingId).toBeNull();
+  });
+
+  it("extracts onlineMeetingId from Teams event", () => {
+    const event = normalizeCalendarEvent(teamsEvent);
+    expect(event.onlineMeetingId).toBe("MSoxOTptYWlsY29udGV4dEBhcHBseXdpenouYWk_thread.v2_19:meeting_test123");
+  });
+
+  it("handles missing onlineMeetingId gracefully", () => {
+    const eventWithoutId: RawGraphEvent = {
+      ...teamsEvent,
+      onlineMeeting: { joinUrl: "https://teams.microsoft.com/l/meetup-join/abc" },
+    };
+    const event = normalizeCalendarEvent(eventWithoutId);
+    expect(event.onlineMeetingId).toBeNull();
   });
 });
 

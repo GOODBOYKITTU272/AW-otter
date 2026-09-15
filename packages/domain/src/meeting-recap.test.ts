@@ -648,7 +648,10 @@ describe("getMeetingRecapData", () => {
       expect(state.recap.transcriptSegments).toHaveLength(1);
       expect(state.recap.transcriptSegments[0]!.originalText).toBe("Hello, can you hear me?");
       expect(state.recap.customer.id).toBeNull();
-      expect(state.recap.result.summary).toBe("");
+      // With fallback overview generation, summary should no longer be empty
+      expect(state.recap.result.summary).not.toBe("");
+      expect(state.recap.result.summary).toContain("Conversation Overview");
+      expect(state.recap.result.summary).toContain("Hello, can you hear me?");
     }
   });
 
@@ -966,3 +969,278 @@ describe("getMeetingRecapData", () => {
   });
 });
 
+describe("Phase 4: Recap Approval Integrity Gate", () => {
+  it("refuses to approve recap when integrity verdict is transcription_unreliable", async () => {
+    const tables: Record<string, Row[]> = {
+      meetings: [
+        {
+          id: "m1",
+          organization_id: "org1",
+          owner_membership_id: "am1",
+          call_type: "discovery",
+        },
+      ],
+      meeting_integrity_reports: [
+        {
+          id: "report1",
+          organization_id: "org1",
+          meeting_id: "m1",
+          overall_verdict: "transcription_unreliable",
+          summary: "Critical hallucination loops",
+        },
+      ],
+      meeting_recaps: [
+        {
+          id: "recap1",
+          organization_id: "org1",
+          meeting_id: "m1",
+          status: "ready_for_review",
+          greeting: "Hi",
+          what_we_agreed: ["Agreement"],
+          applywizz_will_do: ["Action"],
+          candidate_should_do: ["Task"],
+          next_step: "Next",
+        },
+      ],
+      meeting_recap_revisions: [],
+      audit_events: [],
+    };
+    const supabase = fakeSupabase(tables) as unknown as AppSupabaseClient;
+
+    await expect(
+      approveMeetingRecap(supabase, {
+        meetingId: "m1",
+        actorUserId: "user1",
+        actorMembershipId: "am1",
+      }),
+    ).rejects.toThrow(/Cannot approve recap.*transcript integrity FAIL.*transcription_unreliable/i);
+
+    expect(tables.meeting_recaps?.[0]?.status).toBe("ready_for_review");
+  });
+
+  it("refuses to approve recap when integrity verdict is insufficient_speech", async () => {
+    const tables: Record<string, Row[]> = {
+      meetings: [
+        {
+          id: "m1",
+          organization_id: "org1",
+          owner_membership_id: "am1",
+          call_type: "discovery",
+        },
+      ],
+      meeting_integrity_reports: [
+        {
+          id: "report1",
+          organization_id: "org1",
+          meeting_id: "m1",
+          overall_verdict: "insufficient_speech",
+          summary: "< 10s of speech",
+        },
+      ],
+      meeting_recaps: [
+        {
+          id: "recap1",
+          organization_id: "org1",
+          meeting_id: "m1",
+          status: "ready_for_review",
+          greeting: "Hi",
+          what_we_agreed: [],
+          applywizz_will_do: [],
+          candidate_should_do: [],
+          next_step: "Next",
+        },
+      ],
+      meeting_recap_revisions: [],
+      audit_events: [],
+    };
+    const supabase = fakeSupabase(tables) as unknown as AppSupabaseClient;
+
+    await expect(
+      approveMeetingRecap(supabase, {
+        meetingId: "m1",
+        actorUserId: "user1",
+        actorMembershipId: "am1",
+      }),
+    ).rejects.toThrow(/Cannot approve recap.*insufficient_speech/i);
+  });
+
+  it("DOES approve recap when integrity verdict is good (PASS)", async () => {
+    const tables: Record<string, Row[]> = {
+      meetings: [
+        {
+          id: "m1",
+          organization_id: "org1",
+          owner_membership_id: "am1",
+          call_type: "discovery",
+        },
+      ],
+      meeting_integrity_reports: [
+        {
+          id: "report1",
+          organization_id: "org1",
+          meeting_id: "m1",
+          overall_verdict: "good",
+          summary: "Clean transcript",
+        },
+      ],
+      meeting_recaps: [
+        {
+          id: "recap1",
+          organization_id: "org1",
+          meeting_id: "m1",
+          status: "ready_for_review",
+          greeting: "Hi Candidate",
+          what_we_agreed: ["Agreement 1"],
+          applywizz_will_do: ["Action 1"],
+          candidate_should_do: ["Task 1"],
+          next_step: "Next step",
+          current_revision_id: "rev1",
+        },
+      ],
+      meeting_recap_revisions: [
+        {
+          id: "rev1",
+          organization_id: "org1",
+          recap_id: "recap1",
+          revision_number: 1,
+          greeting: "Hi Candidate",
+          what_we_agreed: ["Agreement 1"],
+          applywizz_will_do: ["Action 1"],
+          candidate_should_do: ["Task 1"],
+          next_step: "Next step",
+        },
+      ],
+      audit_events: [],
+    };
+    const supabase = fakeSupabase(tables) as unknown as AppSupabaseClient;
+
+    const result = await approveMeetingRecap(supabase, {
+      meetingId: "m1",
+      actorUserId: "user1",
+      actorMembershipId: "am1",
+    });
+
+    expect(result.status).toBe("approved");
+    expect(tables.meeting_recaps?.[0]?.status).toBe("approved");
+  });
+
+  it("DOES approve recap when integrity verdict is needs_review (WARN policy)", async () => {
+    const tables: Record<string, Row[]> = {
+      meetings: [
+        {
+          id: "m1",
+          organization_id: "org1",
+          owner_membership_id: "am1",
+          call_type: "discovery",
+        },
+      ],
+      meeting_integrity_reports: [
+        {
+          id: "report1",
+          organization_id: "org1",
+          meeting_id: "m1",
+          overall_verdict: "needs_review",
+          summary: "Repetition warnings",
+        },
+      ],
+      meeting_recaps: [
+        {
+          id: "recap1",
+          organization_id: "org1",
+          meeting_id: "m1",
+          status: "ready_for_review",
+          greeting: "Hi",
+          what_we_agreed: ["Agreement"],
+          applywizz_will_do: ["Action"],
+          candidate_should_do: ["Task"],
+          next_step: "Next",
+          current_revision_id: "rev1",
+        },
+      ],
+      meeting_recap_revisions: [
+        {
+          id: "rev1",
+          organization_id: "org1",
+          recap_id: "recap1",
+          revision_number: 1,
+          greeting: "Hi",
+          what_we_agreed: ["Agreement"],
+          applywizz_will_do: ["Action"],
+          candidate_should_do: ["Task"],
+          next_step: "Next",
+        },
+      ],
+      audit_events: [],
+    };
+    const supabase = fakeSupabase(tables) as unknown as AppSupabaseClient;
+
+    const result = await approveMeetingRecap(supabase, {
+      meetingId: "m1",
+      actorUserId: "user1",
+      actorMembershipId: "am1",
+    });
+
+    expect(result.status).toBe("approved");
+    expect(tables.meeting_recaps?.[0]?.status).toBe("approved");
+    expect(tables.meeting_integrity_reports?.[0]?.overall_verdict).toBe("needs_review");
+  });
+
+  it("DOES approve recap when integrity verdict is suspected_background_media (WARN)", async () => {
+    const tables: Record<string, Row[]> = {
+      meetings: [
+        {
+          id: "m1",
+          organization_id: "org1",
+          owner_membership_id: "am1",
+          call_type: "discovery",
+        },
+      ],
+      meeting_integrity_reports: [
+        {
+          id: "report1",
+          organization_id: "org1",
+          meeting_id: "m1",
+          overall_verdict: "suspected_background_media",
+          summary: "Media tokens detected",
+        },
+      ],
+      meeting_recaps: [
+        {
+          id: "recap1",
+          organization_id: "org1",
+          meeting_id: "m1",
+          status: "ready_for_review",
+          greeting: "Hi",
+          what_we_agreed: [],
+          applywizz_will_do: [],
+          candidate_should_do: [],
+          next_step: "Next",
+          current_revision_id: "rev1",
+        },
+      ],
+      meeting_recap_revisions: [
+        {
+          id: "rev1",
+          organization_id: "org1",
+          recap_id: "recap1",
+          revision_number: 1,
+          greeting: "Hi",
+          what_we_agreed: [],
+          applywizz_will_do: [],
+          candidate_should_do: [],
+          next_step: "Next",
+        },
+      ],
+      audit_events: [],
+    };
+    const supabase = fakeSupabase(tables) as unknown as AppSupabaseClient;
+
+    const result = await approveMeetingRecap(supabase, {
+      meetingId: "m1",
+      actorUserId: "user1",
+      actorMembershipId: "am1",
+    });
+
+    expect(result.status).toBe("approved");
+  });
+});

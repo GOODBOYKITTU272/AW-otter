@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "@applywizz/database/server";
 import { getClientEnv } from "@/env/client";
+import { ROLE_HOME_ROUTE, isSystemRoleKey } from "@applywizz/domain";
 
 // Required by @supabase/ssr on Next.js App Router: Server Components can't
 // write cookies during render, so the refreshed session token has to be
@@ -27,7 +28,37 @@ export async function proxy(request: NextRequest) {
     },
   );
 
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const pathname = request.nextUrl.pathname;
+  if (user && (pathname === "/login" || pathname === "/")) {
+    const { data: membership } = await supabase
+      .from("organization_memberships")
+      .select("role_id")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (membership) {
+      const { data: role } = await supabase
+        .from("roles")
+        .select("key")
+        .eq("id", membership.role_id)
+        .maybeSingle();
+
+      const roleKey = role?.key;
+      if (roleKey && isSystemRoleKey(roleKey)) {
+        return NextResponse.redirect(
+          new URL(ROLE_HOME_ROUTE[roleKey], request.url),
+          {
+            headers: response.headers,
+          },
+        );
+      }
+    }
+  }
 
   return response;
 }

@@ -35,7 +35,7 @@ describe("VexaMeetingBotProvider", () => {
     await provider.createBot({
       meetingUrl: teamsUrl,
       idempotencyKey: "idem-1",
-      botName: "ApplyWizz Meeting Assistant",
+      botName: "AI Note Maker · Test",
     });
 
     const [url, init] = fetchImpl.mock.calls[0] ?? [];
@@ -58,7 +58,8 @@ describe("VexaMeetingBotProvider", () => {
     const result = await provider.createBot({
       meetingUrl: teamsUrl,
       idempotencyKey: "idem-1",
-      botName: "ApplyWizz Meeting Assistant",
+      botName: "AI Note Maker · Test",
+      botAvatarUrl: "https://echo.applywizz.ai/bot-avatar.png",
     });
 
     const [url, init] = fetchImpl.mock.calls[0] ?? [];
@@ -70,13 +71,42 @@ describe("VexaMeetingBotProvider", () => {
     expect(JSON.parse(String(init?.body))).toEqual({
       platform: "teams",
       meeting_url: teamsUrl,
-      bot_name: "ApplyWizz Meeting Assistant",
+      bot_name: "AI Note Maker · Test",
       transcribe_enabled: false,
+      bot_avatar_url: "https://echo.applywizz.ai/bot-avatar.png",
     });
     expect(result).toEqual({
       providerBotId,
       status: "joined",
       raw: { status: "active", native_meeting_id: nativeMeetingId },
+    });
+  });
+
+  it("omits bot_avatar_url field when not provided", async () => {
+    const fetchImpl = vi.fn(
+      async (_input?: string | URL | Request, _init?: RequestInit) =>
+        response(201, { status: "active", native_meeting_id: nativeMeetingId }),
+    );
+    const provider = new VexaMeetingBotProvider(
+      { baseUrl: "https://api.vexa.test/", apiKey: "key" },
+      fetchImpl,
+    );
+
+    await provider.createBot({
+      meetingUrl: teamsUrl,
+      idempotencyKey: "idem-1",
+      botName: "AI Note Maker · Test",
+      // botAvatarUrl intentionally omitted
+    });
+
+    const [_url, init] = fetchImpl.mock.calls[0] ?? [];
+    const body = JSON.parse(String(init?.body));
+    expect(body).not.toHaveProperty("bot_avatar_url");
+    expect(body).toEqual({
+      platform: "teams",
+      meeting_url: teamsUrl,
+      bot_name: "AI Note Maker · Test",
+      transcribe_enabled: false,
     });
   });
 
@@ -92,7 +122,7 @@ describe("VexaMeetingBotProvider", () => {
       provider.createBot({
         meetingUrl: teamsUrl,
         idempotencyKey: "idem-1",
-        botName: "ApplyWizz Meeting Assistant",
+        botName: "AI Note Maker · Test",
       }),
     ).rejects.toThrow(/native_meeting_id/);
   });
@@ -109,7 +139,7 @@ describe("VexaMeetingBotProvider", () => {
       provider.createBot({
         meetingUrl: teamsUrl,
         idempotencyKey: "idem-1",
-        botName: "ApplyWizz Meeting Assistant",
+        botName: "AI Note Maker · Test",
       }),
     ).rejects.toBeInstanceOf(VexaAuthError);
   });
@@ -125,7 +155,7 @@ describe("VexaMeetingBotProvider", () => {
     const call = provider.createBot({
       meetingUrl: teamsUrl,
       idempotencyKey: "idem-1",
-      botName: "ApplyWizz Meeting Assistant",
+      botName: "AI Note Maker · Test",
     });
     await expect(call).rejects.toBeInstanceOf(VexaRateLimitError);
     await expect(call).rejects.toMatchObject({ retryAfterSeconds: 45 });
@@ -152,6 +182,7 @@ describe("VexaMeetingBotProvider", () => {
       joinedAt: undefined,
       leftAt: undefined,
       failureReason: undefined,
+      rawStatus: "new_provider_state",
     });
   });
 
@@ -169,7 +200,7 @@ describe("VexaMeetingBotProvider", () => {
     const result = await provider.createBot({
       meetingUrl: teamsUrl,
       idempotencyKey: "idem-req",
-      botName: "ApplyWizz Meeting Assistant",
+      botName: "AI Note Maker · Test",
     });
     expect(result.status).toBe("scheduled");
     expect(result.providerBotId).toBe(providerBotId);

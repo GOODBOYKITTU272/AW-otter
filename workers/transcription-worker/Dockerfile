@@ -7,11 +7,14 @@
 # docs/ops/production-environment.md §11).
 FROM node:22-slim
 
-# Same package CI already proves is sufficient for this exact codebase's
-# transcode step (.github/workflows/ci.yml: "apt-get install ffmpeg") —
-# ffmpeg pulls in ffprobe as part of the same package on Debian/Ubuntu.
+# Install ffmpeg and ffprobe (both are part of the ffmpeg package on Debian/Ubuntu).
+# This ensures /usr/bin/ffmpeg and /usr/bin/ffprobe are available in the container.
+# The application code (packages/domain/src/audio-transcode.ts) uses absolute paths
+# (/usr/bin/ffmpeg and /usr/bin/ffprobe) to prevent ENOENT errors when PATH is not
+# properly configured. The --no-install-recommends flag keeps the image lean.
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
-  && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/* \
+  && which ffmpeg && which ffprobe
 
 RUN corepack enable
 

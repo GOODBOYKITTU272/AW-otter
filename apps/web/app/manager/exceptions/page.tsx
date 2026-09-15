@@ -10,7 +10,7 @@ import { ExceptionQueue } from "@/components/exceptions/exception-queue";
 // someone in their reporting tree (private.is_manager_of). No role
 // branching needed in the query itself, same as UpcomingMeetings.
 export default async function ManagerExceptionsPage() {
-  await requireRole(["manager", "senior_manager"]);
+  await requireRole(["manager", "senior_manager", "admin"]);
   const supabase = await getSupabaseServerClient();
   const membership = await getCurrentMembership(supabase);
 
@@ -39,32 +39,46 @@ export default async function ManagerExceptionsPage() {
   const membersById = new Map((membershipsResult.data ?? []).map((m) => [m.id, m]));
 
   return (
-    <main className="flex flex-1 flex-col gap-6 p-8">
-      <div className="flex items-center justify-between">
+    <main className="flex flex-1 flex-col min-w-0 w-full overflow-x-hidden">
+      <header className="sticky top-0 z-30 border-b border-[#F5F5F5]/10 bg-[#1E1E1E] px-4 sm:px-8 py-3.5 shadow-md">
+        <div className="flex items-center justify-between">
+          <Link href="/manager/overview" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+            <div className="h-8 w-8 rounded-lg bg-[#29FE29] flex items-center justify-center">
+              <span className="text-sm font-bold text-[#1E1E1E]">AW</span>
+            </div>
+            <span className="text-base font-bold tracking-tight text-white">
+              Apply Wizz Echo
+            </span>
+          </Link>
+          <div className="flex items-center gap-3 sm:gap-4">
+            <span className="text-xs sm:text-sm text-[#F5F5F5]/90 truncate">
+              {membership.displayName} <span className="text-[#F5F5F5]/50">· Manager</span>
+            </span>
+            <SignOutButton />
+          </div>
+        </div>
+      </header>
+      <div className="flex flex-1 flex-col gap-4 sm:gap-6 p-4 sm:p-6 lg:p-8 min-w-0 w-full overflow-x-hidden">
         <h1 className="text-xl font-semibold tracking-tight">Do-Not-Record Exceptions</h1>
-        <SignOutButton />
-      </div>
-      <Link href="/manager/overview" className="w-fit text-sm underline">
-        Overview
-      </Link>
-      <p className="-mt-4 text-sm text-zinc-500 dark:text-zinc-400">
+      <p className="-mt-2 sm:-mt-4 text-sm text-zinc-500 dark:text-zinc-400">
         Requests for meetings owned by people who report to you.
       </p>
 
-      <ExceptionQueue
-        requests={requests.map((r) => ({
-          id: r.id,
-          reason: r.reason,
-          status: r.status,
-          reviewNotes: r.review_notes,
-          requestedAt: r.requested_at,
-          reviewedAt: r.reviewed_at,
-          meetingTitle: meetingsById.get(r.meeting_id)?.title ?? "Unknown meeting",
-          meetingScheduledStart: meetingsById.get(r.meeting_id)?.scheduled_start ?? null,
-          requestedByName: membersById.get(r.requested_by)?.display_name ?? "Unknown",
-          reviewedByName: r.reviewed_by ? (membersById.get(r.reviewed_by)?.display_name ?? "Unknown") : null,
-        }))}
-      />
+        <ExceptionQueue
+          requests={requests.map((r) => ({
+            id: r.id,
+            reason: r.reason,
+            status: r.status,
+            reviewNotes: r.review_notes,
+            requestedAt: r.requested_at,
+            reviewedAt: r.reviewed_at,
+            meetingTitle: meetingsById.get(r.meeting_id)?.title ?? "Unknown meeting",
+            meetingScheduledStart: meetingsById.get(r.meeting_id)?.scheduled_start ?? null,
+            requestedByName: membersById.get(r.requested_by)?.display_name ?? "Unknown",
+            reviewedByName: r.reviewed_by ? (membersById.get(r.reviewed_by)?.display_name ?? "Unknown") : null,
+          }))}
+        />
+      </div>
     </main>
   );
 }

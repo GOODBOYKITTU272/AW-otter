@@ -839,7 +839,9 @@ export type Database = {
           idempotency_key: string
           joined_at: string | null
           last_error: string | null
+          last_raw_status: string | null
           left_at: string | null
+          lobby_waiting_since: string | null
           meeting_id: string
           next_retry_at: string | null
           organization_id: string
@@ -860,7 +862,9 @@ export type Database = {
           idempotency_key: string
           joined_at?: string | null
           last_error?: string | null
+          last_raw_status?: string | null
           left_at?: string | null
+          lobby_waiting_since?: string | null
           meeting_id: string
           next_retry_at?: string | null
           organization_id: string
@@ -881,7 +885,9 @@ export type Database = {
           idempotency_key?: string
           joined_at?: string | null
           last_error?: string | null
+          last_raw_status?: string | null
           left_at?: string | null
+          lobby_waiting_since?: string | null
           meeting_id?: string
           next_retry_at?: string | null
           organization_id?: string
@@ -1088,6 +1094,79 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_outcomes: {
+        Row: {
+          action_items: Json
+          created_at: string
+          generated_at: string
+          id: string
+          key_decisions: Json
+          meeting_id: string
+          model: string
+          open_questions: Json
+          organization_id: string
+          prompt_version: string
+          summary: string
+          transcript_id: string
+          updated_at: string
+          usage_metadata: Json
+        }
+        Insert: {
+          action_items?: Json
+          created_at?: string
+          generated_at?: string
+          id?: string
+          key_decisions?: Json
+          meeting_id: string
+          model: string
+          open_questions?: Json
+          organization_id: string
+          prompt_version?: string
+          summary: string
+          transcript_id: string
+          updated_at?: string
+          usage_metadata?: Json
+        }
+        Update: {
+          action_items?: Json
+          created_at?: string
+          generated_at?: string
+          id?: string
+          key_decisions?: Json
+          meeting_id?: string
+          model?: string
+          open_questions?: Json
+          organization_id?: string
+          prompt_version?: string
+          summary?: string
+          transcript_id?: string
+          updated_at?: string
+          usage_metadata?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_outcomes_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: true
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_outcomes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_outcomes_transcript_id_fkey"
+            columns: ["transcript_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_transcripts"
             referencedColumns: ["id"]
           },
         ]
@@ -1446,6 +1525,7 @@ export type Database = {
           created_at: string
           duration_seconds: number | null
           id: string
+          media_kind: string
           meeting_id: string
           organization_id: string
           source_metadata: Json
@@ -1462,6 +1542,7 @@ export type Database = {
           created_at?: string
           duration_seconds?: number | null
           id?: string
+          media_kind: string
           meeting_id: string
           organization_id: string
           source_metadata?: Json
@@ -1478,6 +1559,7 @@ export type Database = {
           created_at?: string
           duration_seconds?: number | null
           id?: string
+          media_kind?: string
           meeting_id?: string
           organization_id?: string
           source_metadata?: Json
@@ -1712,6 +1794,7 @@ export type Database = {
           graph_event_type: string | null
           ical_uid: string
           id: string
+          is_test: boolean
           lifecycle_status: string
           linked_at: string | null
           linked_by_membership_id: string | null
@@ -1721,6 +1804,7 @@ export type Database = {
           organization_id: string
           organizer_email: string | null
           organizer_name: string | null
+          online_meeting_id: string | null
           original_start: string | null
           owner_membership_id: string | null
           provider: string
@@ -1749,6 +1833,7 @@ export type Database = {
           graph_event_type?: string | null
           ical_uid: string
           id?: string
+          is_test?: boolean
           lifecycle_status?: string
           linked_at?: string | null
           linked_by_membership_id?: string | null
@@ -1758,6 +1843,7 @@ export type Database = {
           organization_id: string
           organizer_email?: string | null
           organizer_name?: string | null
+          online_meeting_id?: string | null
           original_start?: string | null
           owner_membership_id?: string | null
           provider?: string
@@ -1786,6 +1872,7 @@ export type Database = {
           graph_event_type?: string | null
           ical_uid?: string
           id?: string
+          is_test?: boolean
           lifecycle_status?: string
           linked_at?: string | null
           linked_by_membership_id?: string | null
@@ -1795,6 +1882,7 @@ export type Database = {
           organization_id?: string
           organizer_email?: string | null
           organizer_name?: string | null
+          online_meeting_id?: string | null
           original_start?: string | null
           owner_membership_id?: string | null
           provider?: string

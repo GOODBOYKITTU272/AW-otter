@@ -33,6 +33,7 @@ import {
 } from "./meeting-recordings";
 import { evaluateAndPersistMeetingIntegrity } from "./meeting-integrity";
 import { inferAndPersistSpeakerInterpretations } from "./speaker-identity";
+import { detectLanguage, routeByLanguage } from "./language-routing";
 
 export type AppSupabaseClient = SupabaseClient<Database>;
 
@@ -110,6 +111,13 @@ export interface TranscriptionDeps {
   vexaEnv: VexaEnv;
   transcriptionProvider: TranscriptionProvider;
   fallbackProvider?: TranscriptionProvider;
+  /** Phase 3: Ordered provider chain for three-provider fallback (Azure → Sarvam → Whisper). If present, takes precedence over transcriptionProvider+fallbackProvider. */
+  providers?: TranscriptionProvider[];
+  /** New: Enable language-based routing (English→Whisper, non-English→Sarvam) */
+  useLanguageRouting?: boolean;
+  whisperProvider?: TranscriptionProvider;
+  sarvamProvider?: TranscriptionProvider;
+  azureProvider?: TranscriptionProvider;
   normalizationProvider: EnglishNormalizationProvider;
   storage: RecordingStorageClient;
   fetchImpl?: typeof fetch;
@@ -239,20 +247,66 @@ export async function processTranscriptionJob(
           : NaN;
     if (!Number.isFinite(vexaMeetingId)) throw new RecordingNotReadyError();
 
-    // Ownership handoff (P2): if this meeting's recording is already owned
-    // (a meeting_recordings row exists), ensureOwnedRecording downloads it
-    // straight from our own Storage bucket and never contacts Vexa at all.
-    // Only a first-time/never-ingested meeting reaches out to Vexa here —
-    // once owned, Vexa is no longer needed for transcription.
+    // Ownership handoff (P3): AUDIO ingestion is critical — must succeed
+    // for transcription to proceed. If this meeting's audio is already
+    // owned (a meeting_recordings row exists), ensureOwnedRecording
+    // downloads it straight from our own Storage bucket and never contacts
+    // Vexa at all. Only a first-time/never-ingested meeting reaches out to
+    // Vexa here — once owned, Vexa is no longer needed for transcription.
     const { recordingRef: ownedRecordingRef, bytes: rawBytes } =
       await ensureOwnedRecording(serviceRoleClient, deps.storage, {
         organizationId: transcript.organization_id,
         meetingId: transcript.meeting_id,
+        mediaKind: "audio",
         vexaMeetingId,
         vexaEnv: deps.vexaEnv,
         fetchImpl: deps.fetchImpl,
       });
     assertTranscodableInputSize(rawBytes.byteLength);
+
+    // P3: Best-effort VIDEO ingestion — runs after audio is secured.
+    // Video failure must NEVER block transcript; it logs a lifecycle event
+    // for visibility but does not throw. Video availability depends on
+    // Vexa provider capabilities (see docs/product/screen-recording-spike.md).
+    try {
+      await ensureOwnedRecording(serviceRoleClient, deps.storage, {
+        organizationId: transcript.organization_id,
+        meetingId: transcript.meeting_id,
+        mediaKind: "video",
+        vexaMeetingId,
+        vexaEnv: deps.vexaEnv,
+        fetchImpl: deps.fetchImpl,
+      });
+      await logLifecycleEvent(serviceRoleClient, {
+        meetingId: transcript.meeting_id,
+        organizationId: transcript.organization_id,
+        eventType: "recording.video_ingested",
+        source: "worker",
+        payload: { vexaMeetingId },
+      });
+    } catch (videoError) {
+      // Video ingestion failures are logged but never thrown — audio
+      // transcript must proceed regardless. RecordingNotReadyError means
+      // Vexa has no video artifact yet (expected for audio-only sessions);
+      // other errors are genuine failures (network, storage, etc.) logged
+      // for investigation but not blocking.
+      const isNotReady = videoError instanceof RecordingNotReadyError;
+      await logLifecycleEvent(serviceRoleClient, {
+        meetingId: transcript.meeting_id,
+        organizationId: transcript.organization_id,
+        eventType: isNotReady
+          ? "recording.video_not_available"
+          : "recording.video_ingestion_failed",
+        source: "worker",
+        payload: {
+          vexaMeetingId,
+          error:
+            videoError instanceof Error
+              ? { name: videoError.name, message: videoError.message }
+              : { message: String(videoError) },
+        },
+      });
+    }
 
     workDir = await mkdtemp(join(tmpdir(), "signal-transcode-"));
     // Codex post-implementation review (SHOULD-FIX): recordingRef.format
@@ -291,14 +345,68 @@ export async function processTranscriptionJob(
     const derivedSha256 = await computeFileSha256(cleanPath);
     const preprocessingVersion = isAzure ? "v1-pcm16k-wav" : "v1-opus16k-ogg";
 
+    let primaryProvider = deps.transcriptionProvider;
+    let fallbackProvider = deps.fallbackProvider;
+    let routingReason: string | undefined;
+
+    // Language-based routing: detect language first, then route to appropriate provider
+    if (deps.useLanguageRouting && deps.whisperProvider) {
+      try {
+        const languageDetection = await detectLanguage(
+          cleanPath,
+          deps.whisperProvider,
+          workDir,
+        );
+        
+        const routingDecision = routeByLanguage(
+          languageDetection.detectedLanguage,
+          deps.whisperProvider,
+          deps.sarvamProvider,
+          deps.azureProvider,
+        );
+        
+        primaryProvider = routingDecision.provider;
+        fallbackProvider = routingDecision.fallbackProvider;
+        routingReason = routingDecision.reason;
+        
+        await logLifecycleEvent(serviceRoleClient, {
+          meetingId: transcript.meeting_id,
+          organizationId: transcript.organization_id,
+          eventType: "transcript.language_detected",
+          source: "worker",
+          payload: {
+            detectedLanguage: languageDetection.detectedLanguage,
+            routingDecision: routingReason,
+            primaryProvider: primaryProvider.name,
+            fallbackProvider: fallbackProvider?.name,
+          },
+        });
+      } catch (langDetectError) {
+        // Language detection failed - fall back to default provider
+        await logLifecycleEvent(serviceRoleClient, {
+          meetingId: transcript.meeting_id,
+          organizationId: transcript.organization_id,
+          eventType: "transcript.language_detection_failed",
+          source: "worker",
+          payload: {
+            error: langDetectError instanceof Error 
+              ? { name: langDetectError.name, message: langDetectError.message }
+              : { message: String(langDetectError) },
+            fallbackProvider: primaryProvider.name,
+          },
+        });
+      }
+    }
+
     const {
       result,
       acceptedProvider,
       attempts,
       fallbackReason,
     } = await executeTranscriptionWithFallback({
-      primaryProvider: deps.transcriptionProvider,
-      fallbackProvider: deps.fallbackProvider,
+      providers: deps.providers,
+      primaryProvider,
+      fallbackProvider,
       filePath: cleanPath,
     });
     const detectedLanguage = result.detectedLanguage;
@@ -416,6 +524,8 @@ export async function processTranscriptionJob(
           preprocessingVersion,
           attempts,
           ...(fallbackReason ? { fallbackReason } : {}),
+          ...(routingReason ? { routingReason } : {}),
+          ...(deps.useLanguageRouting ? { languageRoutingEnabled: true } : {}),
         } as unknown as Json,
         p_usage_seconds: result.usage.seconds,
         p_usage_cost: result.usage.cost,

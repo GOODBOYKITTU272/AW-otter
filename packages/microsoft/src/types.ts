@@ -24,6 +24,8 @@ export interface MicrosoftCalendarEvent {
   originalStart: string | null;
   /** Whose mailbox this copy belongs to, per Graph's own field — more reliable than comparing email strings. */
   isOrganizer: boolean;
+  /** Graph online meeting ID for cloud recording lookup (from onlineMeeting.id) */
+  onlineMeetingId: string | null;
 }
 
 export interface MicrosoftIdentity {

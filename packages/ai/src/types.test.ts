@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { meetingIntelligenceResultSchema } from "./types";
+import {
+  meetingIntelligenceResultSchema,
+  meetingOutcomeSchema,
+} from "./types";
 
 const SEG = "11111111-1111-1111-1111-111111111111";
 
@@ -119,6 +122,61 @@ describe("meetingIntelligenceResultSchema", () => {
         },
       ],
       callTypeSpecific: null,
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("meetingOutcomeSchema", () => {
+  it("accepts a valid Fathom-style outcome", () => {
+    const parsed = meetingOutcomeSchema.parse({
+      summary: "Discussed naming and dispatch concurrency.",
+      keyDecisions: [
+        { text: "Standardize on aw-echo naming.", evidenceSegmentIds: [SEG] },
+      ],
+      actionItems: [
+        {
+          description: "Update provisioning docs.",
+          owner: "Priyanka",
+          dueDate: null,
+          evidenceSegmentIds: [SEG],
+        },
+      ],
+      openQuestions: [
+        {
+          question: "How should name conflicts be handled?",
+          status: "open",
+          answer: null,
+          evidenceSegmentIds: [SEG],
+        },
+      ],
+    });
+    expect(parsed.summary).toContain("naming");
+    expect(parsed.keyDecisions).toHaveLength(1);
+    expect(parsed.actionItems[0]?.owner).toBe("Priyanka");
+    expect(parsed.openQuestions[0]?.status).toBe("open");
+  });
+
+  it("rejects a missing summary", () => {
+    const result = meetingOutcomeSchema.safeParse({
+      keyDecisions: [],
+      actionItems: [],
+      openQuestions: [],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects an action item with no evidence", () => {
+    const result = meetingOutcomeSchema.safeParse({
+      summary: "x",
+      actionItems: [
+        {
+          description: "Do the thing",
+          owner: null,
+          dueDate: null,
+          evidenceSegmentIds: [],
+        },
+      ],
     });
     expect(result.success).toBe(false);
   });
