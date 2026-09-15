@@ -20,7 +20,11 @@ async function getNoreplyAccessToken(): Promise<string> {
   const tenantId = process.env.MICROSOFT_TENANT_ID || "dd60b066-1b78-4515-84fb-a565c251cb5a";
   const clientId = "d3590ed6-52b3-4102-aeff-aad2292ab01c";
   const username = process.env.NOREPLY_EMAIL || "noreply@applywizz.ai";
-  const password = process.env.NOREPLY_PASSWORD || "Created@123";
+  const password = process.env.NOREPLY_PASSWORD;
+
+  if (!password) {
+    throw new Error("NOREPLY_PASSWORD environment variable is required.");
+  }
 
   const res = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
     method: "POST",

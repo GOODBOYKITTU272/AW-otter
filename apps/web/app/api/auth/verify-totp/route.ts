@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import { isAllowedEmailDomain } from "@applywizz/auth";
+import { ROLE_HOME_ROUTE, isSystemRoleKey } from "@applywizz/domain";
 
 export const dynamic = "force-dynamic";
 
@@ -108,10 +109,36 @@ export async function POST(request: Request) {
       );
     }
 
-    // 5. Construct response with session cookies
+    // 5. Query user active membership & role home route
+    let redirectUrl = "/admin/overview";
+    const userId = mfaVerifyData.user?.id || verifyData.user?.id;
+
+    if (userId) {
+      const { data: membership } = await adminSupabase
+        .from("organization_memberships")
+        .select("role_id")
+        .eq("user_id", userId)
+        .eq("status", "active")
+        .maybeSingle();
+
+      if (membership?.role_id) {
+        const { data: role } = await adminSupabase
+          .from("roles")
+          .select("key")
+          .eq("id", membership.role_id)
+          .maybeSingle();
+
+        const roleKey = role?.key;
+        if (roleKey && isSystemRoleKey(roleKey)) {
+          redirectUrl = ROLE_HOME_ROUTE[roleKey];
+        }
+      }
+    }
+
+    // 6. Construct response with session cookies & role redirectUrl
     const response = NextResponse.json({
       success: true,
-      redirectUrl: "/admin/overview",
+      redirectUrl,
     });
 
     const projectRef = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || "supabase";
