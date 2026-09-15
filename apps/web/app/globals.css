@@ -12,8 +12,17 @@
   --font-accent: var(--font-inter);
 }
 
+html,
+body {
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-noto-sans), system-ui, -apple-system, sans-serif;
 }
+

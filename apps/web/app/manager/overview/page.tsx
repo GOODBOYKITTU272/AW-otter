@@ -75,7 +75,7 @@ export default async function ManagerOverviewPage() {
 
   return (
     <RoleShell role="manager" userName={membership.displayName} roleLabel={isSenior ? "Senior Manager" : "Manager"}>
-      <div className="flex flex-1 flex-col gap-6 p-8 max-w-6xl mx-auto w-full bg-[#0B1D33]">
+      <div className="flex flex-1 flex-col gap-4 sm:gap-6 p-3 sm:p-6 lg:p-8 max-w-6xl mx-auto w-full min-w-0 overflow-x-hidden bg-[#0B1D33]">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-white">
             {isSenior ? "Senior Leadership Pulse" : "Team Pulse"}

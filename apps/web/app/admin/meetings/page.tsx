@@ -335,7 +335,7 @@ export default async function AdminMeetingsPage() {
   ).length;
 
   return (
-    <main className="flex flex-1 flex-col gap-6 p-8">
+    <main className="flex flex-1 flex-col gap-4 sm:gap-6 p-4 sm:p-6 lg:p-8 min-w-0 w-full overflow-x-hidden">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -365,14 +365,14 @@ export default async function AdminMeetingsPage() {
       </section>
 
       {/* Main Meetings Table */}
-      <section className="flex flex-col gap-3 bg-white rounded-xl border border-zinc-200 shadow-sm">
-        <div className="px-6 py-4 border-b border-zinc-200">
+      <section className="flex flex-col gap-3 bg-white rounded-xl border border-zinc-200 shadow-sm min-w-0 w-full overflow-hidden">
+        <div className="px-4 sm:px-6 py-4 border-b border-zinc-200">
           <h2 className="font-semibold text-[#1E1E1E]">
             Recent meetings
           </h2>
         </div>
         
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto w-full min-w-0">
           <table className="w-full min-w-[1100px] text-left text-sm">
             <thead>
               <tr className="border-b border-zinc-200 bg-zinc-50 text-zinc-700">

@@ -86,11 +86,11 @@ export function AdminSidebar() {
       {/* Mobile hamburger button */}
       <button
         onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg bg-[#0B1D33] text-white shadow-lg border border-[#F5F5F5]/10"
+        className="lg:hidden fixed top-2.5 left-4 z-40 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg bg-[#0B1D33] text-white shadow-md border border-[#F5F5F5]/10 hover:bg-[#132A47] transition-colors"
         aria-label="Toggle menu"
       >
         <svg
-          className="h-6 w-6"
+          className="h-5 w-5"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -122,10 +122,10 @@ export function AdminSidebar() {
       {mobileMenuOpen && (
         <>
           <div
-            className="lg:hidden fixed inset-0 bg-black/50 z-40"
+            className="lg:hidden fixed inset-0 bg-black/60 z-40 backdrop-blur-xs"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <nav className="lg:hidden fixed inset-y-0 left-0 z-40 w-64 flex flex-col border-r border-[#F5F5F5]/10 bg-[#0B1D33] shadow-2xl">
+          <nav className="lg:hidden fixed inset-y-0 left-0 z-50 w-64 flex flex-col border-r border-[#F5F5F5]/10 bg-[#0B1D33] shadow-2xl">
             {sidebarContent}
           </nav>
         </>

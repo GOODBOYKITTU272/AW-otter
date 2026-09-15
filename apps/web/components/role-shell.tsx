@@ -99,36 +99,6 @@ export function RoleShell({ children, role, userName, roleLabel }: RoleShellProp
 
   return (
     <div className="flex min-h-screen bg-[#0B1D33]">
-      {/* Mobile hamburger button */}
-      <button
-        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg bg-[#1E1E1E] text-white shadow-lg border border-[#F5F5F5]/10"
-        aria-label="Toggle menu"
-      >
-        <svg
-          className="h-6 w-6"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          {mobileMenuOpen ? (
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M6 18L18 6M6 6l12 12"
-            />
-          ) : (
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 6h16M4 12h16M4 18h16"
-            />
-          )}
-        </svg>
-      </button>
-
       {/* Desktop sidebar */}
       <nav className="hidden lg:flex w-64 shrink-0 flex-col border-r border-[#F5F5F5]/10 bg-[#1E1E1E]">
         {sidebarContent}
@@ -138,19 +108,53 @@ export function RoleShell({ children, role, userName, roleLabel }: RoleShellProp
       {mobileMenuOpen && (
         <>
           <div
-            className="lg:hidden fixed inset-0 bg-black/50 z-40"
+            className="lg:hidden fixed inset-0 bg-black/60 z-40 backdrop-blur-xs"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <nav className="lg:hidden fixed inset-y-0 left-0 z-40 w-64 flex flex-col border-r border-[#F5F5F5]/10 bg-[#1E1E1E] shadow-2xl">
+          <nav className="lg:hidden fixed inset-y-0 left-0 z-50 w-64 flex flex-col border-r border-[#F5F5F5]/10 bg-[#1E1E1E] shadow-2xl">
             {sidebarContent}
           </nav>
         </>
       )}
 
-      {/* Main content area */}
-      <main className="flex-1 flex flex-col overflow-x-hidden lg:ml-0 ml-0">
-        {children}
-      </main>
+      {/* Main content column */}
+      <div className="flex-1 flex flex-col min-w-0 w-full overflow-x-hidden">
+        {/* Mobile top app bar */}
+        <header className="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-[#1E1E1E] text-white border-b border-[#F5F5F5]/10 shadow-md">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-colors"
+              aria-label="Toggle menu"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                {mobileMenuOpen ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                )}
+              </svg>
+            </button>
+            <Link href={homeHref} className="flex items-center gap-2">
+              <div className="h-7 w-7 rounded-md bg-gradient-to-br from-[#2C76FF] to-[#29FE29] flex items-center justify-center shrink-0">
+                <span className="text-xs font-bold text-white">AW</span>
+              </div>
+              <span className="text-sm font-bold text-white tracking-tight">Wizz Echo</span>
+              <span className="text-[10px] font-semibold text-[#29FE29] uppercase px-1.5 py-0.5 rounded bg-[#29FE29]/10">
+                {role === "am" ? "AM" : "Manager"}
+              </span>
+            </Link>
+          </div>
+          <div className="flex items-center gap-2">
+            <SignOutButton />
+          </div>
+        </header>
+
+        {/* Main content area */}
+        <main className="flex-1 flex flex-col min-w-0 w-full overflow-x-hidden">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

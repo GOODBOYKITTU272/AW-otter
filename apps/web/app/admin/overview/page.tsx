@@ -345,8 +345,8 @@ export default async function AdminOverviewPage() {
   };
 
   return (
-    <main className="flex flex-1 flex-col gap-6 sm:gap-8 p-4 sm:p-8 max-w-[1600px]">
-      <div className="flex items-center justify-between">
+    <main className="flex flex-1 flex-col gap-4 sm:gap-6 lg:gap-8 p-4 sm:p-6 lg:p-8 max-w-[1600px] min-w-0 w-full overflow-x-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-2">
             <h1 className="text-3xl font-bold tracking-tight text-[#1E1E1E]">
