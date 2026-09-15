@@ -35,7 +35,7 @@ describe("VexaMeetingBotProvider", () => {
     await provider.createBot({
       meetingUrl: teamsUrl,
       idempotencyKey: "idem-1",
-      botName: "AW Echo · Test",
+      botName: "AI Note Maker · Test",
     });
 
     const [url, init] = fetchImpl.mock.calls[0] ?? [];
@@ -58,7 +58,7 @@ describe("VexaMeetingBotProvider", () => {
     const result = await provider.createBot({
       meetingUrl: teamsUrl,
       idempotencyKey: "idem-1",
-      botName: "AW Echo · Test",
+      botName: "AI Note Maker · Test",
       botAvatarUrl: "https://echo.applywizz.ai/bot-avatar.png",
     });
 
@@ -71,7 +71,7 @@ describe("VexaMeetingBotProvider", () => {
     expect(JSON.parse(String(init?.body))).toEqual({
       platform: "teams",
       meeting_url: teamsUrl,
-      bot_name: "AW Echo · Test",
+      bot_name: "AI Note Maker · Test",
       transcribe_enabled: false,
       bot_avatar_url: "https://echo.applywizz.ai/bot-avatar.png",
     });
@@ -95,7 +95,7 @@ describe("VexaMeetingBotProvider", () => {
     await provider.createBot({
       meetingUrl: teamsUrl,
       idempotencyKey: "idem-1",
-      botName: "AW Echo · Test",
+      botName: "AI Note Maker · Test",
       // botAvatarUrl intentionally omitted
     });
 
@@ -105,7 +105,7 @@ describe("VexaMeetingBotProvider", () => {
     expect(body).toEqual({
       platform: "teams",
       meeting_url: teamsUrl,
-      bot_name: "AW Echo · Test",
+      bot_name: "AI Note Maker · Test",
       transcribe_enabled: false,
     });
   });
@@ -122,7 +122,7 @@ describe("VexaMeetingBotProvider", () => {
       provider.createBot({
         meetingUrl: teamsUrl,
         idempotencyKey: "idem-1",
-        botName: "AW Echo · Test",
+        botName: "AI Note Maker · Test",
       }),
     ).rejects.toThrow(/native_meeting_id/);
   });
@@ -139,7 +139,7 @@ describe("VexaMeetingBotProvider", () => {
       provider.createBot({
         meetingUrl: teamsUrl,
         idempotencyKey: "idem-1",
-        botName: "AW Echo · Test",
+        botName: "AI Note Maker · Test",
       }),
     ).rejects.toBeInstanceOf(VexaAuthError);
   });
@@ -155,7 +155,7 @@ describe("VexaMeetingBotProvider", () => {
     const call = provider.createBot({
       meetingUrl: teamsUrl,
       idempotencyKey: "idem-1",
-      botName: "AW Echo · Test",
+      botName: "AI Note Maker · Test",
     });
     await expect(call).rejects.toBeInstanceOf(VexaRateLimitError);
     await expect(call).rejects.toMatchObject({ retryAfterSeconds: 45 });
@@ -200,7 +200,7 @@ describe("VexaMeetingBotProvider", () => {
     const result = await provider.createBot({
       meetingUrl: teamsUrl,
       idempotencyKey: "idem-req",
-      botName: "AW Echo · Test",
+      botName: "AI Note Maker · Test",
     });
     expect(result.status).toBe("scheduled");
     expect(result.providerBotId).toBe(providerBotId);
