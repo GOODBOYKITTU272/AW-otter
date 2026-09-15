@@ -18,6 +18,7 @@ type AuthStep =
 
 export default function LoginPage() {
   const searchParams = useSearchParams();
+  const [checkingSession, setCheckingSession] = useState(true);
   const [step, setStep] = useState<AuthStep>("email");
   const [email, setEmail] = useState("");
   const [emailOtp, setEmailOtp] = useState<string[]>(["", "", "", "", "", ""]);
@@ -32,31 +33,38 @@ export default function LoginPage() {
 
   useEffect(() => {
     async function checkExistingSession() {
-      const supabase = getSupabaseBrowserClient();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      try {
+        const supabase = getSupabaseBrowserClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
 
-      if (session) {
-        const { data: membership } = await supabase
-          .from("organization_memberships")
-          .select("role_id")
-          .eq("user_id", session.user.id)
-          .eq("status", "active")
-          .maybeSingle();
-
-        if (membership) {
-          const { data: role } = await supabase
-            .from("roles")
-            .select("key")
-            .eq("id", membership.role_id)
+        if (session) {
+          const { data: membership } = await supabase
+            .from("organization_memberships")
+            .select("role_id")
+            .eq("user_id", session.user.id)
+            .eq("status", "active")
             .maybeSingle();
 
-          const roleKey = role?.key;
-          if (roleKey && isSystemRoleKey(roleKey)) {
-            window.location.assign(ROLE_HOME_ROUTE[roleKey]);
+          if (membership) {
+            const { data: role } = await supabase
+              .from("roles")
+              .select("key")
+              .eq("id", membership.role_id)
+              .maybeSingle();
+
+            const roleKey = role?.key;
+            if (roleKey && isSystemRoleKey(roleKey)) {
+              window.location.assign(ROLE_HOME_ROUTE[roleKey]);
+              return;
+            }
           }
         }
+      } catch {
+        // Ignored
+      } finally {
+        setCheckingSession(false);
       }
     }
     checkExistingSession();
@@ -351,6 +359,15 @@ export default function LoginPage() {
     setTotpCode(["", "", "", "", "", ""]);
     setLocalError(null);
     setSuccessMessage(null);
+  }
+
+  if (checkingSession) {
+    return (
+      <main className="flex min-h-screen flex-1 flex-col items-center justify-center gap-4 bg-gradient-to-br from-[#0B1D33] to-[#1E1E1E] px-4 text-white">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
+        <p className="text-sm text-slate-400">Verifying session...</p>
+      </main>
+    );
   }
 
   return (
