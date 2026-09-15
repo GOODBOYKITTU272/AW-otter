@@ -36,6 +36,7 @@ export default async function ManagerMeetingsPage() {
   const { data: teamMeetings } = await supabase
     .from("meetings")
     .select("id, title, call_type, scheduled_start, owner_membership_id, customer_id")
+    .eq("is_test", false)
     .order("scheduled_start", { ascending: false })
     .limit(15);
 

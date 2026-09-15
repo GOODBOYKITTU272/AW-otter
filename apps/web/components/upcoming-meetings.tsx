@@ -80,6 +80,7 @@ export async function UpcomingMeetings({
     .select(
       "id, title, meeting_url, scheduled_start, scheduled_end, eligibility_status, customer_id, customer_link_status, needs_link_reason, call_type, owner_membership_id",
     )
+    .eq("is_test", false)
     .eq("lifecycle_status", "upcoming")
     .gte("scheduled_start", new Date().toISOString())
     .order("scheduled_start")

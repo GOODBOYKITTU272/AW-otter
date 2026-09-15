@@ -250,6 +250,7 @@ export default async function AdminMeetingsPage() {
       .select(
         "id, title, scheduled_start, scheduled_end, lifecycle_status, customer_id, customer_link_status, needs_link_reason, call_type, owner_membership_id",
       )
+      .eq("is_test", false)
       .order("scheduled_start", { ascending: false })
       .limit(50),
     supabase

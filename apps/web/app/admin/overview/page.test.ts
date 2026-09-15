@@ -190,7 +190,9 @@ describe("AdminOverviewPage honest health status", () => {
         }
         if (table === "meetings") {
           return {
-            select: vi.fn().mockResolvedValue({ count: 137 }),
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ count: 137 }),
+            }),
           };
         }
         if (table === "meeting_bot_jobs") {

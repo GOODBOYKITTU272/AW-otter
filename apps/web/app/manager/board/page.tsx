@@ -34,6 +34,7 @@ export default async function ManagerBoardPage() {
   const { data: todayMeetings } = await supabase
     .from("meetings")
     .select("id, owner_membership_id, scheduled_start, lifecycle_status")
+    .eq("is_test", false)
     .in("owner_membership_id", amIds)
     .gte("scheduled_start", todayStart.toISOString())
     .lte("scheduled_start", todayEnd.toISOString());

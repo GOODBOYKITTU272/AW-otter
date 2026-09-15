@@ -1794,6 +1794,7 @@ export type Database = {
           graph_event_type: string | null
           ical_uid: string
           id: string
+          is_test: boolean
           lifecycle_status: string
           linked_at: string | null
           linked_by_membership_id: string | null
@@ -1832,6 +1833,7 @@ export type Database = {
           graph_event_type?: string | null
           ical_uid: string
           id?: string
+          is_test?: boolean
           lifecycle_status?: string
           linked_at?: string | null
           linked_by_membership_id?: string | null
@@ -1870,6 +1872,7 @@ export type Database = {
           graph_event_type?: string | null
           ical_uid?: string
           id?: string
+          is_test?: boolean
           lifecycle_status?: string
           linked_at?: string | null
           linked_by_membership_id?: string | null
