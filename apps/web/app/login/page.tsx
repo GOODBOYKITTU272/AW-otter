@@ -84,6 +84,24 @@ export default function LoginPage() {
       return;
     }
 
+    try {
+      const checkRes = await fetch("/api/auth/check-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmedEmail }),
+      });
+      const checkData = await checkRes.json();
+
+      if (checkData?.hasVerifiedTotp) {
+        // Registered TOTP user -> route directly to Authenticator screen (ZERO email sent)
+        setStep("totp-login");
+        setSubmitting(false);
+        return;
+      }
+    } catch {
+      // Fallback to standard email flow on network error
+    }
+
     const supabase = getSupabaseBrowserClient();
     const { error: otpError } = await supabase.auth.signInWithOtp({
       email: trimmedEmail,
@@ -248,38 +266,57 @@ export default function LoginPage() {
 
     const supabase = getSupabaseBrowserClient();
     const { data: factors } = await supabase.auth.mfa.listFactors();
-    const verifiedFactor = factors?.totp?.find((f) => f.status === "verified");
+    const verifiedFactor =
+      factors?.totp?.find((f) => f.status === "verified") ||
+      factors?.all?.find(
+        (f) => f.factor_type === "totp" && f.status === "verified",
+      );
 
-    if (!verifiedFactor) {
-      setLocalError("No verified authenticator found. Please re-enroll.");
-      setSubmitting(false);
-      return;
+    if (verifiedFactor) {
+      const { error: challengeError, data: challengeData } =
+        await supabase.auth.mfa.challenge({
+          factorId: verifiedFactor.id,
+        });
+
+      if (!challengeError && challengeData) {
+        const { error: verifyError } = await supabase.auth.mfa.verify({
+          factorId: verifiedFactor.id,
+          challengeId: challengeData.id,
+          code,
+        });
+
+        if (!verifyError) {
+          await redirectToHome(supabase);
+          return;
+        }
+      }
     }
 
-    const { error: challengeError, data: challengeData } =
-      await supabase.auth.mfa.challenge({
-        factorId: verifiedFactor.id,
+    // Direct TOTP verification via server API (zero email OTP)
+    try {
+      const res = await fetch("/api/auth/verify-totp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          code,
+        }),
       });
 
-    if (challengeError || !challengeData) {
-      setLocalError("Failed to verify code.");
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setLocalError(
+          data.error || "Invalid code. Please check Microsoft Authenticator.",
+        );
+        setSubmitting(false);
+        return;
+      }
+
+      await redirectToHome(supabase);
+    } catch {
+      setLocalError("Network error. Please try again.");
       setSubmitting(false);
-      return;
     }
-
-    const { error: verifyError } = await supabase.auth.mfa.verify({
-      factorId: verifiedFactor.id,
-      challengeId: challengeData.id,
-      code,
-    });
-
-    if (verifyError) {
-      setLocalError("Invalid code. Please try again.");
-      setSubmitting(false);
-      return;
-    }
-
-    await redirectToHome(supabase);
   }
 
   async function redirectToHome(supabase: ReturnType<typeof getSupabaseBrowserClient>) {
