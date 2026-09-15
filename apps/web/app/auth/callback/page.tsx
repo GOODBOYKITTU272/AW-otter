@@ -9,6 +9,8 @@ import {
   isGenuineAuthCallbackEvent,
 } from "../set-password/auth-callback";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Supabase Auth callback page.
  * Handles BOTH magic link flows:
