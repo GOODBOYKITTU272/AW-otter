@@ -91,7 +91,8 @@ export default async function AdminOverviewPage() {
       .select("usage_metadata, status, model"),
     supabase
       .from("meetings")
-      .select("id", { count: "exact", head: true }),
+      .select("id", { count: "exact", head: true })
+      .eq("is_test", false),
     supabase
       .from("meeting_bot_jobs")
       .select("id", { count: "exact", head: true }),
