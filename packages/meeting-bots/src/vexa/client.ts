@@ -81,7 +81,7 @@ export class VexaMeetingBotProvider implements MeetingBotProvider {
         bot_name: input.botName,
         transcribe_enabled: false,
         ...(input.botAvatarUrl ? { bot_avatar_url: input.botAvatarUrl } : {}),
-        // record_video: true, // INVESTIGATE: Undocumented, may enable video if Vexa supports it
+        ...(process.env.ENABLE_VIDEO_RECORDING === "true" ? { record_video: true } : {}),
       }),
     });
 
