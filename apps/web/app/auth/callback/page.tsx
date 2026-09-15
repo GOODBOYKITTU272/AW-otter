@@ -11,9 +11,11 @@ export const dynamic = "force-dynamic";
 /**
  * Supabase Auth callback page.
  * Handles BOTH magic link flows:
- * 1. PKCE: ?code=<uuid> → exchangeCodeForSession
- * 2. Implicit: #access_token=...&refresh_token=... → detectSessionInUrl
+ * 1. PKCE: ?code=<uuid> → exchangeCodeForSession → getSession
+ * 2. Implicit: #access_token=...&refresh_token=... → setSession → getSession
  *
+ * Always succeeds if getSession() returns a valid session, without requiring
+ * the onAuthStateChange event to fire (which can be missed in implicit flows).
  * Server-rendered root page cannot see hash fragments, so this dedicated
  * client page is required to complete the auth handshake for magic links.
  */
@@ -25,27 +27,26 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     async function handleCallback() {
       const supabase = getSupabaseBrowserClient();
-      const currentUrl = window.location.href;
 
       const errorParam = searchParams.get("error");
       const errorDescription = searchParams.get("error_description");
+      const hashErrorMatch = window.location.hash.match(/[#&]error=([^&]+)/);
+      const hashErrorDescMatch = window.location.hash.match(/[#&]error_description=([^&]+)/);
 
-      if (errorParam) {
-        setError(errorDescription || "Authentication failed");
+      if (errorParam || hashErrorMatch) {
+        const errorMsg = errorDescription || 
+          (hashErrorDescMatch ? decodeURIComponent(hashErrorDescMatch[1]) : "Authentication failed");
+        setError(errorMsg);
         setTimeout(() => router.replace("/login"), 3000);
         return;
       }
-
-      if (!urlLooksLikeAuthCallback(currentUrl)) {
-        setError("No authentication code or token found");
-        setTimeout(() => router.replace("/login"), 3000);
-        return;
-      }
-
-      const unsubscribe = supabase.auth.onAuthStateChange(() => {});
 
       try {
         const code = searchParams.get("code");
+        const hash = window.location.hash.substring(1);
+        const hashParams = new URLSearchParams(hash);
+        const accessToken = hashParams.get("access_token");
+        const refreshToken = hashParams.get("refresh_token");
 
         if (code) {
           const { error: exchangeError } =
@@ -57,24 +58,24 @@ export default function AuthCallbackPage() {
             setTimeout(() => router.replace("/login"), 3000);
             return;
           }
-        } else {
-          // Implicit flow: check hash parameters for access_token and refresh_token
-          const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-          const accessToken = hashParams.get("access_token");
-          const refreshToken = hashParams.get("refresh_token");
+        } else if (accessToken && refreshToken) {
+          const { error: setSessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
 
-          if (accessToken && refreshToken) {
-            const { error: setSessionError } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-            if (setSessionError) {
-              console.error("Failed to set session from tokens:", setSessionError);
-            }
+          if (setSessionError) {
+            console.error("Failed to set session from hash:", setSessionError);
+            setError("Invalid or expired token. Please try again.");
+            setTimeout(() => router.replace("/login"), 3000);
+            return;
           }
+        } else if (!urlLooksLikeAuthCallback(window.location.href)) {
+          setError("No authentication code or token found");
+          setTimeout(() => router.replace("/login"), 3000);
+          return;
         }
 
-        // Verify session is established
         let {
           data: { session },
         } = await supabase.auth.getSession();
@@ -127,8 +128,6 @@ export default function AuthCallbackPage() {
         console.error("Auth callback error:", err);
         setError("An unexpected error occurred. Please try again.");
         setTimeout(() => router.replace("/login"), 3000);
-      } finally {
-        unsubscribe.data?.subscription.unsubscribe();
       }
     }
 
