@@ -23,16 +23,12 @@ export default function LoginPage() {
   const [emailOtp, setEmailOtp] = useState<string[]>(["", "", "", "", "", ""]);
   const [totpQrCode, setTotpQrCode] = useState("");
   const [totpCode, setTotpCode] = useState<string[]>(["", "", "", "", "", ""]);
-  const [error, setError] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    const errorParam = searchParams.get("error");
-    if (errorParam) {
-      setError(decodeURIComponent(errorParam));
-    }
-  }, [searchParams]);
+  const errorParam = searchParams.get("error");
+  const error = errorParam ? decodeURIComponent(errorParam) : localError;
 
   useEffect(() => {
     async function checkExistingSession() {
@@ -69,13 +65,13 @@ export default function LoginPage() {
   async function handleEmailSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
-    setError(null);
+    setLocalError(null);
     setSuccessMessage(null);
 
     const trimmedEmail = email.trim().toLowerCase();
 
     if (!isAllowedEmailDomain(trimmedEmail)) {
-      setError("Only @applywizz.ai emails can sign in.");
+      setLocalError("Only @applywizz.ai emails can sign in.");
       setSubmitting(false);
       return;
     }
@@ -90,7 +86,7 @@ export default function LoginPage() {
     });
 
     if (otpError) {
-      setError(
+      setLocalError(
         "Failed to send email code. Please ensure you have an active account.",
       );
       setSubmitting(false);
@@ -105,11 +101,11 @@ export default function LoginPage() {
   async function handleEmailOtpSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
-    setError(null);
+    setLocalError(null);
 
     const otpValue = emailOtp.join("");
     if (otpValue.length !== 6) {
-      setError("Please enter the complete 6-digit code.");
+      setLocalError("Please enter the complete 6-digit code.");
       setSubmitting(false);
       return;
     }
@@ -122,13 +118,13 @@ export default function LoginPage() {
     });
 
     if (verifyError) {
-      setError("Invalid or expired code. Please try again.");
+      setLocalError("Invalid or expired code. Please try again.");
       setSubmitting(false);
       return;
     }
 
     if (!data.session) {
-      setError("Failed to establish session. Please try again.");
+      setLocalError("Failed to establish session. Please try again.");
       setSubmitting(false);
       return;
     }
@@ -145,7 +141,7 @@ export default function LoginPage() {
         });
 
       if (enrollError || !enrollData) {
-        setError("Failed to initialize authenticator setup.");
+        setLocalError("Failed to initialize authenticator setup.");
         setSubmitting(false);
         return;
       }
@@ -162,11 +158,11 @@ export default function LoginPage() {
   async function handleTotpEnrollSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
-    setError(null);
+    setLocalError(null);
 
     const code = totpCode.join("");
     if (code.length !== 6) {
-      setError("Please enter the complete 6-digit code.");
+      setLocalError("Please enter the complete 6-digit code.");
       setSubmitting(false);
       return;
     }
@@ -178,7 +174,7 @@ export default function LoginPage() {
     );
 
     if (!unverifiedFactor) {
-      setError("No pending authenticator enrollment found.");
+      setLocalError("No pending authenticator enrollment found.");
       setSubmitting(false);
       return;
     }
@@ -189,7 +185,7 @@ export default function LoginPage() {
       });
 
     if (challengeError || !challengeData) {
-      setError("Failed to verify code.");
+      setLocalError("Failed to verify code.");
       setSubmitting(false);
       return;
     }
@@ -201,7 +197,7 @@ export default function LoginPage() {
     });
 
     if (verifyError) {
-      setError("Invalid code. Please try again.");
+      setLocalError("Invalid code. Please try again.");
       setSubmitting(false);
       return;
     }
@@ -212,11 +208,11 @@ export default function LoginPage() {
   async function handleTotpLoginSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
-    setError(null);
+    setLocalError(null);
 
     const code = totpCode.join("");
     if (code.length !== 6) {
-      setError("Please enter the complete 6-digit code.");
+      setLocalError("Please enter the complete 6-digit code.");
       setSubmitting(false);
       return;
     }
@@ -226,7 +222,7 @@ export default function LoginPage() {
     const verifiedFactor = factors?.totp?.find((f) => f.status === "verified");
 
     if (!verifiedFactor) {
-      setError("No verified authenticator found. Please re-enroll.");
+      setLocalError("No verified authenticator found. Please re-enroll.");
       setSubmitting(false);
       return;
     }
@@ -237,7 +233,7 @@ export default function LoginPage() {
       });
 
     if (challengeError || !challengeData) {
-      setError("Failed to verify code.");
+      setLocalError("Failed to verify code.");
       setSubmitting(false);
       return;
     }
@@ -249,7 +245,7 @@ export default function LoginPage() {
     });
 
     if (verifyError) {
-      setError("Invalid code. Please try again.");
+      setLocalError("Invalid code. Please try again.");
       setSubmitting(false);
       return;
     }
@@ -263,7 +259,7 @@ export default function LoginPage() {
     } = await supabase.auth.getSession();
 
     if (!session) {
-      setError("Session not found. Please try again.");
+      setLocalError("Session not found. Please try again.");
       setSubmitting(false);
       return;
     }
@@ -289,7 +285,7 @@ export default function LoginPage() {
     const roleKey = role?.key;
 
     if (!roleKey || !isSystemRoleKey(roleKey)) {
-      setError(
+      setLocalError(
         "Your account role is not recognized. Please contact your administrator.",
       );
       setSubmitting(false);
@@ -336,7 +332,7 @@ export default function LoginPage() {
     setEmail("");
     setEmailOtp(["", "", "", "", "", ""]);
     setTotpCode(["", "", "", "", "", ""]);
-    setError(null);
+    setLocalError(null);
     setSuccessMessage(null);
   }
 
