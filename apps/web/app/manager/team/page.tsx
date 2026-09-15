@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SignOutButton } from "@/components/sign-out-button";
+import { RoleShell } from "@/components/role-shell";
 import { StatusBadge, type BadgeTone } from "@/components/admin/status-badge";
 import { requireRole } from "@/lib/require-role";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
@@ -80,36 +80,18 @@ export default async function ManagerTeamPage() {
   const pendingReview = portfolio.filter((c) => c.pendingTruthCount > 0);
 
   return (
-    <main className="flex flex-1 flex-col">
-      <header className="border-b border-[#F5F5F5]/10 bg-[#1E1E1E] px-8 py-4">
-        <div className="flex items-center justify-between">
-          <Link href="/manager/overview" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <div className="h-8 w-8 rounded-lg bg-[#29FE29] flex items-center justify-center">
-              <span className="text-sm font-bold text-[#1E1E1E]">AW</span>
-            </div>
-            <span className="text-base font-bold tracking-tight text-white">
-              Apply Wizz Echo
-            </span>
-          </Link>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-[#F5F5F5]/90">
-              {membership.displayName} <span className="text-[#F5F5F5]/50">· Manager</span>
-            </span>
-            <SignOutButton />
-          </div>
-        </div>
-      </header>
-      <div className="flex flex-1 flex-col gap-6 p-8">
-        <h1 className="text-xl font-semibold tracking-tight">Team portfolio</h1>
+    <RoleShell role="manager" userName={membership.displayName} roleLabel="Manager">
+      <div className="flex flex-1 flex-col gap-6 p-8 bg-[#0B1D33]">
+        <h1 className="text-xl font-semibold tracking-tight text-white">Team portfolio</h1>
 
       {pendingReview.length > 0 ? (
-        <section className="rounded-lg border border-zinc-200 dark:border-zinc-800">
-          <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-            <h2 className="text-sm font-medium">
+        <section className="rounded-lg border border-[#1E1E1E]/10 bg-white">
+          <div className="border-b border-[#1E1E1E]/10 px-4 py-3">
+            <h2 className="text-sm font-medium text-[#1E1E1E]">
               Pending customer truth changes awaiting review
             </h2>
           </div>
-          <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
+          <ul className="divide-y divide-[#1E1E1E]/10">
             {pendingReview.map((c) => (
               <li
                 key={c.customerId}
@@ -117,11 +99,11 @@ export default async function ManagerTeamPage() {
               >
                 <Link
                   href={`/customers/${c.customerId}`}
-                  className="font-medium hover:underline"
+                  className="font-medium text-[#1E1E1E] hover:underline"
                 >
                   {c.name}
                 </Link>
-                <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                <span className="text-xs text-[#1E1E1E]/60">
                   {ownerNameById.get(c.ownerMembershipId) ?? "Unassigned"} ·{" "}
                   {c.pendingTruthCount} pending change
                   {c.pendingTruthCount === 1 ? "" : "s"}
@@ -136,25 +118,25 @@ export default async function ManagerTeamPage() {
         {owners.map((owner) => (
           <section
             key={owner.ownerId}
-            className="rounded-lg border border-zinc-200 dark:border-zinc-800"
+            className="rounded-lg border border-[#1E1E1E]/10 bg-white"
           >
-            <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-              <h2 className="text-sm font-medium">{owner.name}</h2>
-              <div className="flex gap-3 text-xs text-zinc-500 dark:text-zinc-400">
+            <div className="flex items-center justify-between border-b border-[#1E1E1E]/10 px-4 py-3">
+              <h2 className="text-sm font-medium text-[#1E1E1E]">{owner.name}</h2>
+              <div className="flex gap-3 text-xs text-[#1E1E1E]/60">
                 <span>{owner.customers.length} customers</span>
                 {owner.highCount > 0 ? (
-                  <span className="text-red-600 dark:text-red-400">
+                  <span className="text-red-600">
                     {owner.highCount} high
                   </span>
                 ) : null}
                 {owner.mediumCount > 0 ? (
-                  <span className="text-amber-600 dark:text-amber-400">
+                  <span className="text-amber-600">
                     {owner.mediumCount} medium
                   </span>
                 ) : null}
               </div>
             </div>
-            <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
+            <ul className="divide-y divide-[#1E1E1E]/10">
               {owner.customers.map((c) => {
                 const label = attentionLabel(c);
                 return (
@@ -165,7 +147,7 @@ export default async function ManagerTeamPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <Link
                         href={`/customers/${c.customerId}`}
-                        className="font-medium hover:underline"
+                        className="font-medium text-[#1E1E1E] hover:underline"
                       >
                         {c.name}
                       </Link>
@@ -178,13 +160,13 @@ export default async function ManagerTeamPage() {
                       ) : null}
                     </div>
                     {c.attention.reasons.length > 0 ? (
-                      <ul className="ml-4 list-disc text-xs text-zinc-500 dark:text-zinc-400">
+                      <ul className="ml-4 list-disc text-xs text-[#1E1E1E]/60">
                         {c.attention.reasons.map((r) => (
                           <li key={r.code}>{r.label}</li>
                         ))}
                       </ul>
                     ) : (
-                      <p className="text-xs text-zinc-400 dark:text-zinc-600">
+                      <p className="text-xs text-[#1E1E1E]/40">
                         Nothing needs attention.
                       </p>
                     )}
@@ -197,17 +179,17 @@ export default async function ManagerTeamPage() {
       </div>
 
         <div className="flex gap-4">
-          <Link href="/manager/overview" className="w-fit text-sm underline">
+          <Link href="/manager/overview" className="w-fit text-sm text-[#2C76FF] hover:underline">
             Manager overview
           </Link>
-          <Link href="/actions" className="w-fit text-sm underline">
+          <Link href="/actions" className="w-fit text-sm text-[#2C76FF] hover:underline">
             Actions
           </Link>
-          <Link href="/manager/meetings" className="w-fit text-sm underline">
+          <Link href="/manager/meetings" className="w-fit text-sm text-[#2C76FF] hover:underline">
             Meetings
           </Link>
         </div>
       </div>
-    </main>
+    </RoleShell>
   );
 }

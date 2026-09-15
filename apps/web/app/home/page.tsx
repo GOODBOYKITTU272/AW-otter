@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SignOutButton } from "@/components/sign-out-button";
+import { RoleShell } from "@/components/role-shell";
 import { UpcomingMeetings } from "@/components/upcoming-meetings";
 import { StatusBadge, type BadgeTone } from "@/components/admin/status-badge";
 import { ResolveAction } from "@/components/actions/resolve-action";
@@ -215,55 +215,20 @@ export default async function AccountManagerHomePage() {
   const firstName = membership.displayName.split(" ")[0] ?? membership.displayName;
 
   return (
-    <main className="flex flex-1 flex-col bg-[#F5F5F5]">
-      <header className="border-b border-[#1E1E1E]/10 bg-white px-4 sm:px-8 py-4 shadow-sm sticky top-0 z-10">
-        <div className="flex items-center justify-between max-w-6xl mx-auto w-full gap-4">
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            <Link href="/home" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-[#2C76FF] to-[#29FE29] flex items-center justify-center">
-                <span className="text-sm font-bold text-white">AW</span>
-              </div>
-              <div className="hidden sm:flex flex-col leading-tight">
-                <span className="text-base font-bold tracking-tight text-[#1E1E1E]">
-                  Wizz Echo
-                </span>
-                <span className="text-[10px] font-medium text-[#2C76FF] uppercase tracking-wide">
-                  AM
-                </span>
-              </div>
-            </Link>
-          </div>
-          <div className="flex items-center gap-3 sm:gap-6 shrink-0">
-            <div className="hidden sm:flex items-center gap-2">
-              <div className="h-8 w-8 rounded-full bg-[#2C76FF]/10 flex items-center justify-center">
-                <span className="text-xs font-bold text-[#2C76FF]">
-                  {membership.displayName.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase()}
-                </span>
-              </div>
-              <div className="hidden lg:flex flex-col leading-tight">
-                <span className="text-sm font-medium text-[#1E1E1E]">
-                  {membership.displayName}
-                </span>
-                <span className="text-xs text-[#1E1E1E]/50">Account Manager</span>
-              </div>
-            </div>
-            <SignOutButton />
-          </div>
-        </div>
-      </header>
-      <div className="flex flex-1 flex-col gap-4 sm:gap-6 p-4 sm:p-8 max-w-6xl mx-auto w-full">
+    <RoleShell role="am" userName={membership.displayName} roleLabel="Account Manager">
+      <div className="flex flex-1 flex-col gap-4 sm:gap-6 p-4 sm:p-8 max-w-6xl mx-auto w-full bg-[#0B1D33]">
         <div className="flex flex-col gap-2">
-          <h1 className="text-2xl sm:text-4xl font-bold tracking-tight text-[#1E1E1E]">
+          <h1 className="text-2xl sm:text-4xl font-bold tracking-tight text-white">
             {firstName}&apos;s day
           </h1>
-          <p className="text-sm sm:text-base text-[#1E1E1E]/70">
+          <p className="text-sm sm:text-base text-white/70">
             {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
           </p>
         </div>
 
       {/* Live Alerts - Phase 1 */}
       {liveAlerts.length > 0 ? (
-        <section className="rounded-xl border-2 border-[#FF5C5C] bg-gradient-to-br from-[#FF5C5C]/10 to-[#FFDE59]/5 shadow-xl">
+        <section className="rounded-xl border-2 border-[#FF5C5C] bg-gradient-to-br from-[#FF5C5C]/10 to-[#FFDE59]/5 shadow-xl backdrop-blur-sm">
           <div className="border-b-2 border-[#FF5C5C]/30 bg-[#FF5C5C]/5 px-5 py-3">
             <div className="flex items-center gap-2">
               <span className="text-xl">🚨</span>
@@ -286,15 +251,15 @@ export default async function AccountManagerHomePage() {
                             : "Customer Missing 15min"}
                       </StatusBadge>
                       {alert.occurrenceCount > 1 ? (
-                        <span className="text-xs text-[#1E1E1E]/60">
+                        <span className="text-xs text-[#F5F5F5]/60">
                           × {alert.occurrenceCount}
                         </span>
                       ) : null}
                     </div>
-                    <p className="text-sm font-medium text-[#1E1E1E] mb-1">
+                    <p className="text-sm font-medium text-white mb-1">
                       {alert.message}
                     </p>
-                    <p className="text-xs text-[#1E1E1E]/70">
+                    <p className="text-xs text-[#F5F5F5]/70">
                       First detected: {new Date(alert.firstSeenAt).toLocaleTimeString()}
                       {alert.lastSeenAt !== alert.firstSeenAt && (
                         <> · Last seen: {new Date(alert.lastSeenAt).toLocaleTimeString()}</>
@@ -303,7 +268,7 @@ export default async function AccountManagerHomePage() {
                   </div>
                   <Link
                     href={`/admin/meetings/${alert.meetingId}`}
-                    className="rounded-lg bg-[#FF5C5C] px-4 py-2 text-sm font-semibold text-white hover:bg-[#FF5C5C]/90 transition-all shadow-md"
+                    className="rounded-lg bg-[#FF5C5C] px-4 py-2 text-sm font-semibold text-white hover:bg-[#FF5C5C]/90 transition-all shadow-md min-h-[44px] flex items-center"
                   >
                     Take Action →
                   </Link>
@@ -677,7 +642,7 @@ export default async function AccountManagerHomePage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-base font-semibold text-[#1E1E1E]">Upcoming customer calls</h2>
+        <h2 className="mb-3 text-base font-semibold text-white">Upcoming customer calls</h2>
         <UpcomingMeetings supabase={supabase} showRequestAction />
       </section>
 
@@ -729,10 +694,7 @@ export default async function AccountManagerHomePage() {
         )}
       </section>
 
-        <Link href="/integrations" className="w-fit text-sm text-[#2C76FF] hover:underline">
-          Integrations
-        </Link>
       </div>
-    </main>
+    </RoleShell>
   );
 }

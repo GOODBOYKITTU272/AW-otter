@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SignOutButton } from "@/components/sign-out-button";
+import { RoleShell } from "@/components/role-shell";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { requireRole } from "@/lib/require-role";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
@@ -92,64 +92,17 @@ export default async function ManagerBoardPage() {
   });
 
   return (
-    <div className="flex h-screen bg-[#F5F5F5]">
+    <RoleShell role="manager" userName={membership.displayName} roleLabel={isSenior ? "Senior Manager" : "Manager"}>
+      <div className="flex h-screen bg-[#0B1D33]">
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="border-b border-[#1E1E1E]/10 bg-white px-4 sm:px-8 py-4 shadow-sm">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3 sm:gap-6 min-w-0">
-              <Link href="/manager/board" className="flex items-center gap-2 hover:opacity-80 transition-opacity shrink-0">
-                <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-[#2C76FF] to-[#29FE29] flex items-center justify-center">
-                  <span className="text-sm font-bold text-white">W</span>
-                </div>
-                <div className="hidden sm:flex flex-col leading-tight">
-                  <span className="text-base font-bold tracking-tight text-[#1E1E1E]">
-                    Wizz Echo
-                  </span>
-                  <span className="text-[10px] font-medium text-[#2C76FF] uppercase tracking-wide">
-                    Manager
-                  </span>
-                </div>
-              </Link>
-              
-              <div className="hidden md:flex items-center gap-1 ml-4">
-                <Link
-                  href="/manager/board"
-                  className="px-4 py-2 text-sm font-medium text-[#2C76FF] bg-[#2C76FF]/10 rounded-lg min-h-[44px] flex items-center"
-                >
-                  Dashboard
-                </Link>
-                <Link
-                  href="/manager/meetings"
-                  className="px-4 py-2 text-sm font-medium text-[#1E1E1E]/70 hover:bg-[#1E1E1E]/5 rounded-lg transition-colors min-h-[44px] flex items-center"
-                >
-                  Meetings
-                </Link>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 sm:gap-6 shrink-0">
-              <div className="hidden sm:flex items-center gap-2">
-                <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#29FE29] to-[#2C76FF] flex items-center justify-center">
-                  <span className="text-sm font-bold text-white">
-                    {membership.displayName.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase()}
-                  </span>
-                </div>
-                <span className="hidden lg:inline text-sm font-medium text-[#1E1E1E]">{isSenior ? "Ops Manager" : "Manager"}</span>
-              </div>
-              <SignOutButton />
-            </div>
-          </div>
-        </header>
-
         {/* Main Board Content */}
         <main className="flex-1 overflow-auto p-4 sm:p-8">
           <div className="max-w-[1400px] mx-auto">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
               <div>
-                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1E1E1E]">AM Board</h1>
-                <p className="text-sm text-[#1E1E1E]/60 mt-1">
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">AM Board</h1>
+                <p className="text-sm text-white/70 mt-1">
                   Real-time overview of Account Managers and today&apos;s activity. Scroll to see all.
                 </p>
               </div>
@@ -178,7 +131,7 @@ export default async function ManagerBoardPage() {
                 <option>On call</option>
                 <option>Offline</option>
               </select>
-              <button className="rounded-lg border border-[#1E1E1E]/10 bg-white px-4 py-2 text-sm font-medium text-[#2C76FF] hover:bg-[#2C76FF]/5 transition-colors min-h-[44px]">
+              <button className="rounded-lg border border-[#1E1E1E]/10 bg-white px-4 py-2 text-sm font-medium text-[#2C76FF] hover:bg-[#F5F5F5] transition-colors min-h-[44px]">
                 Clear Filters
               </button>
             </div>
@@ -294,7 +247,7 @@ export default async function ManagerBoardPage() {
             </div>
 
             {/* System Status */}
-            <div className="mt-6 flex items-center justify-between text-xs text-[#1E1E1E]/60">
+            <div className="mt-6 flex items-center justify-between text-xs text-white/60">
               <span>All times in UTC+0 • Data refreshes every 30 seconds</span>
               <div className="flex items-center gap-2">
                 <span>System Status</span>
@@ -309,7 +262,7 @@ export default async function ManagerBoardPage() {
       </div>
 
       {/* Alert Inbox Sidebar */}
-      <aside className="w-96 border-l border-[#1E1E1E]/10 bg-white flex flex-col overflow-hidden">
+      <aside className="w-96 border-l border-[#F5F5F5]/10 bg-white flex flex-col overflow-hidden">
         <div className="border-b border-[#1E1E1E]/10 px-6 py-4 bg-[#F5F5F5]">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -382,5 +335,6 @@ export default async function ManagerBoardPage() {
         </div>
       </aside>
     </div>
+    </RoleShell>
   );
 }
