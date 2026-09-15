@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
+import { createSupabaseServerClient } from "@applywizz/database/server";
 import { isAllowedEmailDomain } from "@applywizz/auth";
 import { ROLE_HOME_ROUTE, isSystemRoleKey } from "@applywizz/domain";
 
@@ -53,8 +54,28 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. Establish AAL1 session for user
-    const userClient = createClient(supabaseUrl, anonKey);
+    // 2. Prepare response and SSR cookie store bridge
+    let redirectUrl = "/admin/overview";
+    const responseCookies: { name: string; value: string; options: Record<string, unknown> }[] = [];
+
+    const cookieStore = await cookies();
+    const userClient = createSupabaseServerClient(supabaseUrl, anonKey, {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        for (const { name, value, options } of cookiesToSet) {
+          try {
+            cookieStore.set(name, value, options);
+          } catch {
+            // Ignored
+          }
+          responseCookies.push({ name, value, options: options as Record<string, unknown> });
+        }
+      },
+    });
+
+    // 3. Establish AAL1 session using SSR client so cookies are properly tracked
     const { data: verifyData, error: verifyError } =
       await userClient.auth.verifyOtp({
         email: trimmedEmail,
@@ -69,7 +90,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. Find verified TOTP factor
+    // 4. Find verified TOTP factor
     const { data: factors, error: mfaError } =
       await userClient.auth.mfa.listFactors();
 
@@ -86,7 +107,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 4. Create challenge & verify user's Microsoft Authenticator code
+    // 5. Challenge & verify user's Microsoft Authenticator code on SSR client
     const { data: mfaVerifyData, error: mfaVerifyError } =
       await userClient.auth.mfa.challengeAndVerify({
         factorId: totpFactor.id,
@@ -102,17 +123,15 @@ export async function POST(request: Request) {
         });
       });
 
-    if (mfaVerifyError || !mfaVerifyData?.access_token) {
+    if (mfaVerifyError || !mfaVerifyData) {
       return NextResponse.json(
         { error: "Invalid code. Please check Microsoft Authenticator and try again." },
         { status: 400 },
       );
     }
 
-    // 5. Query user active membership & role home route
-    let redirectUrl = "/admin/overview";
+    // 6. Query user active membership & role home route
     const userId = mfaVerifyData.user?.id || verifyData.user?.id;
-
     if (userId) {
       const { data: membership } = await adminSupabase
         .from("organization_memberships")
@@ -135,40 +154,14 @@ export async function POST(request: Request) {
       }
     }
 
-    // 6. Construct response with session cookies & role redirectUrl
+    // 7. Construct final response with SSR session cookies attached
     const response = NextResponse.json({
       success: true,
       redirectUrl,
     });
 
-    const projectRef = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || "supabase";
-    const cookieName = `sb-${projectRef}-auth-token`;
-
-    const cookieValue = JSON.stringify([
-      mfaVerifyData.access_token,
-      mfaVerifyData.refresh_token,
-      null,
-      null,
-      mfaVerifyData.user?.id,
-    ]);
-
-    const cookieOpts = {
-      path: "/",
-      sameSite: "lax" as const,
-      httpOnly: false,
-      secure: process.env.NODE_ENV === "production",
-      maxAge: mfaVerifyData.expires_in || 3600,
-    };
-
-    response.cookies.set(cookieName, cookieValue, cookieOpts);
-    response.cookies.set(`${cookieName}.0`, cookieValue, cookieOpts);
-
-    try {
-      const cookieStore = await cookies();
-      cookieStore.set(cookieName, cookieValue, cookieOpts);
-      cookieStore.set(`${cookieName}.0`, cookieValue, cookieOpts);
-    } catch {
-      // Ignored
+    for (const { name, value, options } of responseCookies) {
+      response.cookies.set(name, value, options);
     }
 
     return response;
