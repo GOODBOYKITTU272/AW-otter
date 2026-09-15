@@ -46,13 +46,13 @@ const BOT_STATUS_TONE: Record<string, BadgeTone> = {
 // mockup shows exactly this line, no Invite Bot button, no provider
 // settings, ever.
 const BOT_STATUS_LABEL: Record<string, string> = {
-  pending: "Preparing AW Echo",
-  scheduled: "AW Echo scheduled",
-  joining: "AW Echo joining",
-  joined: "AW Echo in the meeting",
-  completed: "AW Echo completed",
-  cancelled: "AW Echo not attending",
-  failed: "AW Echo could not join",
+  pending: "Preparing AI Note Maker",
+  scheduled: "AI Note Maker scheduled",
+  joining: "AI Note Maker joining",
+  joined: "AI Note Maker in the meeting",
+  completed: "AI Note Maker completed",
+  cancelled: "AI Note Maker not attending",
+  failed: "AI Note Maker could not join",
 };
 
 /**

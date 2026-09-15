@@ -1,11 +1,11 @@
 /**
  * Generates the bot display name for meetings based on the owner's display name.
- * Format: "AW Echo · {FirstName}" where FirstName is the first token from the
+ * Format: "AI Note Maker · {FirstName}" where FirstName is the first token from the
  * meeting owner membership's display_name field.
- * Falls back to "AW Echo" if no display name is available.
+ * Falls back to "AI Note Maker" if no display name is available.
  */
 export function generateBotDisplayName(ownerDisplayName: string | null | undefined): string {
-  const DEFAULT_BOT_NAME = "AW Echo";
+  const DEFAULT_BOT_NAME = "AI Note Maker";
   
   if (!ownerDisplayName || ownerDisplayName.trim() === "") {
     return DEFAULT_BOT_NAME;
