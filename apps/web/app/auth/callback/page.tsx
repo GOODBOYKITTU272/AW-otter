@@ -4,10 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { ROLE_HOME_ROUTE, isSystemRoleKey } from "@applywizz/domain";
-import {
-  urlLooksLikeAuthCallback,
-  isGenuineAuthCallbackEvent,
-} from "../set-password/auth-callback";
+import { urlLooksLikeAuthCallback } from "../set-password/auth-callback";
 
 export const dynamic = "force-dynamic";
 
@@ -45,13 +42,7 @@ export default function AuthCallbackPage() {
         return;
       }
 
-      let sessionEstablished = false;
-
-      const unsubscribe = supabase.auth.onAuthStateChange((event) => {
-        if (isGenuineAuthCallbackEvent(event)) {
-          sessionEstablished = true;
-        }
-      });
+      const unsubscribe = supabase.auth.onAuthStateChange(() => {});
 
       try {
         const code = searchParams.get("code");
@@ -66,22 +57,37 @@ export default function AuthCallbackPage() {
             setTimeout(() => router.replace("/login"), 3000);
             return;
           }
+        } else {
+          // Implicit flow: check hash parameters for access_token and refresh_token
+          const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+          const accessToken = hashParams.get("access_token");
+          const refreshToken = hashParams.get("refresh_token");
+
+          if (accessToken && refreshToken) {
+            const { error: setSessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            if (setSessionError) {
+              console.error("Failed to set session from tokens:", setSessionError);
+            }
+          }
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 500));
-
-        if (!sessionEstablished) {
-          setError("Session could not be established. Please try again.");
-          setTimeout(() => router.replace("/login"), 3000);
-          return;
-        }
-
-        const {
+        // Verify session is established
+        let {
           data: { session },
         } = await supabase.auth.getSession();
 
         if (!session) {
-          setError("Session not found. Please try again.");
+          // Short fallback retry for background session detection
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          const retry = await supabase.auth.getSession();
+          session = retry.data.session;
+        }
+
+        if (!session) {
+          setError("Session could not be established. Please try again.");
           setTimeout(() => router.replace("/login"), 3000);
           return;
         }
@@ -94,7 +100,7 @@ export default function AuthCallbackPage() {
           .maybeSingle();
 
         if (!membership) {
-          router.replace("/access-pending");
+          window.location.assign("/access-pending");
           return;
         }
 
@@ -107,7 +113,7 @@ export default function AuthCallbackPage() {
         const roleKey = role?.key;
 
         if (!roleKey || !isSystemRoleKey(roleKey)) {
-          router.replace("/access-pending");
+          window.location.assign("/access-pending");
           return;
         }
 
@@ -116,7 +122,7 @@ export default function AuthCallbackPage() {
         cleanUrl.hash = "";
         window.history.replaceState({}, "", cleanUrl.toString());
 
-        router.replace(ROLE_HOME_ROUTE[roleKey]);
+        window.location.assign(ROLE_HOME_ROUTE[roleKey]);
       } catch (err) {
         console.error("Auth callback error:", err);
         setError("An unexpected error occurred. Please try again.");
