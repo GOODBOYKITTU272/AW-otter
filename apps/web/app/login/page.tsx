@@ -155,7 +155,11 @@ export default function LoginPage() {
     }
 
     const { data: factors } = await supabase.auth.mfa.listFactors();
-    const totpFactor = factors?.totp?.find((f) => f.status === "verified");
+    const totpFactor =
+      factors?.totp?.find((f) => f.status === "verified") ||
+      factors?.all?.find(
+        (f) => f.factor_type === "totp" && f.status === "verified",
+      );
 
     if (!totpFactor) {
       const { data: enrollData, error: enrollError } =
