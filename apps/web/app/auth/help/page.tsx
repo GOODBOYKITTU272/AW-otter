@@ -37,6 +37,7 @@ export default function AuthHelpPage() {
       email: trimmedEmail,
       options: {
         shouldCreateUser: false,
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
 
