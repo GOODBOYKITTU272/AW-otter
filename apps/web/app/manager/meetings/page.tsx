@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SignOutButton } from "@/components/sign-out-button";
+import { RoleShell } from "@/components/role-shell";
 import { UpcomingMeetings } from "@/components/upcoming-meetings";
 import { StatusBadge, type BadgeTone } from "@/components/admin/status-badge";
 import { requireRole } from "@/lib/require-role";
@@ -82,31 +82,13 @@ export default async function ManagerMeetingsPage() {
   const customerById = new Map((customersResult.data ?? []).map((c) => [c.id, c.name]));
 
   return (
-    <main className="flex flex-1 flex-col">
-      <header className="border-b border-[#F5F5F5]/10 bg-[#1E1E1E] px-8 py-4">
-        <div className="flex items-center justify-between">
-          <Link href="/manager/overview" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <div className="h-8 w-8 rounded-lg bg-[#29FE29] flex items-center justify-center">
-              <span className="text-sm font-bold text-[#1E1E1E]">AW</span>
-            </div>
-            <span className="text-base font-bold tracking-tight text-white">
-              Apply Wizz Echo
-            </span>
-          </Link>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-[#F5F5F5]/90">
-              {membership.displayName} <span className="text-[#F5F5F5]/50">· Manager</span>
-            </span>
-            <SignOutButton />
-          </div>
-        </div>
-      </header>
-      <div className="flex flex-1 flex-col gap-8 p-8">
-        <h1 className="text-xl font-semibold tracking-tight">Team Meetings & Review Gate</h1>
+    <RoleShell role="manager" userName={membership.displayName} roleLabel="Manager">
+      <div className="flex flex-1 flex-col gap-8 p-8 bg-[#0B1D33]">
+        <h1 className="text-xl font-semibold tracking-tight text-white">Team Meetings & Review Gate</h1>
 
       {/* Upcoming Team Meetings */}
       <section className="flex flex-col gap-3">
-        <h2 className="text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+        <h2 className="text-base font-semibold tracking-tight text-white">
           Upcoming Team Meetings
         </h2>
         <UpcomingMeetings supabase={supabase} showOwner />
@@ -115,20 +97,20 @@ export default async function ManagerMeetingsPage() {
       {/* Team Recap Review Queue */}
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+          <h2 className="text-base font-semibold tracking-tight text-white">
             Conversation Intelligence & Recap Review Queue
           </h2>
-          <span className="text-xs text-zinc-500">
+          <span className="text-xs text-[#F5F5F5]/60">
             {meetings.length} recent meeting{meetings.length === 1 ? "" : "s"}
           </span>
         </div>
 
-        <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="overflow-hidden rounded-lg border border-[#F5F5F5]/10 bg-[#1E1E1E] shadow-sm">
           {meetings.length === 0 ? (
-            <p className="p-6 text-center text-sm text-zinc-500">No team meetings found.</p>
+            <p className="p-6 text-center text-sm text-[#F5F5F5]/60">No team meetings found.</p>
           ) : (
             <table className="w-full text-left text-xs">
-              <thead className="border-b border-zinc-200 bg-zinc-50 font-medium text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/50 dark:text-zinc-400">
+              <thead className="border-b border-[#F5F5F5]/10 bg-[#0B1D33] font-medium text-[#F5F5F5]/60">
                 <tr>
                   <th className="px-4 py-3">Meeting / Customer</th>
                   <th className="px-4 py-3">Account Manager</th>
@@ -138,7 +120,7 @@ export default async function ManagerMeetingsPage() {
                   <th className="px-4 py-3 text-right">Review Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+              <tbody className="divide-y divide-[#F5F5F5]/10">
                 {meetings.map((m) => {
                   const recap = recapByMeeting.get(m.id);
                   const integrity = integrityByMeeting.get(m.id);
@@ -146,15 +128,15 @@ export default async function ManagerMeetingsPage() {
                   const customerName = m.customer_id ? customerById.get(m.customer_id) ?? "Unlinked Customer" : null;
 
                   return (
-                    <tr key={m.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50">
-                      <td className="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">
+                    <tr key={m.id} className="hover:bg-[#F5F5F5]/5">
+                      <td className="px-4 py-3 font-medium text-white">
                         <div className="truncate max-w-xs">{m.title}</div>
                         {customerName && (
-                          <div className="text-[11px] text-zinc-500">{customerName}</div>
+                          <div className="text-[11px] text-[#F5F5F5]/60">{customerName}</div>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{ownerName}</td>
-                      <td className="px-4 py-3 text-zinc-500">
+                      <td className="px-4 py-3 text-[#F5F5F5]/70">{ownerName}</td>
+                      <td className="px-4 py-3 text-[#F5F5F5]/60">
                         {new Date(m.scheduled_start).toLocaleDateString(undefined, {
                           month: "short",
                           day: "numeric",
@@ -166,7 +148,7 @@ export default async function ManagerMeetingsPage() {
                             {INTEGRITY_LABELS[integrity.overall_verdict] ?? integrity.overall_verdict}
                           </StatusBadge>
                         ) : (
-                          <span className="text-zinc-400 italic">Not evaluated</span>
+                          <span className="text-[#F5F5F5]/40 italic">Not evaluated</span>
                         )}
                       </td>
                       <td className="px-4 py-3">
@@ -175,13 +157,13 @@ export default async function ManagerMeetingsPage() {
                             {recap.status === "approved" ? "Approved" : recap.status === "ready_for_review" ? "Ready for Review" : "Draft"}
                           </StatusBadge>
                         ) : (
-                          <span className="text-zinc-400 italic">No recap</span>
+                          <span className="text-[#F5F5F5]/40 italic">No recap</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <Link
                           href={`/meetings/${m.id}/recap`}
-                          className="font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300"
+                          className="font-medium text-[#2C76FF] hover:text-[#2C76FF]/80"
                         >
                           Review Recap →
                         </Link>
@@ -196,14 +178,14 @@ export default async function ManagerMeetingsPage() {
       </section>
 
         <div className="flex gap-4 pt-2">
-          <Link href="/manager/team" className="w-fit text-sm underline">
+          <Link href="/manager/team" className="w-fit text-sm text-[#2C76FF] hover:underline">
             Team portfolio
           </Link>
-          <Link href="/actions" className="w-fit text-sm underline">
+          <Link href="/actions" className="w-fit text-sm text-[#2C76FF] hover:underline">
             Actions
           </Link>
         </div>
       </div>
-    </main>
+    </RoleShell>
   );
 }

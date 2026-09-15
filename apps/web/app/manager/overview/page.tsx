@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SignOutButton } from "@/components/sign-out-button";
+import { RoleShell } from "@/components/role-shell";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { requireRole } from "@/lib/require-role";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
@@ -74,26 +74,8 @@ export default async function ManagerOverviewPage() {
   );
 
   return (
-    <main className="flex flex-1 flex-col bg-[#0B1D33]">
-      <header className="border-b border-[#F5F5F5]/10 bg-[#1E1E1E] px-8 py-4">
-        <div className="flex items-center justify-between max-w-6xl mx-auto w-full">
-          <Link href="/manager/overview" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <div className="h-8 w-8 rounded-lg bg-[#29FE29] flex items-center justify-center">
-              <span className="text-sm font-bold text-[#1E1E1E]">AW</span>
-            </div>
-            <span className="text-base font-bold tracking-tight text-white">
-              Apply Wizz Echo
-            </span>
-          </Link>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-[#F5F5F5]/90">
-              {membership.displayName} <span className="text-[#F5F5F5]/50">· {isSenior ? "Senior Manager" : "Manager"}</span>
-            </span>
-            <SignOutButton />
-          </div>
-        </div>
-      </header>
-      <div className="flex flex-1 flex-col gap-6 p-8 max-w-6xl mx-auto w-full">
+    <RoleShell role="manager" userName={membership.displayName} roleLabel={isSenior ? "Senior Manager" : "Manager"}>
+      <div className="flex flex-1 flex-col gap-6 p-8 max-w-6xl mx-auto w-full bg-[#0B1D33]">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-white">
             {isSenior ? "Senior Leadership Pulse" : "Team Pulse"}
@@ -323,6 +305,6 @@ export default async function ManagerOverviewPage() {
         </Link>
       </div>
       </div>
-    </main>
+    </RoleShell>
   );
 }
