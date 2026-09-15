@@ -1,3 +1,16 @@
+-- ╔═══════════════════════════════════════════════════════════════════════╗
+-- ║                    ⚠️  LOCAL DEVELOPMENT ONLY  ⚠️                     ║
+-- ║                                                                       ║
+-- ║  This file contains FAKE test data for local development ONLY.       ║
+-- ║  It is NEVER executed in production deployments.                     ║
+-- ║                                                                       ║
+-- ║  • Supabase production deployments run ONLY migration files          ║
+-- ║  • seed.sql is excluded from production by design                    ║
+-- ║  • All identities are clearly fake (e.g., @org-a.test domains)       ║
+-- ║                                                                       ║
+-- ║  DO NOT manually run this against production databases.              ║
+-- ╚═══════════════════════════════════════════════════════════════════════╝
+--
 -- Local development and test fixtures only. Clearly fake identities, never
 -- real employee data. Organization-independent reference data (system
 -- roles, permissions) lives in migrations, not here.
@@ -11,6 +24,27 @@
 -- department "Customer Success" / team "Account Management".
 -- Org B: Admin B, Manager B -> AM B1 (no department/team — not needed to
 -- prove cross-org isolation, which is what Org B fixtures are for).
+
+-- Production safety check: Fail immediately if any production indicators present
+DO $$
+BEGIN
+  -- Fail if this is being run on a production-like database
+  IF EXISTS (
+    SELECT 1 FROM pg_database 
+    WHERE datname = current_database() 
+    AND datname NOT LIKE '%local%' 
+    AND datname NOT LIKE '%dev%'
+    AND datname NOT LIKE '%test%'
+  ) THEN
+    RAISE EXCEPTION 'ABORT: seed.sql must NEVER run against production. This file contains fake test data only.';
+  END IF;
+  
+  -- Warn even in development
+  RAISE NOTICE '══════════════════════════════════════════════════════════';
+  RAISE NOTICE ' Loading LOCAL DEV seed data (fake test organizations)';
+  RAISE NOTICE ' Database: %', current_database();
+  RAISE NOTICE '══════════════════════════════════════════════════════════';
+END $$;
 
 insert into public.organizations (id, name, slug, status, timezone) values
   ('00000000-0000-0000-0000-0000000000a1', 'Organization A (Test)', 'org-a-test', 'active', 'America/New_York'),
