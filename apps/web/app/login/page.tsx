@@ -111,16 +111,33 @@ export default function LoginPage() {
     }
 
     const supabase = getSupabaseBrowserClient();
-    const { error: verifyError, data } = await supabase.auth.verifyOtp({
+    let verifyError;
+    let data;
+
+    const verifyResult = await supabase.auth.verifyOtp({
       email: email.trim().toLowerCase(),
       token: otpValue,
       type: "email",
     });
 
+    verifyError = verifyResult.error;
+    data = verifyResult.data;
+
     if (verifyError) {
-      setLocalError("Invalid or expired code. Please try again.");
-      setSubmitting(false);
-      return;
+      const retryResult = await supabase.auth.verifyOtp({
+        email: email.trim().toLowerCase(),
+        token: otpValue,
+        type: "magiclink",
+      });
+
+      verifyError = retryResult.error;
+      data = retryResult.data;
+
+      if (verifyError) {
+        setLocalError("Invalid or expired code. Please try again.");
+        setSubmitting(false);
+        return;
+      }
     }
 
     if (!data.session) {
